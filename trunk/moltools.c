@@ -28,7 +28,7 @@
 
 
 #define BUFFER_LENGTH 256
-static PyObject *read_xyz(FILE *fd) {
+static PyObject *read_xyz(FILE *fd, float factor) {
 
 	int nofatoms, pos;
 	char *buffer, *buffpos, *token;
@@ -106,15 +106,15 @@ static PyObject *read_xyz(FILE *fd) {
 		if ( (token = strtok(NULL, " ")) == NULL) {
 			PyErr_SetString(PyExc_IOError, "Missing coordinate");
 			return NULL; }
-		xyz[3*pos + 0] = atof(token);
+		xyz[3*pos + 0] = atof(token) * factor;
 		if ( (token = strtok(NULL, " ")) == NULL) {
 			PyErr_SetString(PyExc_IOError, "Missing coordinate");
 			return NULL; }
-		xyz[3*pos + 1] = atof(token);
+		xyz[3*pos + 1] = atof(token) * factor;
 		if ( (token = strtok(NULL, " ")) == NULL) {
 			PyErr_SetString(PyExc_IOError, "Missing coordinate");
 			return NULL; }
-		xyz[3*pos + 2] = atof(token);
+		xyz[3*pos + 2] = atof(token) * factor;
 
 		/* Read charge, if present */
 		token = strtok(NULL, " ");
@@ -259,7 +259,7 @@ static PyObject *read_molden(FILE *fd) {
 			else if ( !strcmp(line, "[geometries] (xyz)" ) ) {
 				py_geom = PyList_New(n_geo);
 				for ( i = 0; i < n_geo; i++ )
-					PyList_SetItem(py_geom, i, read_xyz(fd));
+					PyList_SetItem(py_geom, i, read_xyz(fd, 1.0));
 				key = PyString_FromString("geometries");
 				PyDict_SetItem(py_result, key, py_geom);
 				Py_DECREF(key);
@@ -378,17 +378,34 @@ static PyObject *read_molden(FILE *fd) {
 
 
 
-static PyObject *exposed_read(PyObject *self, PyObject *args) {
+static PyObject *exposed_read(PyObject *self, PyObject *args, PyObject *kwds) {
 
 	const char *filename;
 	char *line;
+	char *unit = NULL;
+	float factor;
 	FILE *fd, *test;
+
+	static char *kwlist[] = {"file", "unit", NULL};
 
 	PyObject *py_result;
 
 	py_result = NULL;
 
-	if(!PyArg_ParseTuple(args, "s", &filename)) return NULL;
+	if(!PyArg_ParseTupleAndKeywords(args, kwds, "s|s",
+		kwlist, &filename, &unit)) return NULL;
+
+	if (unit == NULL) factor = 1.0;
+	else {
+		make_lowercase(unit);
+		if ( !strcmp(unit, "angs") ) factor = 1.0;
+		else if ( !strcmp(unit, "bohr") ) factor = BOHR;
+		else if ( !strcmp(unit, "nm") ) factor = 10.0;
+		else {
+			PyErr_SetString(PyExc_ValueError, "Unrecognized measure unit name");
+			return NULL; }
+	}
+
 	if ( (fd = fopen(filename, "r")) == NULL ) {
 		PyErr_SetFromErrno(PyExc_IOError);
 		return NULL; }
@@ -398,7 +415,7 @@ static PyObject *exposed_read(PyObject *self, PyObject *args) {
 	/* If the filename ends with .xyz, it is xyz file */
 	if ( !strcmp(filename + strlen(filename) - 4, ".xyz") ) {
 
-		py_result = read_xyz(fd);
+		py_result = read_xyz(fd, factor);
 
 	} else {
 
@@ -429,12 +446,13 @@ static PyObject *exposed_read(PyObject *self, PyObject *args) {
 
 
 static PyMethodDef moltoolsMethods[] = {
-    {"read",  exposed_read, METH_VARARGS,
+    {"read",  exposed_read, METH_VARARGS | METH_KEYWORDS,
 		"\n"
-		"dict = read(filename)\n"
+		"dict = read(filename [, unit ] )\n"
 		"\n"
 		"Reads a coordinate file and returns data as a dictionary.\n"
-		"Currently, supports only XYZ and Molden formats.\n"
+		"Currently, supports only XYZ and Molden formats. In some file formats\n"
+		"the unit can be chosen between unit = angs, bohr, nm.\n"
 		"\n"
 		"XYZ:    supports extended files (charges in the fifth column) as well\n"
 		"        as standard files; coordinates are assumed to be in Angstroms.\n"

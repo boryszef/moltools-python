@@ -30,6 +30,8 @@
 #include <errno.h>
 #include <locale.h>
 
+#define BOHR 0.529177209
+
 typedef const struct element__ {
 		int number;
 		double mass;
