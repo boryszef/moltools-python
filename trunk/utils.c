@@ -118,3 +118,4 @@ int stripline(char *line) {
 
 	return length;
 }
+

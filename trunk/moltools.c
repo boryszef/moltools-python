@@ -459,52 +459,81 @@ static PyMethodDef moltoolsMethods[] = {
 };
 
 
-PyMODINIT_FUNC initmoltools(void)
-{
+int build_tables(PyObject **list_symbols, PyObject **list_names,
+                 PyObject **list_masses, PyObject **symbol2number) {
+
 	extern Element element_table[];
-    PyObject *md;
-	PyObject *exposed_atom_symbols, *exposed_atom_names, *exposed_atom_masses;
-	PyObject *val;
+	PyObject *key, *val;
 	int elements_defined, idx;
 	double mass;
 
-	setlocale(LC_ALL, "");
-
-    md = Py_InitModule("moltools", moltoolsMethods);
-    if(md == NULL) return;
-	import_array();
-
 	/* Check how many elements we know */
 	elements_defined = 0;
-	while ( element_table[elements_defined++].number >= 0 ) {};
-	elements_defined -= 1;
+	while ( element_table[elements_defined].number >= 0 )
+		elements_defined += 1;
 
 	/* Prepare lists of symbols, names and masses */
-	exposed_atom_symbols = PyList_New(elements_defined);
-	exposed_atom_names   = PyList_New(elements_defined);
-	exposed_atom_masses  = PyList_New(elements_defined);
+	*list_symbols  = PyList_New(elements_defined + 1);
+	*list_names    = PyList_New(elements_defined + 1);
+	*list_masses   = PyList_New(elements_defined + 1);
+	*symbol2number = PyDict_New();
+
+	/* Set the first element to None, so that indexing starts at 1 */
+	val = Py_BuildValue("s", "");
+	PyList_SetItem(*list_symbols, 0, val);
+	PyList_SetItem(*list_names, 0, val);
+	PyList_SetItem(*list_masses, 0, Py_None);
 
 	/* Fill with data */
 	for(idx = 0; idx < elements_defined; idx++) {
 
 		/* Atom symbol */
 		val = Py_BuildValue("s", element_table[idx].symbol);
-		PyList_SetItem(exposed_atom_symbols, idx, val);
+		PyList_SetItem(*list_symbols, element_table[idx].number, val);
 
 		/* Atom name */
 		val = Py_BuildValue("s", element_table[idx].name);
-		PyList_SetItem(exposed_atom_names, idx, val);
+		PyList_SetItem(*list_names, element_table[idx].number, val);
 
 		/* Atom mass */
 		mass = element_table[idx].mass;
 		val = mass >= 0 ? Py_BuildValue("d", mass) : Py_None;
-		PyList_SetItem(exposed_atom_masses, idx, val);
+		PyList_SetItem(*list_masses, element_table[idx].number, val);
+
+		/* Hash table symbol->number */
+		key = Py_BuildValue("s", element_table[idx].symbol);
+		val = Py_BuildValue("i", element_table[idx].number);
+		PyDict_SetItem(*symbol2number, key, val);
+		Py_DECREF(key);
+		Py_DECREF(val);
 
 	}
+
+	return 0;
+}
+
+
+PyMODINIT_FUNC initmoltools(void)
+{
+    PyObject *md;
+	PyObject *exposed_atom_symbols, *exposed_atom_names;
+	PyObject *exposed_atom_masses, *exposed_symbol2number;
+
+	/* Use system-wide locale, but make sure that decimal point is a point! */
+	setlocale(LC_ALL, "");
+	setlocale(LC_NUMERIC, "C");
+
+    md = Py_InitModule("moltools", moltoolsMethods);
+    if(md == NULL) return;
+	import_array();
+
+	if( build_tables(&exposed_atom_symbols, &exposed_atom_names,
+		&exposed_atom_masses, &exposed_symbol2number) ) return;
 
 	/* Add the lists to the module */
 	PyModule_AddObject(md, "AtomicSymbols", exposed_atom_symbols);
 	PyModule_AddObject(md, "AtomicNames", exposed_atom_names);
 	PyModule_AddObject(md, "AtomicMasses" , exposed_atom_masses);
+	PyModule_AddObject(md, "AtomicNumbers" , exposed_symbol2number);
 }
 
