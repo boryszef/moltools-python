@@ -32,18 +32,22 @@ static PyObject *exposed_read(PyObject *self, PyObject *args, PyObject *kwds) {
 	const char *filename;
 	char *line;
 	char *unit = NULL;
+	enum { GUESS, XYZ, MOLDEN, FRAC } type = GUESS;
+	char *str_type = NULL;
 	float factor;
 	FILE *fd, *test;
 
-	static char *kwlist[] = {"file", "unit", NULL};
+	static char *kwlist[] = {"file", "format", "unit", NULL};
 
 	PyObject *py_result;
 
 	py_result = NULL;
 
-	if(!PyArg_ParseTupleAndKeywords(args, kwds, "s|s",
-		kwlist, &filename, &unit)) return NULL;
+	/* Process the arguments */
+	if(!PyArg_ParseTupleAndKeywords(args, kwds, "s|ss",
+		kwlist, &filename, &str_type, &unit)) return NULL;
 
+	/* Get the unit measure for coordinates and set the factor accordingly */
 	if (unit == NULL) factor = 1.0;
 	else {
 		make_lowercase(unit);
@@ -55,37 +59,57 @@ static PyObject *exposed_read(PyObject *self, PyObject *args, PyObject *kwds) {
 			return NULL; }
 	}
 
+	/* Set the enum symbol of the file format */
+	if ( str_type != NULL ) {
+		if      ( !strcmp(str_type,    "XYZ") ) type = XYZ;
+		else if ( !strcmp(str_type, "MOLDEN") ) type = MOLDEN;
+		else if ( !strcmp(str_type,   "FRAC") ) type = FRAC;
+	}
+
+	/* Open the coordinate file */
 	if ( (fd = fopen(filename, "r")) == NULL ) {
 		PyErr_SetFromErrno(PyExc_IOError);
 		return NULL; }
 
-	/* Guess the file format */
+	/* Guess the file format, if not given explicitly */
+	if ( type == GUESS ) {
+		if ( !strcmp(filename + strlen(filename) - 4, ".xyz") ) type = XYZ;
+		else {
+			/* Extract the first line */
+			if ( (test = fopen(filename, "r")) == NULL ) {
+				PyErr_SetFromErrno(PyExc_IOError);
+				return NULL; }
+			if ( (line = readline(test)) == NULL ) {
+				PyErr_SetFromErrno(PyExc_IOError);
+				return NULL; }
+			make_lowercase(line);
+			stripline(line);
+			fclose(test);
 
-	/* If the filename ends with .xyz, it is xyz file */
-	if ( !strcmp(filename + strlen(filename) - 4, ".xyz") ) {
+			/* Perhaps it's Molden format? */
+			if ( !strcmp(line, "[molden format]") ) type = MOLDEN;
 
-		py_result = read_xyz(fd, factor);
-
-	} else {
-
-		/* Extract the first line */
-		if ( (test = fopen(filename, "r")) == NULL ) {
-			PyErr_SetFromErrno(PyExc_IOError);
-			return NULL; }
-		if ( (line = readline(test)) == NULL ) {
-			PyErr_SetFromErrno(PyExc_IOError);
-			return NULL; }
-		make_lowercase(line);
-		stripline(line);
-		fclose(test);
-
-		/* Perhaps it's Molden format? */
-		if ( !strcmp(line, "[molden format]") ) {
-			py_result = read_molden(fd);
+			free(line);
 		}
+	}
 
-		free(line);
-
+	/* Router */
+	switch(type) {
+		case XYZ:
+			py_result = read_xyz(fd, factor);
+			break;
+		case MOLDEN:
+			py_result = read_molden(fd);
+			break;
+		case FRAC:
+			py_result = read_fractional(fd);
+			break;
+		/* If the file format is GUESS or different,
+		   it means we've failed to guess :-(        */
+		case GUESS:
+		default:
+			PyErr_SetString(PyExc_ValueError, "Unsupported file format");
+			return NULL;
 	}
 
 	fclose(fd);
