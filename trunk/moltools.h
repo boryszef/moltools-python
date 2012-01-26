@@ -31,8 +31,11 @@
 #include <string.h>
 #include <errno.h>
 #include <locale.h>
+#include <math.h>
 
 #define BOHR 0.529177209
+
+#define sq(a) ((a) * (a))
 
 typedef const struct element__ {
 		int number;
@@ -46,6 +49,7 @@ int make_lowercase(char *);
 int stripline(char *);
 PyObject *read_xyz(FILE *fd, float factor);
 PyObject *read_molden(FILE *fd);
+PyObject *read_fractional(FILE *fd);
 int write_xyz(FILE *, PyObject *, PyObject *, char *);
 int write_gro(FILE *, PyObject *, PyObject *, char *, PyObject *, PyObject *, PyObject *);
 

@@ -375,3 +375,160 @@ PyObject *read_molden(FILE *fd) {
 
 
 
+PyObject *read_fractional(FILE *fd) {
+
+	int nofatoms, pos;
+	char *buffer, *buffpos, *token;
+	float *xyz;
+	float *box;
+	float transfm[3][3];
+	float x, y, z;
+
+	npy_intp dims[2];
+
+	PyObject *key, *val, *py_result, *py_coord, *py_syms, *py_box;
+
+
+	/* Create the dictionary that will be returned */
+	py_result = PyDict_New();
+
+
+	/* Read number of atoms */
+	if( (buffer = readline(fd)) == NULL) {
+		PyErr_SetFromErrno(PyExc_IOError);
+		return NULL; }
+	if( sscanf(buffer, "%d", &nofatoms) != 1 ) {
+		PyErr_SetString(PyExc_IOError, "Incorrect atom number");
+		return NULL; }
+
+    val = Py_BuildValue("i", nofatoms);
+	key = PyString_FromString("number_of_atoms");
+	PyDict_SetItem(py_result, key, val);
+	Py_DECREF(key);
+	Py_DECREF(val);
+
+
+	/* Instead of a comment line, there are six numbers:
+       a[A] b[A] c[A] alpha[deg.] beta[deg.] gamma[deg.] */
+
+	if ( (box = (float*) malloc(6 * sizeof(float))) == NULL ) {
+		PyErr_SetFromErrno(PyExc_MemoryError);
+		return NULL; }
+
+	if((buffer = readline(fd)) == NULL) {
+		PyErr_SetFromErrno(PyExc_IOError);
+		return NULL; }
+	buffer[strlen(buffer)-1] = '\0';
+	buffpos = buffer;
+
+	token = strtok(buffpos, " ");
+	box[0] = atof(token);
+	token = strtok(NULL, " ");
+	box[1] = atof(token);
+	token = strtok(NULL, " ");
+	box[2] = atof(token);
+
+	token = strtok(NULL, " ");
+	box[3] = atof(token) / 180.0 * M_PI;
+	token = strtok(NULL, " ");
+	box[4] = atof(token) / 180.0 * M_PI;
+	token = strtok(NULL, " ");
+	box[5] = atof(token) / 180.0 * M_PI;
+
+
+	dims[0] = 6;
+	py_box = PyArray_SimpleNewFromData(1, dims, NPY_FLOAT, box);
+	key = PyString_FromString("lattice");
+	PyDict_SetItem(py_result, key, py_box);
+	Py_DECREF(key);
+	Py_DECREF(py_box);
+
+	/* Set the tranformation matrix */
+	transfm[0][0] = box[0];
+	transfm[0][1] = box[1] * cos(box[5]);
+	transfm[0][2] = box[2] * cos(box[4]);
+	transfm[1][0] = 0;
+	transfm[1][1] = box[1] * sin(box[5]);
+	transfm[1][2] = box[2] * (cos(box[3]) - cos(box[4])*cos(box[5])) / sin(box[5]);
+	transfm[2][0] = 0;
+	transfm[2][1] = 0;
+	transfm[2][2] = box[2] * sqrt(1.0 - sq(cos(box[3])) - sq(cos(box[4])) - sq(cos(box[5]))
+	                                  + 2*cos(box[3])*cos(box[4])*cos(box[5])) / sin(box[5]);
+
+	/* Set-up the raw arrays for coordinates and charges */
+	xyz = (float*) malloc(3 * nofatoms * sizeof(float));
+	if(xyz == NULL) {
+		PyErr_SetFromErrno(PyExc_MemoryError);
+		return NULL; }
+
+	py_syms = PyList_New(nofatoms);
+
+	/* Atom loop */
+	for(pos = 0; pos < nofatoms; pos++) {
+
+		/* Get the whole line */
+		if((buffer = readline(fd)) == NULL) {
+			PyErr_SetFromErrno(PyExc_IOError);
+			return NULL; }
+		buffer[strlen(buffer)-1] = '\0';
+		buffpos = buffer;
+
+		/* Read symbol */
+		token = strtok(buffpos, " ");
+		val = Py_BuildValue("s", token);
+		PyList_SetItem(py_syms, pos, val);
+
+		/* Read coordinates */
+		if ( (token = strtok(NULL, " ")) == NULL) {
+			PyErr_SetString(PyExc_IOError, "Missing coordinate");
+			return NULL; }
+		x = atof(token);
+		if ( (token = strtok(NULL, " ")) == NULL) {
+			PyErr_SetString(PyExc_IOError, "Missing coordinate");
+			return NULL; }
+		y = atof(token);
+		if ( (token = strtok(NULL, " ")) == NULL) {
+			PyErr_SetString(PyExc_IOError, "Missing coordinate");
+			return NULL; }
+		z = atof(token);
+
+		/* Convert from fractional to cartesian */
+		xyz[3*pos + 0] = x * transfm[0][0] + y * transfm[0][1] + z * transfm[0][2];
+		xyz[3*pos + 1] = y * transfm[1][1] + z * transfm[1][2];
+		xyz[3*pos + 2] = z * transfm[2][2];
+
+		/* Free the line buffer */
+		free(buffer);
+	}
+
+
+	/* Add symbols to the dictionary */
+	key = PyString_FromString("symbols");
+	PyDict_SetItem(py_result, key, py_syms);
+	Py_DECREF(key);
+	Py_DECREF(py_syms);
+
+
+	/* Add coordinates to the dictionary */
+	dims[0] = nofatoms;
+	dims[1] = 3;
+	py_coord = PyArray_SimpleNewFromData(2, dims, NPY_FLOAT, (float*) xyz);
+	/***************************************************************
+	 * Do not free the raw array! It will be still used by Python! *
+
+	free(*xyz);
+	free(xyz);
+
+     * when the ver. 1.7 arrives, use PyArray_SetBaseObject        *
+     * to prevent memory leaks.                                    *
+     ***************************************************************/
+
+	key = PyString_FromString("coordinates");
+	PyDict_SetItem(py_result, key, py_coord);
+	Py_DECREF(key);
+	Py_DECREF(py_coord);
+
+	return py_result;
+}
+
+
