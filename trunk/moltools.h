@@ -22,6 +22,8 @@
 
 
 
+#define PY_ARRAY_UNIQUE_SYMBOL MOLTOOLS
+
 #include <Python.h>
 #include <numpy/arrayobject.h>
 #include <stdio.h>
@@ -42,6 +44,8 @@ typedef const struct element__ {
 char *readline(FILE *);
 int make_lowercase(char *);
 int stripline(char *);
+PyObject *read_xyz(FILE *fd, float factor);
+PyObject *read_molden(FILE *fd);
 int write_xyz(FILE *, PyObject *, PyObject *, char *);
 int write_gro(FILE *, PyObject *, PyObject *, char *, PyObject *, PyObject *, PyObject *);
 
