@@ -60,9 +60,7 @@ int write_gro(FILE *fd, PyObject *py_symbols, PyObject *py_coords, char *comment
 	if( comment != NULL )
         fprintf(fd, "%s\n", comment);
     else
-		/* Careful: Gromacs does not like empty comment line, write a blank
-		   charater at least */
-        fprintf(fd, " \n");
+        fprintf(fd, "\n");
 	nat = PyList_Size(py_symbols);
     fprintf(fd, "%5d\n", nat);
 
@@ -100,7 +98,7 @@ int write_gro(FILE *fd, PyObject *py_symbols, PyObject *py_coords, char *comment
 		x /= 10.0;
 		y /= 10.0;
 		z /= 10.0;
-		fprintf(fd, "%10.5f%10.5f%10.5f", x, y, z);
+		fprintf(fd, "%10.5f%10.5f%10.5f\n", x, y, z);
 	}
 
 	return nat;
