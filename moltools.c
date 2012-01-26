@@ -448,38 +448,72 @@ static PyObject *exposed_write(PyObject *self, PyObject *args, PyObject *kwds) {
 
 	char *filename;
 	char *comment = NULL;
+	char *str_format = NULL;
+	enum { XYZ, GRO } format = XYZ;
 	FILE *fd;
 	int nat, i;
-	char *s;
-	float x, y, z;
 
-	static char *kwlist[] = {"file", "symbols", "coordinates", "comment", NULL};
+	static char *kwlist[] = {"file", "symbols", "coordinates", "comment", "residues", "residue_numbers", "box", "format", NULL};
 
-	PyObject *py_symbols, *py_coords;
+	PyObject *py_symbols, *py_coords, *val;
+	PyObject *py_resnam = NULL, *py_resid = NULL, *py_box = NULL;
 
-	if(!PyArg_ParseTupleAndKeywords(args, kwds, "sO!O!|s", kwlist, &filename,
-	   &PyList_Type, &py_symbols, &PyArray_Type, &py_coords, &comment))
+	if(!PyArg_ParseTupleAndKeywords(args, kwds, "sO!O!|sO!O!O!s", kwlist,
+			&filename,
+			&PyList_Type, &py_symbols,
+			&PyArray_Type, &py_coords,
+			&comment,
+			&PyList_Type, &py_resnam,
+			&PyList_Type, &py_resid,
+			&PyArray_Type, &py_box,
+			&str_format))
 		return NULL;
 
-	nat = PyList_Size(py_symbols);
 	if( (fd = fopen(filename, "w")) == NULL ) {
 		PyErr_SetFromErrno(PyExc_IOError);
 		return NULL;
 	}
 
-	fprintf(fd, "%d\n", nat);
+	if ( str_format != NULL ) {
+		if      ( !strcmp(str_format, "XYZ") ) format = XYZ;
+		else if ( !strcmp(str_format, "GRO") ) format = GRO;
+	}
 
-	if( comment != NULL )
-		fprintf(fd, "%s\n", comment);
-	else
-		fprintf(fd, "\n");
-
-	for ( i = 0; i < nat; i++ ) {
-		x = *( (float*) PyArray_GETPTR2(py_coords, i, 0) );
-		y = *( (float*) PyArray_GETPTR2(py_coords, i, 1) );
-		z = *( (float*) PyArray_GETPTR2(py_coords, i, 2) );
-		s = PyString_AsString(PyList_GetItem(py_symbols, i));
-		fprintf(fd, "%-3s  %12.8f  %12.8f  %12.8f\n", s, x, y, z);
+	switch(format) {
+		case XYZ:
+			if ( write_xyz(fd, py_symbols, py_coords, comment) == -1 )
+				return NULL;
+			break;
+		case GRO:
+			if ( py_box == NULL ) {
+				PyErr_SetString(PyExc_ValueError, "Box vector must be given, when GRO format is used");
+				return NULL; }
+			nat = PyList_Size(py_symbols);
+			if ( py_resnam == NULL ) {
+				py_resnam = PyList_New(nat);
+				val = Py_BuildValue("s", "");
+				for ( i = 0; i < nat; i++ ) {
+					PyList_SetItem(py_resnam, i, val);
+					Py_INCREF(val);
+				}
+				Py_DECREF(val);
+			}
+			if ( py_resid == NULL ) {
+				py_resid = PyList_New(nat);
+				val = Py_BuildValue("i", 1);
+				for ( i = 0; i < nat; i++ ) {
+					PyList_SetItem(py_resid, i, val);
+					Py_INCREF(val);
+				}
+				Py_DECREF(val);
+			}
+			if ( write_gro(fd, py_symbols, py_coords, comment,
+			               py_resnam, py_resid, py_box) == -1 )
+				return NULL;
+			break;
+		default:
+			PyErr_SetString(PyExc_RuntimeError, "This was unexpected...");
+			return NULL;
 	}
 
 	fclose(fd);

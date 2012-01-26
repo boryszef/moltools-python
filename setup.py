@@ -1,7 +1,7 @@
 from numpy.distutils.core import setup, Extension
 
 moltools = Extension('moltools',
-	sources = [ 'utils.c', 'moltools.c', ],
+	sources = [ 'utils.c', 'writers.c', 'moltools.c', ],
 	extra_compile_args=["-g"],
 	extra_link_args=["-g"]
 )

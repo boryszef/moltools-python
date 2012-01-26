@@ -42,5 +42,6 @@ typedef const struct element__ {
 char *readline(FILE *);
 int make_lowercase(char *);
 int stripline(char *);
-
+int write_xyz(FILE *, PyObject *, PyObject *, char *);
+int write_gro(FILE *, PyObject *, PyObject *, char *, PyObject *, PyObject *, PyObject *);
 
