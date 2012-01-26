@@ -444,9 +444,52 @@ static PyObject *exposed_read(PyObject *self, PyObject *args, PyObject *kwds) {
 }
 
 
+static PyObject *exposed_write(PyObject *self, PyObject *args, PyObject *kwds) {
+
+	char *filename;
+	char *comment = NULL;
+	FILE *fd;
+	int nat, i;
+	char *s;
+	float x, y, z;
+
+	static char *kwlist[] = {"file", "symbols", "coordinates", "comment", NULL};
+
+	PyObject *py_symbols, *py_coords;
+
+	if(!PyArg_ParseTupleAndKeywords(args, kwds, "sO!O!|s", kwlist, &filename,
+	   &PyList_Type, &py_symbols, &PyArray_Type, &py_coords, &comment))
+		return NULL;
+
+	nat = PyList_Size(py_symbols);
+	if( (fd = fopen(filename, "w")) == NULL ) {
+		PyErr_SetFromErrno(PyExc_IOError);
+		return NULL;
+	}
+
+	fprintf(fd, "%d\n", nat);
+
+	if( comment != NULL )
+		fprintf(fd, "%s\n", comment);
+	else
+		fprintf(fd, "\n");
+
+	for ( i = 0; i < nat; i++ ) {
+		x = *( (float*) PyArray_GETPTR2(py_coords, i, 0) );
+		y = *( (float*) PyArray_GETPTR2(py_coords, i, 1) );
+		z = *( (float*) PyArray_GETPTR2(py_coords, i, 2) );
+		s = PyString_AsString(PyList_GetItem(py_symbols, i));
+		fprintf(fd, "%-3s  %12.8f  %12.8f  %12.8f\n", s, x, y, z);
+	}
+
+	fclose(fd);
+
+	return Py_None;
+}
+
 
 static PyMethodDef moltoolsMethods[] = {
-    {"read",  exposed_read, METH_VARARGS | METH_KEYWORDS,
+    {"read", (PyCFunction)exposed_read, METH_VARARGS | METH_KEYWORDS,
 		"\n"
 		"dict = read(filename [, unit ] )\n"
 		"\n"
@@ -473,6 +516,7 @@ static PyMethodDef moltoolsMethods[] = {
 		"atomic_numbers  - atomic numbers (nuclear charge, numpy array, int)\n"
 		"\nTODO: multi-frame xyz\n"
 		"\n" },
+    {"write", (PyCFunction)exposed_write, METH_VARARGS | METH_KEYWORDS, "" },
     {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 
