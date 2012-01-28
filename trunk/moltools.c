@@ -36,10 +36,12 @@ static PyObject *exposed_read(PyObject *self, PyObject *args, PyObject *kwds) {
 	char *str_type = NULL;
 	float factor;
 	FILE *fd, *test;
+	long int fpos;
+	struct stat fst;
 
 	static char *kwlist[] = {"file", "format", "unit", NULL};
 
-	PyObject *py_result;
+	PyObject *py_result, *py_list;
 
 	py_result = NULL;
 
@@ -96,7 +98,29 @@ static PyObject *exposed_read(PyObject *self, PyObject *args, PyObject *kwds) {
 	/* Router */
 	switch(type) {
 		case XYZ:
+			printf("reading first frame...\n");
 			py_result = read_xyz(fd, factor);
+			/* Support for multiframe XYZ: check the current position in
+ 			 * the file; if we are near the end, finish; else, continue
+ 			 * reading. The criteria is that there should be no more than
+ 			 * 3 bytes left. */
+			fpos = ftell(fd);
+			if ( fpos == -1 ) {
+				PyErr_SetFromErrno(PyExc_IOError);
+				return NULL; }
+			if ( fstat(fileno(fd), &fst) == -1 ) {
+				PyErr_SetFromErrno(PyExc_IOError);
+				return NULL; }
+			printf("%ld %ld\n", (long int)fst.st_size, fpos);
+			if ( fst.st_size - fpos > 3 ) {
+				py_list = PyList_New(1);
+				PyList_SetItem(py_list, 0, py_result);
+			}
+			while ( fst.st_size - fpos > 3 ) {
+				py_result = read_xyz(fd, factor);
+				PyList_Append(py_list, py_result);
+			}
+			py_result = py_list;
 			break;
 		case MOLDEN:
 			py_result = read_molden(fd);
