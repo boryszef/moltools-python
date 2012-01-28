@@ -119,6 +119,10 @@ static PyObject *exposed_read(PyObject *self, PyObject *args, PyObject *kwds) {
 			while ( fst.st_size - fpos > 3 ) {
 				py_result = read_xyz(fd, factor);
 				PyList_Append(py_list, py_result);
+				fpos = ftell(fd);
+				if ( fpos == -1 ) {
+					PyErr_SetFromErrno(PyExc_IOError);
+					return NULL; }
 			}
 			py_result = py_list;
 			break;
