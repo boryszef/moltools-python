@@ -150,11 +150,14 @@ static PyObject *exposed_write(PyObject *self, PyObject *args, PyObject *kwds) {
 	char *filename;
 	char *comment = NULL;
 	char *str_format = NULL;
+	char *mode = NULL;
 	enum { XYZ, GRO } format = XYZ;
 	FILE *fd;
 	int nat, i;
 
-	static char *kwlist[] = {"file", "symbols", "coordinates", "comment", "residues", "residue_numbers", "box", "format", NULL};
+	static char *kwlist[] = {
+		"file", "symbols", "coordinates", "comment", "residues",
+		"residue_numbers", "box", "format", "mode", NULL};
 
 	PyObject *py_symbols, *py_coords, *val;
 	PyObject *py_resnam = NULL, *py_resid = NULL, *py_box = NULL;
@@ -167,13 +170,21 @@ static PyObject *exposed_write(PyObject *self, PyObject *args, PyObject *kwds) {
 			&PyList_Type, &py_resnam,
 			&PyList_Type, &py_resid,
 			&PyArray_Type, &py_box,
-			&str_format))
+			&str_format,
+			&mode))
 		return NULL;
 
-	if( (fd = fopen(filename, "w")) == NULL ) {
-		PyErr_SetFromErrno(PyExc_IOError);
-		return NULL;
-	}
+	if ( mode == NULL || !strcmp(mode, "w") ) {
+		if( (fd = fopen(filename, "w")) == NULL ) {
+			PyErr_SetFromErrno(PyExc_IOError);
+			return NULL; }
+	else if ( !strcmp(mode, "a") ) {
+		if( (fd = fopen(filename, "a")) == NULL ) {
+			PyErr_SetFromErrno(PyExc_IOError);
+			return NULL; }
+	} else {
+		PyErr_SetString("Unsupported file mode");
+		return NULL; }
 
 	if ( str_format != NULL ) {
 		if      ( !strcmp(str_format, "XYZ") ) format = XYZ;
@@ -234,6 +245,8 @@ static PyMethodDef moltoolsMethods[] = {
 		"\n"
 		"XYZ:    supports extended files (charges in the fifth column) as well\n"
 		"        as standard files; coordinates are assumed to be in Angstroms.\n"
+		"        Also supports multiframe files. In that case, returns a list\n"
+		"        of dictionaries.\"
 		"\n"
 		"Molden: supports groups N_GEO, GEOCONV (energies only), GEOMETRIES\n"
 		"        (XYZ only), ATOMS (Angstroms only).\n"
@@ -249,7 +262,6 @@ static PyMethodDef moltoolsMethods[] = {
 		"energies        - energies of the subsequent configurations (numpy array)\n"
 		"geometries      - list of dictionaries, one for each configuration\n"
 		"atomic_numbers  - atomic numbers (nuclear charge, numpy array, int)\n"
-		"\nTODO: multi-frame xyz\n"
 		"\n" },
     {"write", (PyCFunction)exposed_write, METH_VARARGS | METH_KEYWORDS,
 		"\n"
