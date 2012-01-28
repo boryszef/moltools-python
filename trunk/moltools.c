@@ -98,7 +98,6 @@ static PyObject *exposed_read(PyObject *self, PyObject *args, PyObject *kwds) {
 	/* Router */
 	switch(type) {
 		case XYZ:
-			printf("reading first frame...\n");
 			py_result = read_xyz(fd, factor);
 			/* Support for multiframe XYZ: check the current position in
  			 * the file; if we are near the end, finish; else, continue
@@ -111,7 +110,6 @@ static PyObject *exposed_read(PyObject *self, PyObject *args, PyObject *kwds) {
 			if ( fstat(fileno(fd), &fst) == -1 ) {
 				PyErr_SetFromErrno(PyExc_IOError);
 				return NULL; }
-			printf("%ld %ld\n", (long int)fst.st_size, fpos);
 			if ( fst.st_size - fpos > 3 ) {
 				py_list = PyList_New(1);
 				PyList_SetItem(py_list, 0, py_result);
@@ -157,12 +155,12 @@ static PyObject *exposed_write(PyObject *self, PyObject *args, PyObject *kwds) {
 
 	static char *kwlist[] = {
 		"file", "symbols", "coordinates", "comment", "residues",
-		"residue_numbers", "box", "format", "mode", NULL};
+		"residue_numbers", "box", "format", "mode", NULL };
 
 	PyObject *py_symbols, *py_coords, *val;
 	PyObject *py_resnam = NULL, *py_resid = NULL, *py_box = NULL;
 
-	if(!PyArg_ParseTupleAndKeywords(args, kwds, "sO!O!|sO!O!O!s", kwlist,
+	if(!PyArg_ParseTupleAndKeywords(args, kwds, "sO!O!|sO!O!O!ss", kwlist,
 			&filename,
 			&PyList_Type, &py_symbols,
 			&PyArray_Type, &py_coords,
@@ -178,12 +176,12 @@ static PyObject *exposed_write(PyObject *self, PyObject *args, PyObject *kwds) {
 		if( (fd = fopen(filename, "w")) == NULL ) {
 			PyErr_SetFromErrno(PyExc_IOError);
 			return NULL; }
-	else if ( !strcmp(mode, "a") ) {
+	} else if ( !strcmp(mode, "a") ) {
 		if( (fd = fopen(filename, "a")) == NULL ) {
 			PyErr_SetFromErrno(PyExc_IOError);
 			return NULL; }
 	} else {
-		PyErr_SetString("Unsupported file mode");
+		PyErr_SetString(PyExc_ValueError, "Unsupported file mode");
 		return NULL; }
 
 	if ( str_format != NULL ) {
@@ -246,7 +244,7 @@ static PyMethodDef moltoolsMethods[] = {
 		"XYZ:    supports extended files (charges in the fifth column) as well\n"
 		"        as standard files; coordinates are assumed to be in Angstroms.\n"
 		"        Also supports multiframe files. In that case, returns a list\n"
-		"        of dictionaries.\"
+		"        of dictionaries.\n"
 		"\n"
 		"Molden: supports groups N_GEO, GEOCONV (energies only), GEOMETRIES\n"
 		"        (XYZ only), ATOMS (Angstroms only).\n"
