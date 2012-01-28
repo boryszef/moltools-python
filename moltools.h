@@ -32,6 +32,9 @@
 #include <errno.h>
 #include <locale.h>
 #include <math.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #define BOHR 0.529177209
 
