@@ -113,6 +113,8 @@ static PyObject *exposed_read(PyObject *self, PyObject *args, PyObject *kwds) {
 			if ( fst.st_size - fpos > 3 ) {
 				py_list = PyList_New(1);
 				PyList_SetItem(py_list, 0, py_result);
+			} else {
+				break;
 			}
 			while ( fst.st_size - fpos > 3 ) {
 				py_result = read_xyz(fd, factor);
@@ -232,6 +234,22 @@ static PyObject *exposed_write(PyObject *self, PyObject *args, PyObject *kwds) {
 }
 
 
+static PyObject *find_bonds(PyObject *self, PyObject *args) {
+	int i;
+
+	PyObject *py_symbols, *py_coords, *py_types;
+	PyObject *py_result = NULL;
+
+	if(!PyArg_ParseTuple(args, "O!O!O!",
+			&PyList_Type, &py_symbols,
+			&PyArray_Type, &py_coords,
+			&PyDict_Type, &py_types))
+		return NULL;
+
+	return py_result;
+}
+
+
 static PyMethodDef moltoolsMethods[] = {
     {"read", (PyCFunction)exposed_read, METH_VARARGS | METH_KEYWORDS,
 		"\n"
@@ -264,6 +282,15 @@ static PyMethodDef moltoolsMethods[] = {
     {"write", (PyCFunction)exposed_write, METH_VARARGS | METH_KEYWORDS,
 		"\n"
 		"FIXME"
+		"\n" },
+	{"find_bonds", (PyCFunction)find_bonds, METH_VARARGS,
+		"\n"
+		"find_bonds(symbols, coordinates, vdWradii) -> topology\n"
+		"\n"
+		"Finds connections between atoms. 'symbols' is a list of atomic types,\n"
+		"'coordinates' is a numpy array of coordinates and 'vdWradii' is a dictionary\n"
+		"of van der Waals radii for atomic types found in 'symbols'. Returns 'topology,'\n"
+		"which is a dictionary of indices <center> : (<center1>, <center2>, ... )\n"
 		"\n" },
     {NULL, NULL, 0, NULL}        /* Sentinel */
 };
