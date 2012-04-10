@@ -235,8 +235,11 @@ static PyObject *exposed_write(PyObject *self, PyObject *args, PyObject *kwds) {
 
 
 static PyObject *find_bonds(PyObject *self, PyObject *args) {
-	int i;
+	int i, j, nat;
+	double ax, ay, az, bx, by, bz, ar, br, dist;
+	npy_intp *numpyint;
 
+	PyObject *val1, *val2, *tmp_list;
 	PyObject *py_symbols, *py_coords, *py_types;
 	PyObject *py_result = NULL;
 
@@ -245,6 +248,44 @@ static PyObject *find_bonds(PyObject *self, PyObject *args) {
 			&PyArray_Type, &py_coords,
 			&PyDict_Type, &py_types))
 		return NULL;
+
+	nat = PyList_Size(py_symbols);
+	numpyint = PyArray_DIMS(py_coords);
+	if (numpyint[0] != nat) {
+		PyErr_SetString(PyExc_RuntimeError, "Size of symbol and coordinate lists does not match.");
+		return NULL;
+	}
+
+	py_result = PyDict_New();
+	for (i = 0; i < nat; i++) {
+		ax = *( (double*) PyArray_GETPTR2(py_coords, i, 0) );
+		ay = *( (double*) PyArray_GETPTR2(py_coords, i, 1) );
+		az = *( (double*) PyArray_GETPTR2(py_coords, i, 2) );
+		val1 = PyList_GetItem(py_symbols, i); // borrowed
+		val2 = PyDict_GetItem(py_types, val1); // borrowed
+		ar = PyFloat_AsDouble(val2);
+		tmp_list = PyList_New(0); // new
+		for (j = 0; j < nat; j++) {
+			if (i == j) continue;
+			bx = *( (double*) PyArray_GETPTR2(py_coords, j, 0) );
+			by = *( (double*) PyArray_GETPTR2(py_coords, j, 1) );
+			bz = *( (double*) PyArray_GETPTR2(py_coords, j, 2) );
+			val1 = PyList_GetItem(py_symbols, j); // borrowed
+			val2 = PyDict_GetItem(py_types, val1); // borrowed
+			br = PyFloat_AsDouble(val2);
+			dist = sq(bx-ax) + sq(by-ay) + sq(bz-az);
+			if (dist < sq(ar+br)) {
+				val2 = PyInt_FromLong(j); // new
+				PyList_Append(tmp_list, val2);
+				Py_DECREF(val2);
+			}
+		}
+		val1 = PyInt_FromLong(i); // new
+		if (PyList_Size(tmp_list))
+			PyDict_SetItem(py_result, val1, tmp_list);
+		Py_DECREF(val1);
+		Py_DECREF(tmp_list);
+	}
 
 	return py_result;
 }
