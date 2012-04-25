@@ -32,12 +32,13 @@ static PyObject *exposed_read(PyObject *self, PyObject *args, PyObject *kwds) {
 	const char *filename;
 	char *line;
 	char *unit = NULL;
-	enum { GUESS, XYZ, MOLDEN, FRAC } type = GUESS;
+	enum { GUESS, XYZ, MOLDEN, FRAC, GRO } type = GUESS;
 	char *str_type = NULL;
 	float factor;
 	FILE *fd, *test;
 	long int fpos;
 	struct stat fst;
+	char ext[5];
 
 	static char *kwlist[] = {"file", "format", "unit", NULL};
 
@@ -66,6 +67,7 @@ static PyObject *exposed_read(PyObject *self, PyObject *args, PyObject *kwds) {
 		if      ( !strcmp(str_type,    "XYZ") ) type = XYZ;
 		else if ( !strcmp(str_type, "MOLDEN") ) type = MOLDEN;
 		else if ( !strcmp(str_type,   "FRAC") ) type = FRAC;
+		else if ( !strcmp(str_type,    "GRO") ) type = GRO;
 	}
 
 	/* Open the coordinate file */
@@ -75,7 +77,9 @@ static PyObject *exposed_read(PyObject *self, PyObject *args, PyObject *kwds) {
 
 	/* Guess the file format, if not given explicitly */
 	if ( type == GUESS ) {
-		if ( !strcmp(filename + strlen(filename) - 4, ".xyz") ) type = XYZ;
+		strcpy(ext, filename + strlen(filename) - 4);
+		if      ( !strcmp(ext, ".xyz") ) type = XYZ;
+		else if ( !strcmp(ext, ".gro") ) type = GRO;
 		else {
 			/* Extract the first line */
 			if ( (test = fopen(filename, "r")) == NULL ) {
@@ -131,6 +135,9 @@ static PyObject *exposed_read(PyObject *self, PyObject *args, PyObject *kwds) {
 			break;
 		case FRAC:
 			py_result = read_fractional(fd);
+			break;
+		case GRO:
+			py_result = read_gro(fd);
 			break;
 		/* If the file format is GUESS or different,
 		   it means we've failed to guess :-(        */

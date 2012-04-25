@@ -532,3 +532,187 @@ PyObject *read_fractional(FILE *fd) {
 }
 
 
+
+PyObject *read_gro(FILE *fd) {
+
+	int nofatoms, pos;
+	char *buffer;
+	char symbuf[100];
+	float *xyz, *vel;
+	int *resid;
+	unsigned short int velocities_present = 0;
+
+	npy_intp dims[2];
+
+	PyObject *key, *val, *py_result, *py_coord, *py_vel, *py_syms, *py_resn, *py_resid;
+
+
+	/* Create the dictionary that will be returned */
+	py_result = PyDict_New();
+
+
+	/* Read the comment line */
+	if((buffer = readline(fd)) == NULL) {
+		PyErr_SetFromErrno(PyExc_IOError);
+		return NULL; }
+	buffer[strlen(buffer)-1] = '\0';
+	stripline(buffer);
+
+	val = Py_BuildValue("s", buffer);
+	free(buffer);
+	key = PyString_FromString("comment");
+	PyDict_SetItem(py_result, key, val);
+	Py_DECREF(key);
+	Py_DECREF(val);
+
+	/* Read number of atoms */
+	if( (buffer = readline(fd)) == NULL) {
+		PyErr_SetFromErrno(PyExc_IOError);
+		return NULL; }
+	if( sscanf(buffer, "%d", &nofatoms) != 1 ) {
+		PyErr_SetString(PyExc_IOError, "Incorrect atom number");
+		return NULL; }
+
+    val = Py_BuildValue("i", nofatoms);
+	key = PyString_FromString("number_of_atoms");
+	PyDict_SetItem(py_result, key, val);
+	Py_DECREF(key);
+	Py_DECREF(val);
+
+
+	/* Set-up the raw arrays for coordinates and charges */
+	xyz = (float*) malloc(3 * nofatoms * sizeof(float));
+	if(xyz == NULL) {
+		PyErr_SetFromErrno(PyExc_MemoryError);
+		return NULL; }
+	vel = (float*) malloc(3 * nofatoms * sizeof(float));
+	if(vel == NULL) {
+		PyErr_SetFromErrno(PyExc_MemoryError);
+		return NULL; }
+	resid = (int*) malloc(nofatoms * sizeof(int));
+	if(resid == NULL) {
+		PyErr_SetFromErrno(PyExc_MemoryError);
+		return NULL; }
+
+
+	py_syms = PyList_New(nofatoms);
+	py_resn = PyList_New(nofatoms);
+
+	/* Atom loop */
+	for(pos = 0; pos < nofatoms; pos++) {
+
+		/* Get the whole line */
+		if((buffer = readline(fd)) == NULL) {
+			PyErr_SetFromErrno(PyExc_IOError);
+			return NULL; }
+		if( pos == 0 && strlen(buffer) > 50) velocities_present = 1;
+
+		/* Read residue id */
+		strncpy(symbuf, buffer, 5);
+		symbuf[5] = '\0';
+		stripline(symbuf);
+		resid[pos] = atoi(symbuf);
+
+		/* Read residue name */
+		strncpy(symbuf, buffer+5, 5);
+		symbuf[5] = '\0';
+		stripline(symbuf);
+		val = Py_BuildValue("s", symbuf);
+		PyList_SetItem(py_resn, pos, val);
+
+		/* Read atom name */
+		strncpy(symbuf, buffer+10, 5);
+		symbuf[5] = '\0';
+		stripline(symbuf);
+		val = Py_BuildValue("s", symbuf);
+		PyList_SetItem(py_syms, pos, val);
+
+		/* Read coordinates */
+		strncpy(symbuf, buffer+20, 8);
+		symbuf[8] = '\0';
+		stripline(symbuf);
+		xyz[3*pos + 0] = atof(symbuf);
+		strncpy(symbuf, buffer+28, 8);
+		symbuf[8] = '\0';
+		stripline(symbuf);
+		xyz[3*pos + 1] = atof(symbuf);
+		strncpy(symbuf, buffer+36, 8);
+		symbuf[8] = '\0';
+		stripline(symbuf);
+		xyz[3*pos + 2] = atof(symbuf);
+
+		/* Read velocities */
+		if(velocities_present) {
+			strncpy(symbuf, buffer+44, 8);
+			symbuf[8] = '\0';
+			stripline(symbuf);
+			vel[3*pos + 0] = atof(symbuf);
+			strncpy(symbuf, buffer+52, 8);
+			symbuf[8] = '\0';
+			stripline(symbuf);
+			vel[3*pos + 1] = atof(symbuf);
+			strncpy(symbuf, buffer+60, 8);
+			symbuf[8] = '\0';
+			stripline(symbuf);
+			vel[3*pos + 2] = atof(symbuf);
+		}
+
+		/* Free the line buffer */
+		free(buffer);
+	}
+
+
+	/* Add symbols to the dictionary */
+	key = PyString_FromString("atom_names");
+	PyDict_SetItem(py_result, key, py_syms);
+	Py_DECREF(key);
+	Py_DECREF(py_syms);
+	key = PyString_FromString("residue_names");
+	PyDict_SetItem(py_result, key, py_resn);
+	Py_DECREF(key);
+	Py_DECREF(py_resn);
+
+
+	/* Add coordinates to the dictionary */
+	dims[0] = nofatoms;
+	dims[1] = 3;
+	py_coord = PyArray_SimpleNewFromData(2, dims, NPY_FLOAT, (float*) xyz);
+	/***************************************************************
+	 * Do not free the raw array! It will be still used by Python! *
+
+	free(xyz);
+
+     * when the ver. 1.7 arrives, use PyArray_SetBaseObject        *
+     * to prevent memory leaks.                                    *
+     ***************************************************************/
+
+	key = PyString_FromString("coordinates");
+	PyDict_SetItem(py_result, key, py_coord);
+	Py_DECREF(key);
+	Py_DECREF(py_coord);
+
+
+	/* Add coordinates to the dictionary */
+	if(velocities_present) {
+		py_vel = PyArray_SimpleNewFromData(2, dims, NPY_FLOAT, (float*) vel);
+		/***************************************************************
+		 * Do not free the raw array! It will be still used by Python! *
+
+		free(xyz);
+
+    	 * when the ver. 1.7 arrives, use PyArray_SetBaseObject        *
+	     * to prevent memory leaks.                                    *
+    	 ***************************************************************/
+
+		key = PyString_FromString("velocities");
+		PyDict_SetItem(py_result, key, py_vel);
+		Py_DECREF(key);
+		Py_DECREF(py_vel);
+	} else
+		free(vel);
+
+
+	return py_result;
+}
+
+
