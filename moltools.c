@@ -27,6 +27,40 @@
 
 
 
+static PyObject *exposed_energy(PyObject *self, PyObject *args, PyObject *kwds) {
+	char *ff_type;
+	float box[3] = { 0.0, 0.0, 0.0 };
+	long int pbc = 0;
+
+	static char *kwlist[] = {
+		"coordinates", "types", "ff_type", "ff", "box",
+		"pbc", NULL };
+
+	PyObject *py_types, *py_coords, *py_ff, *py_box, *py_pbc;
+	PyObject *py_result;
+
+	if(!PyArg_ParseTupleAndKeywords(args, kwds, "O!O!|sO!O!O!", kwlist,
+			&PyArray_Type, &py_coords,
+			&PyList_Type, &py_types,
+			&ff_type,
+			&PyDict_Type, &py_ff,
+			&PyArray_Type, &py_box,
+			&PyBool_Type, &py_pbc))
+		return NULL;
+
+	pbc = PyInt_AsLong(py_pbc);
+	if ( pbc ) {
+		box[0] = *( (double*) PyArray_GETPTR1(py_box, 0) );
+		box[1] = *( (double*) PyArray_GETPTR1(py_box, 1) );
+		box[2] = *( (double*) PyArray_GETPTR1(py_box, 2) );
+	}
+
+	py_result = PyFloat_FromDouble(0.0);
+	return py_result;
+}
+
+
+
 static PyObject *exposed_read(PyObject *self, PyObject *args, PyObject *kwds) {
 
 	const char *filename;
@@ -339,6 +373,14 @@ static PyMethodDef moltoolsMethods[] = {
 		"'coordinates' is a numpy array of coordinates and 'vdWradii' is a dictionary\n"
 		"of van der Waals radii for atomic types found in 'symbols'. Returns 'topology,'\n"
 		"which is a dictionary of indices <center> : (<center1>, <center2>, ... )\n"
+		"\n" },
+    {"energy", (PyCFunction)exposed_energy, METH_VARARGS | METH_KEYWORDS,
+		"\n"
+		"energy(coordinates, types, ff_type, ff, box=array(0.0, 0.0, 0.0), pbc=False)\n"
+		"\n"
+		"Evaluate the energy of the configuration <coordinates>. <types> are assigned\n"
+		"from <ff> and the energy is calculated according to <ff_type>, using <box>,\n"
+		"only if pbc=True.\n"
 		"\n" },
     {NULL, NULL, 0, NULL}        /* Sentinel */
 };
