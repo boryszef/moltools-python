@@ -28,34 +28,59 @@
 
 
 static PyObject *exposed_energy(PyObject *self, PyObject *args, PyObject *kwds) {
+	FFType ff = FF_NONE;
 	char *ff_type;
 	float box[3] = { 0.0, 0.0, 0.0 };
-	long int pbc = 0;
+	unsigned short int pbc = 0;
+	double energy;
+	int i, type;
+	const char *ff_type_map[] = { "12-6", NULL };
 
 	static char *kwlist[] = {
-		"coordinates", "types", "ff_type", "ff", "box",
-		"pbc", NULL };
+		"coordinates", "types", "ff_type", "ff", "box", NULL };
 
-	PyObject *py_types, *py_coords, *py_ff, *py_box, *py_pbc;
-	PyObject *py_result;
+	PyObject *py_types, *py_coords, *py_ff, *py_box = NULL;
+	PyObject *py_result = NULL;
 
-	if(!PyArg_ParseTupleAndKeywords(args, kwds, "O!O!|sO!O!O!", kwlist,
+	if(!PyArg_ParseTupleAndKeywords(args, kwds, "O!O!|sO!O!", kwlist,
 			&PyArray_Type, &py_coords,
 			&PyList_Type, &py_types,
 			&ff_type,
-			&PyDict_Type, &py_ff,
-			&PyArray_Type, &py_box,
-			&PyBool_Type, &py_pbc))
+			&PyList_Type, &py_ff,
+			&PyArray_Type, &py_box))
 		return NULL;
 
-	pbc = PyInt_AsLong(py_pbc);
-	if ( pbc ) {
-		box[0] = *( (double*) PyArray_GETPTR1(py_box, 0) );
-		box[1] = *( (double*) PyArray_GETPTR1(py_box, 1) );
-		box[2] = *( (double*) PyArray_GETPTR1(py_box, 2) );
+	if ( py_box != NULL ) {
+		type = PyArray_TYPE(py_box);
+		switch(type) {
+			case NPY_FLOAT:
+				box[0] = *( (float*) PyArray_GETPTR1(py_box, 0) );
+				box[1] = *( (float*) PyArray_GETPTR1(py_box, 1) );
+				box[2] = *( (float*) PyArray_GETPTR1(py_box, 2) );
+				break;
+			case NPY_DOUBLE:
+				box[0] = *( (double*) PyArray_GETPTR1(py_box, 0) );
+				box[1] = *( (double*) PyArray_GETPTR1(py_box, 1) );
+				box[2] = *( (double*) PyArray_GETPTR1(py_box, 2) );
+				break;
+			default:
+				PyErr_SetString(PyExc_ValueError, "Incorrect type in box vector");
+				return NULL;
+		}
+		pbc = 1;
 	}
 
-	py_result = PyFloat_FromDouble(0.0);
+	i = 0;
+	while ( ff_type_map[i] != NULL ) {
+		if (!strcmp(ff_type_map[i], ff_type)) ff = i;
+		i += 1;
+	}
+	if (ff == FF_NONE) {
+		PyErr_SetString(PyExc_ValueError, "Force field not implemented");
+		return NULL; }
+
+	energy = evaluate_energy(py_coords, py_types, ff, py_ff, box);
+	py_result = PyFloat_FromDouble(energy);
 	return py_result;
 }
 
@@ -277,7 +302,8 @@ static PyObject *exposed_write(PyObject *self, PyObject *args, PyObject *kwds) {
 
 static PyObject *find_bonds(PyObject *self, PyObject *args) {
 	int i, j, nat;
-	double ax, ay, az, bx, by, bz, ar, br, dist;
+	float ax, ay, az, bx, by, bz;
+	double ar, br, dist;
 	npy_intp *numpyint;
 
 	PyObject *val1, *val2, *tmp_list;
@@ -299,18 +325,18 @@ static PyObject *find_bonds(PyObject *self, PyObject *args) {
 
 	py_result = PyDict_New();
 	for (i = 0; i < nat; i++) {
-		ax = *( (double*) PyArray_GETPTR2(py_coords, i, 0) );
-		ay = *( (double*) PyArray_GETPTR2(py_coords, i, 1) );
-		az = *( (double*) PyArray_GETPTR2(py_coords, i, 2) );
+		ax = *( (float*) PyArray_GETPTR2(py_coords, i, 0) );
+		ay = *( (float*) PyArray_GETPTR2(py_coords, i, 1) );
+		az = *( (float*) PyArray_GETPTR2(py_coords, i, 2) );
 		val1 = PyList_GetItem(py_symbols, i); // borrowed
 		val2 = PyDict_GetItem(py_types, val1); // borrowed
 		ar = PyFloat_AsDouble(val2);
 		tmp_list = PyList_New(0); // new
 		for (j = 0; j < nat; j++) {
 			if (i == j) continue;
-			bx = *( (double*) PyArray_GETPTR2(py_coords, j, 0) );
-			by = *( (double*) PyArray_GETPTR2(py_coords, j, 1) );
-			bz = *( (double*) PyArray_GETPTR2(py_coords, j, 2) );
+			bx = *( (float*) PyArray_GETPTR2(py_coords, j, 0) );
+			by = *( (float*) PyArray_GETPTR2(py_coords, j, 1) );
+			bz = *( (float*) PyArray_GETPTR2(py_coords, j, 2) );
 			val1 = PyList_GetItem(py_symbols, j); // borrowed
 			val2 = PyDict_GetItem(py_types, val1); // borrowed
 			br = PyFloat_AsDouble(val2);
@@ -376,11 +402,11 @@ static PyMethodDef moltoolsMethods[] = {
 		"\n" },
     {"energy", (PyCFunction)exposed_energy, METH_VARARGS | METH_KEYWORDS,
 		"\n"
-		"energy(coordinates, types, ff_type, ff, box=array(0.0, 0.0, 0.0), pbc=False)\n"
+		"energy(coordinates, types, ff_type, ff, box=None)\n"
 		"\n"
 		"Evaluate the energy of the configuration <coordinates>. <types> are assigned\n"
-		"from <ff> and the energy is calculated according to <ff_type>, using <box>,\n"
-		"only if pbc=True.\n"
+		"from <ff> and the energy is calculated according to <ff_type>, using PBC only\n"
+		"if <box> dimensions are specified.\n"
 		"\n" },
     {NULL, NULL, 0, NULL}        /* Sentinel */
 };
