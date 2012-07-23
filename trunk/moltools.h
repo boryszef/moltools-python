@@ -47,12 +47,19 @@ typedef const struct element__ {
 		const char *name;
 	} Element;
 
+typedef enum ff_type__ {
+		FF_TWELVESIX = 0,
+		FF_NONE,
+	} FFType;
+
 char *readline(FILE *);
 int make_lowercase(char *);
 int stripline(char *);
 PyObject *read_xyz(FILE *fd, float factor);
 PyObject *read_molden(FILE *fd);
 PyObject *read_fractional(FILE *fd);
+PyObject *read_gro(FILE *fd);
 int write_xyz(FILE *, PyObject *, PyObject *, char *);
 int write_gro(FILE *, PyObject *, PyObject *, char *, PyObject *, PyObject *, PyObject *);
+double evaluate_energy(PyObject *,PyObject *, FFType, PyObject *, float *);
 
