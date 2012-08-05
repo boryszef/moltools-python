@@ -358,67 +358,74 @@ static PyObject *find_bonds(PyObject *self, PyObject *args) {
 }
 
 
-static PyObject *centerofmass(PyObject *self, PyObject *args, PyObject *kwds) {
+static PyObject *mass_list(PyObject *self, PyObject *args) {
+	int nat, i, j;
 	extern Element element_table[];
-	int i, j, nat;
-	float totalmass = 0.0, mx = 0.0, my = 0.0, mz = 0.0;
-	float *com;
-	npy_intp *numpyint;
-	npy_intp dims[1];
-	double *masses;
 	char *symbol;
-
-	static char *kwlist[] = {
-		"coordinates", "masses", "symbols", NULL };
-
-	PyObject *py_symbols = NULL, *py_coords, *py_masses = NULL;
+	double *masses;
+	npy_intp dims[1];
+	PyObject *py_symbols;
 	PyObject *py_result = NULL;
 
-	if(!PyArg_ParseTupleAndKeywords(args, kwds, "O!|OO!", kwlist,
-			&PyArray_Type, &py_coords, &py_masses, &PyList_Type, &py_symbols))
+	if(!PyArg_ParseTuple(args, "O!", &PyList_Type, &py_symbols))
 		return NULL;
 
-	numpyint = PyArray_DIMS(py_coords);
-	nat = numpyint[0];
+	nat = PyList_Size(py_symbols);
 	masses = (double*) malloc( nat * sizeof(double) );
 
 	for ( i = 0; i < nat; i++ ) {
-		if ( py_masses != NULL ) {
-			if ( PyArray_Check(py_masses) )
-					masses[i] = *( (float*) PyArray_GETPTR2(py_masses, i, 0) );
-			if ( PyList_Check(py_masses) )
-					masses[i] = PyFloat_AsDouble(PyList_GetItem(py_masses, i)); // borrowed
-			if ( PyTuple_Check(py_masses) )
-					masses[i] = PyFloat_AsDouble(PyTuple_GetItem(py_masses, i)); // borrowed
-			else {
-				PyErr_SetString(PyExc_TypeError, "Incorrect type of the mass sequence.");
-				return NULL;
-			}
-		} else if ( py_symbols != NULL ) {
-			symbol = PyString_AsString(PyList_GetItem(py_symbols, i));
-			j = 0;
-			while ( strcmp(element_table[j].symbol, symbol) && element_table[j].number != -1 ) j++;
-			if(element_table[j].number == -1) {
-				PyErr_SetString(PyExc_RuntimeError, "Symbol unrecognized.");
-				return NULL;
-			}
-			masses[i] = element_table[j].mass;
-		} else {
-			PyErr_SetString(PyExc_RuntimeError, "Either masses or symbols must be specified.");
+		symbol = PyString_AsString(PyList_GetItem(py_symbols, i));
+		j = 0;
+		while ( strcmp(element_table[j].symbol, symbol) && element_table[j].number != -1 ) j++;
+		if(element_table[j].number == -1) {
+			PyErr_SetString(PyExc_RuntimeError, "Symbol unrecognized.");
 			return NULL;
 		}
+		masses[i] = element_table[j].mass;
+	}
+
+	dims[0] = nat; 
+	py_result = PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, (double*) masses);
+
+	return py_result;
+
+}
+
+
+static PyObject *centerofmass(PyObject *self, PyObject *args) {
+	int i, nat;
+	double totalmass = 0.0;
+	float mx = 0.0, my = 0.0, mz = 0.0;
+	float *com;
+	npy_intp *numpyint;
+	npy_intp dims[1];
+	double mass;
+
+	PyObject *py_coords, *py_masses;
+	PyObject *py_result = NULL;
+
+	if(!PyArg_ParseTuple(args, "O!O!", &PyArray_Type, &py_coords, &PyArray_Type, &py_masses))
+		return NULL;
+
+	numpyint = PyArray_DIMS(py_masses);
+	nat = numpyint[0];
+
+	numpyint = PyArray_DIMS(py_coords);
+	if ( nat != numpyint[0] ) {
+		PyErr_SetString(PyExc_RuntimeError, "Coordinate- and mass arrays have different size.");
+		return NULL;
 	}
 
 	for ( i = 0; i < nat; i++ ) {
 
-		totalmass += (float) masses[i];
-		
-		mx += *( (float*) PyArray_GETPTR2(py_coords, i, 0) ) * masses[i];
-		my += *( (float*) PyArray_GETPTR2(py_coords, i, 1) ) * masses[i];
-		mz += *( (float*) PyArray_GETPTR2(py_coords, i, 2) ) * masses[i];
-	}
+		mass = *( (double*) PyArray_GETPTR1(py_masses, i) );
 
-	free(masses);
+		totalmass += mass;
+		
+		mx += *( (float*) PyArray_GETPTR2(py_coords, i, 0) ) * mass;
+		my += *( (float*) PyArray_GETPTR2(py_coords, i, 1) ) * mass;
+		mz += *( (float*) PyArray_GETPTR2(py_coords, i, 2) ) * mass;
+	}
 
 	com = (float*) malloc( 3*sizeof(float) );
 	com[0] = mx/totalmass;
@@ -431,6 +438,68 @@ static PyObject *centerofmass(PyObject *self, PyObject *args, PyObject *kwds) {
 	return py_result;
 }
 
+
+static PyObject *mep_distance(PyObject *self, PyObject *args, PyObject *kwds) {
+
+	PyObject *py_coords1, *py_coords2;
+	PyObject *py_masses = NULL;
+	PyObject *py_result;
+	npy_intp *dim1, *dim2, *dim3;
+	int nat, i, type;
+	double mass;
+	float ax, ay, az, bx, by, bz, delta, totalmass;
+
+	static char *kwlist[] = {
+		"coordinates1", "coordinates2", "masses", NULL };
+
+	if(!PyArg_ParseTupleAndKeywords(args, kwds, "O!O!|O!", kwlist,
+			&PyArray_Type, &py_coords1,
+			&PyArray_Type, &py_coords2,
+			&PyArray_Type, &py_masses))
+		return NULL;
+
+	dim1 = PyArray_DIMS(py_coords1);
+	dim2 = PyArray_DIMS(py_coords2);
+	if (dim1[0] != dim2[0]) {
+		PyErr_SetString(PyExc_RuntimeError, "Arrays not aligned.");
+		return NULL;
+	}
+
+	if ( py_masses != NULL ) {
+		dim3 = PyArray_DIMS(py_masses);
+		if (dim1[0] != dim3[0]) {
+			PyErr_SetString(PyExc_RuntimeError, "Arrays not aligned.");
+			return NULL;
+		}
+	}
+
+	nat = dim1[0];
+
+	delta = 0.0;
+	totalmass = 0.0;
+
+	for (i = 0; i < nat; i++) {
+		if ( py_masses != NULL )
+			mass = *( (double*) PyArray_GETPTR1(py_masses, i) );
+		else
+			mass = 1.0;
+
+		ax = *( (float*) PyArray_GETPTR2(py_coords1, i, 0) );
+		ay = *( (float*) PyArray_GETPTR2(py_coords1, i, 1) );
+		az = *( (float*) PyArray_GETPTR2(py_coords1, i, 2) );
+
+		bx = *( (float*) PyArray_GETPTR2(py_coords2, i, 0) );
+		by = *( (float*) PyArray_GETPTR2(py_coords2, i, 1) );
+		bz = *( (float*) PyArray_GETPTR2(py_coords2, i, 2) );
+
+		//printf("%f %f %lf\n", ay, by, mass);
+		delta += sqrt( mass * (sq(ax - bx) + sq(ay - by) + sq(az - bz)));
+		totalmass += mass;
+	}
+	delta /= sqrt(totalmass);
+
+	return PyFloat_FromDouble((double)delta);
+}
 
 
 static PyMethodDef moltoolsMethods[] = {
@@ -483,12 +552,24 @@ static PyMethodDef moltoolsMethods[] = {
 		"from <ff> and the energy is calculated according to <ff_type>, using PBC only\n"
 		"if <box> dimensions are specified.\n"
 		"\n" },
-	{"COM", (PyCFunction)centerofmass, METH_VARARGS | METH_KEYWORDS,
+	{"mass_list", (PyCFunction)mass_list, METH_VARARGS,
 		"\n"
-		"COM(coordinates, masses=None, symbols=None)\n"
+		"mass_list(symbols)\n"
+		"\n"
+		"For a given list of atomic symbols, returns numpy array of masses.\n"
+		"\n" },
+	{"COM", (PyCFunction)centerofmass, METH_VARARGS,
+		"\n"
+		"COM(coordinates, masses)\n"
 		"\n"
 		"For given coordinates (numpy array) evaluate the center of mass (numpy array).\n"
-		"Either masses or symbols must be given.\n"
+		"\n" },
+	{"MEP_distance", (PyCFunction)mep_distance, METH_VARARGS | METH_KEYWORDS,
+		"\n"
+		"MEP_distance(coordinates1, coordinates2, masses=None)\n"
+		"\n"
+		"Computes mass-weighted distance of two structures, as used in IRC/MEP calculations.\n"
+		"If masses are omitted, no weighting is done.\n"
 		"\n" },
     {NULL, NULL, 0, NULL}        /* Sentinel */
 };
