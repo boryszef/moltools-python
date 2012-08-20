@@ -26,8 +26,8 @@
 
 int write_xyz(FILE *fd, PyObject *py_symbols, PyObject *py_coords, char *comment) {
 
-	int nat, i;
-	float x, y, z;
+	int nat, i, type;
+	double x, y, z;
 	char *s;
 
 	nat = PyList_Size(py_symbols);
@@ -37,12 +37,25 @@ int write_xyz(FILE *fd, PyObject *py_symbols, PyObject *py_coords, char *comment
     else
         fprintf(fd, "\n");
 
+	type = PyArray_TYPE(py_coords);
     for ( i = 0; i < nat; i++ ) {
-        x = *( (float*) PyArray_GETPTR2(py_coords, i, 0) );
-        y = *( (float*) PyArray_GETPTR2(py_coords, i, 1) );
-        z = *( (float*) PyArray_GETPTR2(py_coords, i, 2) );
+		switch(type) {
+			case NPY_FLOAT:
+		        x = *( (float*) PyArray_GETPTR2(py_coords, i, 0) );
+    		    y = *( (float*) PyArray_GETPTR2(py_coords, i, 1) );
+        		z = *( (float*) PyArray_GETPTR2(py_coords, i, 2) );
+				break;
+			case NPY_DOUBLE:
+		        x = *( (double*) PyArray_GETPTR2(py_coords, i, 0) );
+    		    y = *( (double*) PyArray_GETPTR2(py_coords, i, 1) );
+        		z = *( (double*) PyArray_GETPTR2(py_coords, i, 2) );
+				break;
+			default:
+				PyErr_SetString(PyExc_ValueError, "Incorrect type in box vector");
+				return -1;
+		}
         s = PyString_AsString(PyList_GetItem(py_symbols, i));
-        fprintf(fd, "%-3s  %12.8f  %12.8f  %12.8f\n", s, x, y, z);
+        fprintf(fd, "%-3s  %12.8lf  %12.8lf  %12.8lf\n", s, x, y, z);
     }
 
     return nat;
