@@ -301,7 +301,7 @@ static PyObject *exposed_write(PyObject *self, PyObject *args, PyObject *kwds) {
 
 
 static PyObject *find_bonds(PyObject *self, PyObject *args) {
-	int i, j, nat;
+	int i, j, nat, type;
 	float ax, ay, az, bx, by, bz;
 	double ar, br, dist;
 	npy_intp *numpyint;
@@ -323,20 +323,38 @@ static PyObject *find_bonds(PyObject *self, PyObject *args) {
 		return NULL;
 	}
 
+	type = PyArray_TYPE(py_coords);
+	if (type != NPY_FLOAT && type != NPY_DOUBLE) {
+		PyErr_SetString(PyExc_ValueError, "Coordinates must be of FLOAT or DOUBLE type.");
+		return NULL;
+	}
+
 	py_result = PyDict_New();
 	for (i = 0; i < nat; i++) {
-		ax = *( (float*) PyArray_GETPTR2(py_coords, i, 0) );
-		ay = *( (float*) PyArray_GETPTR2(py_coords, i, 1) );
-		az = *( (float*) PyArray_GETPTR2(py_coords, i, 2) );
+		if (type == NPY_FLOAT) {
+			ax = *( (float*) PyArray_GETPTR2(py_coords, i, 0) );
+			ay = *( (float*) PyArray_GETPTR2(py_coords, i, 1) );
+			az = *( (float*) PyArray_GETPTR2(py_coords, i, 2) );
+		} else {
+			ax = *( (double*) PyArray_GETPTR2(py_coords, i, 0) );
+			ay = *( (double*) PyArray_GETPTR2(py_coords, i, 1) );
+			az = *( (double*) PyArray_GETPTR2(py_coords, i, 2) );
+		}
 		val1 = PyList_GetItem(py_symbols, i); // borrowed
 		val2 = PyDict_GetItem(py_types, val1); // borrowed
 		ar = PyFloat_AsDouble(val2);
 		tmp_list = PyList_New(0); // new
 		for (j = 0; j < nat; j++) {
 			if (i == j) continue;
-			bx = *( (float*) PyArray_GETPTR2(py_coords, j, 0) );
-			by = *( (float*) PyArray_GETPTR2(py_coords, j, 1) );
-			bz = *( (float*) PyArray_GETPTR2(py_coords, j, 2) );
+			if (type == NPY_FLOAT) {
+				bx = *( (float*) PyArray_GETPTR2(py_coords, j, 0) );
+				by = *( (float*) PyArray_GETPTR2(py_coords, j, 1) );
+				bz = *( (float*) PyArray_GETPTR2(py_coords, j, 2) );
+			} else {
+				bx = *( (double*) PyArray_GETPTR2(py_coords, j, 0) );
+				by = *( (double*) PyArray_GETPTR2(py_coords, j, 1) );
+				bz = *( (double*) PyArray_GETPTR2(py_coords, j, 2) );
+			}
 			val1 = PyList_GetItem(py_symbols, j); // borrowed
 			val2 = PyDict_GetItem(py_types, val1); // borrowed
 			br = PyFloat_AsDouble(val2);
