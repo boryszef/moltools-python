@@ -119,6 +119,145 @@ int stripline(char *line) {
 	return length;
 }
 
+/*
+ * For a given set of points (x,y) calculate second derivatives,
+ * stored in y2. y2[0] is set to 0 in order to have linear function
+ * for x < 0. If n > 0, set y2[n] to 0 as well. If n < 0, set
+ * first derivative y1[n] = 0.
+ * Adapted from Numerical Recipes in C.
+ */
+void cspline_calculate_drv2(double y2[], int n, double x[], double y[]) {
+	int N, i;
+	double *v;
+	double sig, p, vn, qn;
+
+	N = n < 0 ? -n : n;
+	v = malloc((N-1) * sizeof(double));
+	y2[0] = 0.0;
+	v[0] = 0.0;
+
+	for (i = 1; i < N-1; i++) {
+		sig = (x[i] - x[i-1]) / (x[i+1] - x[i-1]);
+		p = sig * y2[i-1] + 2.0;
+		y2[i] = (sig - 1.0) / p;
+		v[i] = (y[i+1] - y[i]) / (x[i+1] - x[i]) - (y[i] - y[i-1]) / (x[i] - x[i-1]);
+		v[i] = (6.0 * v[i] / (x[i+1] - x[i-1]) - sig * v[i-1]) / p;
+	}
+
+	if ( n < 0 ) {
+		qn = 0.5;
+		vn = -3.0 / sq(x[N-1]-x[N-2]) * (y[N-1]-y[N-2]);
+	} else {
+		qn = 0.0;
+		vn = 0.0;
+	}
+	y2[N-1] = (vn - qn * v[N-2]) / (qn * y2[N-2] + 1.0);
+	for (i = N-2; i >= 0; i--)
+		y2[i] = y2[i]*y2[i+1] + v[i];
+
+	free(v);
+}
+
+
+/*
+ * Interpolate y(v) value using tabulated c-spline function.
+ * Uses y2 calculated with spline_secondderv.
+ * Adapted from Numerical Recipes in C.
+ */
+double cspline_interpolate_y(double v, int n, double x[], double y[], double y2[]) {
+	int k, khi, klo;
+	double yint, h, a, b, slope;
+
+	/* 
+	 * If v is out of range, get the derivative of the first/last point
+	 * and extrapolate using linear function.
+	 */
+	if ( v < x[0] ) {
+		/* Extrapolate from the slope at x[0] */
+		//slope = (y[1] - y[0]) / (x[1] - x[0]) - (x[1] - x[0]) / 3.0 * y2[0] - (x[1] - x[0]) / 6.0 * y2[1];
+		slope = cspline_interpolate_drv(x[0], n, x, y, y2);
+		yint = y[0] - slope * (x[0] - v);
+		return yint;
+	}
+
+	if ( v > x[n-1] ) {
+		/* Extrapolate from the slope at x[n-1] */
+		//slope = (y[n-1] - y[n-2]) / (x[n-1] - x[n-2]) - (x[n-1] - x[n-2]) / 3.0 * y2[n-2] - (x[n-1] - x[n-2]) / 6.0 * y2[n-1];
+		slope = cspline_interpolate_drv(x[n-1], n, x, y, y2);
+		yint = y[n-1] + slope * (v - x[n-1]);
+		return yint;
+	}
+
+	klo = 0;
+	khi = n-1;
+	while (khi - klo > 1) {
+		k = (khi + klo) >> 1;
+		if (x[k] > v) khi = k;
+		else klo = k;
+	}
+
+	h = x[khi] - x[klo];
+	a = (x[khi] - v) / h;
+	b = (v - x[klo]) / h;
+	yint = a*y[klo] + b*y[khi] + ((a*a*a - a) * y2[klo] + (b*b*b - b) * y2[khi]) * (h*h) / 6.0;
+	return yint;
+}
+
+
+
+/*
+ * Calculate interpolated/extrapolated y'(v) value using tabulated c-spline function.
+ * Uses y2 calculated with spline_secondderv.
+ */
+double cspline_interpolate_drv(double v, int n, double x[], double y[], double y2[]) {
+	int k, khi, klo;
+	double yp, h, a, b, c, d;
+
+	/*
+	 * If v fails outside the range (can be negative!), set v=0, in order to
+	 * return derivative that corresponds to the first point
+	 */
+	if ( v < x[0] ) {
+		/* Extrapolate from the slope at x[0] */
+		//yp = (y[1] - y[0]) / (x[1] - x[0]) - (x[1] - x[0]) / 3.0 * y2[0] - (x[1] - x[0]) / 6.0 * y2[1];
+		//return yp;
+		v = 0.0;
+	}
+
+	/*
+	 * If v fails outside the range (can be negative!), set v=x[n], in order to
+	 * return derivative that corresponds to the last point.
+	 */
+	if ( v > x[n-1] ) {
+		/* Extrapolate from the slope at x[n-1] */
+		//yp = (y[n-1] - y[n-2]) / (x[n-1] - x[n-2]) - (x[n-1] - x[n-2]) / 3.0 * y2[n-2] - (x[n-1] - x[n-2]) / 6.0 * y2[n-1];
+		//return yp;
+		v = x[n-1];
+	}
+
+	klo = 0;
+	khi = n-1;
+	while (khi - klo > 1) {
+		k = (khi + klo) >> 1;
+		if (x[k] > v) khi = k;
+		else klo = k;
+	}
+
+	h = x[khi] - x[klo];
+	a = (x[khi] - v) / h;
+	b = (v - x[klo]) / h;
+	yp = (y[khi] - y[klo]) / (x[khi] - x[klo]) - (3*a*a - 1) / 6.0 * h * y2[klo]
+	   + (3*b*b - 1) / 6.0 * h * y2[khi];
+
+	/*h = x[klo] - x[khi];
+	d = (y2[klo] - y2[khi]) / h;
+	c = y2[klo] - d*x[klo];
+	b = (y[klo] - y[khi] - c * (sq(x[klo]) - sq(x[khi])) + d * (sq(x[klo])*x[klo] - sq(x[khi])*x[khi])) / h;
+	yp = b + c*v + d*v*v;*/
+	return yp;
+}
+
+
 int getElementIndexBySymbol(const char *symbol) {
 	extern Element element_table[];
 	int idx = 0;

@@ -27,6 +27,231 @@
 
 
 
+/* Methods of the EAMff object */
+
+static void EAMff_dealloc(EAMff* self)
+{
+	Py_XDECREF(self->rscale);
+	Py_XDECREF(self->rhoscale);
+	Py_XDECREF(self->rho);
+	Py_XDECREF(self->rho2);
+	Py_XDECREF(self->Z);
+	Py_XDECREF(self->Z2);
+	Py_XDECREF(self->F);
+	Py_XDECREF(self->F2);
+	self->ob_type->tp_free((PyObject*)self);
+}
+
+static PyObject *EAMff_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+	EAMff *self;
+	npy_intp dims[1];
+
+	dims[0] = 0;
+	self = (EAMff *)type->tp_alloc(type, 0);
+	if (self != NULL) {
+	    self->rscale = PyArray_EMPTY(1, dims, NPY_DOUBLE, 0);
+	    if (self->rscale == NULL) {
+	        Py_DECREF(self);
+	        return NULL; }
+	    
+	    self->rhoscale = PyArray_EMPTY(1, dims, NPY_DOUBLE, 0);
+	    if (self->rscale == NULL) {
+	        Py_DECREF(self);
+	        return NULL; }
+	    
+	    self->rho = PyArray_EMPTY(1, dims, NPY_DOUBLE, 0);
+	    if (self->rscale == NULL) {
+	        Py_DECREF(self);
+	        return NULL; }
+	    
+	    self->rho2 = PyArray_EMPTY(1, dims, NPY_DOUBLE, 0);
+	    if (self->rscale == NULL) {
+	        Py_DECREF(self);
+	        return NULL; }
+	    
+	    self->Z = PyArray_EMPTY(1, dims, NPY_DOUBLE, 0);
+	    if (self->rscale == NULL) {
+	        Py_DECREF(self);
+	        return NULL; }
+	    
+	    self->Z2 = PyArray_EMPTY(1, dims, NPY_DOUBLE, 0);
+	    if (self->rscale == NULL) {
+	        Py_DECREF(self);
+	        return NULL; }
+	    
+	    self->F = PyArray_EMPTY(1, dims, NPY_DOUBLE, 0);
+	    if (self->rscale == NULL) {
+	        Py_DECREF(self);
+	        return NULL; }
+	    
+	    self->F2 = PyArray_EMPTY(1, dims, NPY_DOUBLE, 0);
+	    if (self->rscale == NULL) {
+	        Py_DECREF(self);
+	        return NULL; }
+	    
+    }
+
+    return (PyObject *)self;
+}
+
+static int EAMff_init(EAMff *self, PyObject *args, PyObject *kwds) {
+
+	FILE *eamfile;
+	char *text;
+	int nr, nd, i;
+	double dr, dd;
+	npy_intp dims[1];
+	double *rscale, *rhoscale, *rho, *rho2, *Z, *Z2, *F, *F2;
+
+	PyObject *py_filename;
+
+	static char *kwlist[] = {
+		"filename", NULL };
+
+	if(!PyArg_ParseTupleAndKeywords(args, kwds, "O!", kwlist, &PyString_Type, &py_filename))
+		return -1;
+
+	eamfile = fopen(PyString_AsString(py_filename), "r");
+	text = readline(eamfile);
+	//printf("%s\n", text);
+	free(text);
+	text = readline(eamfile);
+	//printf("%s\n", text);
+	free(text);
+	fscanf(eamfile, "%d %lf %d %lf %*f", &nr, &dr, &nd, &dd);
+
+	rscale = malloc(nr * sizeof(double));
+	rho = malloc(nr * sizeof(double));
+	rho2 = malloc(nr * sizeof(double));
+	Z = malloc(nr * sizeof(double));
+	Z2 = malloc(nr * sizeof(double));
+	if(rscale == NULL || rho == NULL || rho2 == NULL || Z == NULL || Z2 == NULL) {
+		PyErr_SetFromErrno(PyExc_MemoryError);
+		return -1; }
+
+	rhoscale = malloc(nd * sizeof(double));
+	F = malloc(nd * sizeof(double));
+	F2 = malloc(nd * sizeof(double));
+	if(rhoscale == NULL || F == NULL || F2 == NULL) {
+		PyErr_SetFromErrno(PyExc_MemoryError);
+		return -1; }
+
+	for (i = 0; i < nr; i++)
+		rscale[i] = i*dr;
+	for (i = 0; i < nd; i++)
+		rhoscale[i] = i*dd;
+	for (i = 0; i < nd; i++)
+		fscanf(eamfile, "%lf", F+i);
+	for (i = 0; i < nr; i++)
+		fscanf(eamfile, "%lf", Z+i);
+	for (i = 0; i < nr; i++)
+		fscanf(eamfile, "%lf", rho+i);
+
+	fclose(eamfile);
+
+	dims[0] = nr;
+	self->rscale = PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, rscale);
+	self->rho = PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, rho);
+	self->Z = PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, Z);
+
+	cspline_calculate_drv2(Z2, -nr, rscale, Z);
+	cspline_calculate_drv2(rho2, -nr, rscale, rho);
+	self->Z2 = PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, Z2);
+	self->rho2 = PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, rho2);
+
+	dims[0] = nd;
+	self->rhoscale = PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, rhoscale);
+	self->F = PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, F);
+
+	cspline_calculate_drv2(F2, nr, rhoscale, F);
+	self->F2 = PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, F2);
+
+	return 0;
+}
+
+static PyMemberDef EAMff_members[] = {
+    {"rscale", T_OBJECT_EX, offsetof(EAMff, rscale), 0,
+     "Values of r used by rho, rho2, Z and Z2."},
+    {"rhoscale", T_OBJECT_EX, offsetof(EAMff, rhoscale), 0,
+     "Values of rho used by F and F2."},
+    {"rho", T_OBJECT_EX, offsetof(EAMff, rho), 0,
+     "Values of electron density."},
+    {"rho2", T_OBJECT_EX, offsetof(EAMff, rho2), 0,
+     "Second derivative of electron density."},
+    {"Z", T_OBJECT_EX, offsetof(EAMff, Z), 0,
+     "Values of Z."},
+    {"Z2", T_OBJECT_EX, offsetof(EAMff, Z2), 0,
+     "Second derivative of Z."},
+    {"F", T_OBJECT_EX, offsetof(EAMff, F), 0,
+     "Values of Z."},
+    {"F2", T_OBJECT_EX, offsetof(EAMff, F2), 0,
+     "Second derivative of Z."},
+    {NULL}  /* Sentinel */
+};
+
+static PyMethodDef EAMff_methods[] = {
+    /*{"energy", (PyCFunction)EAMff_energy, METH_VARARGS,
+		"\n"
+		"EAM_energy(coordinates, types)\n"
+		"\n"
+		"Evaluate the EAM energy of the configuration <coordinates>.\n"
+		"\n" },
+    {"gradient", (PyCFunction)EAMff_gradient, METH_VARARGS,
+		"\n"
+		"EAM_gradient(coordinates, types)\n"
+		"\n"
+		"Evaluate the EAM gradients of the configuration <coordinates>.\n"
+		"\n" },*/
+	{NULL}  /* Sentinel */
+};
+
+static PyTypeObject EAMffType = {
+	PyObject_HEAD_INIT(NULL)
+	0,                         /*ob_size*/
+	"moltools.EAMff",          /*tp_name*/
+	sizeof(EAMff),             /*tp_basicsize*/
+	0,                         /*tp_itemsize*/
+	(destructor)EAMff_dealloc, /*tp_dealloc*/
+	0,                         /*tp_print*/
+	0,                         /*tp_getattr*/
+	0,                         /*tp_setattr*/
+	0,                         /*tp_compare*/
+	0,                         /*tp_repr*/
+	0,                         /*tp_as_number*/
+	0,                         /*tp_as_sequence*/
+	0,                         /*tp_as_mapping*/
+	0,                         /*tp_hash */
+	0,                         /*tp_call*/
+	0,                         /*tp_str*/
+	0,                         /*tp_getattro*/
+	0,                         /*tp_setattro*/
+	0,                         /*tp_as_buffer*/
+	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,        /*tp_flags*/
+	"EAMff objects",           /* tp_doc */
+	0,		               /* tp_traverse */
+	0,		               /* tp_clear */
+	0,		               /* tp_richcompare */
+	0,		               /* tp_weaklistoffset */
+	0,		               /* tp_iter */
+	0,		               /* tp_iternext */
+	EAMff_methods,             /* tp_methods */
+	EAMff_members,             /* tp_members */
+	0,                         /* tp_getset */
+	0,                         /* tp_base */
+	0,                         /* tp_dict */
+	0,                         /* tp_descr_get */
+	0,                         /* tp_descr_set */
+	0,                         /* tp_dictoffset */
+	(initproc)EAMff_init,      /* tp_init */
+	0,                         /* tp_alloc */
+	EAMff_new,                 /* tp_new */
+};
+
+/* End of methods of the EAMff object */
+
+
+
 static PyObject *exposed_energy(PyObject *self, PyObject *args, PyObject *kwds) {
 	FFType ff = FF_NONE;
 	char *ff_type;
@@ -686,7 +911,21 @@ static PyMethodDef moltoolsMethods[] = {
 		"\n" },
     {"write", (PyCFunction)exposed_write, METH_VARARGS | METH_KEYWORDS,
 		"\n"
-		"FIXME"
+		"write(FILENAME, SYMBOLS, COORDS, [ comment=COMMENT, residues=RESNAM,\n"
+		"      residue_numbers=RESNUM, box=PBCBOX, format=FORMAT, mode=MODE ])\n"
+		"\n"
+		"Write structure in XYZ or GRO format. Following parameters are obligatory:\n"
+		"FILENAME - file name (string)\n"
+		"SYMBOLS  - atomic symbols (list)\n"
+		"COORDS   - coordinates (numpy array)\n"
+		"Following parameters are optional:\n"
+		"FORMAT   - file format, 'XYZ' or 'GRO' (default 'XYZ')\n"
+		"MODE     - writing mode, 'w' or 'a' (default 'w')\n"
+		"COMMENT  - comment text (string), default is empty\n"
+		"RESNAM   - residue names (list of strings), default are empty strings\n"
+		"RESNUM   - residue numbers (list if int), default is 1\n"
+		"PBCBOX   - Dimentions of the box, used in PBC (numpy array);\n"
+		"           required when GRO format is used\n"
 		"\n" },
 	{"find_bonds", (PyCFunction)find_bonds, METH_VARARGS | METH_KEYWORDS,
 		"\n"
@@ -737,6 +976,7 @@ static PyMethodDef moltoolsMethods[] = {
 		"Rotates the coordinates so that the principal moments of inertia are aligned"
 		"with axes of the coordinate system.\n"
 		"\n" },
+
     {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 
@@ -805,6 +1045,8 @@ PyMODINIT_FUNC initmoltools(void)
 	setlocale(LC_ALL, "");
 	setlocale(LC_NUMERIC, "C");
 
+	if (PyType_Ready(&EAMffType) < 0)
+		return;
     md = Py_InitModule("moltools", moltoolsMethods);
     if(md == NULL) return;
 	import_array();
@@ -817,5 +1059,8 @@ PyMODINIT_FUNC initmoltools(void)
 	PyModule_AddObject(md, "AtomicNames", exposed_atom_names);
 	PyModule_AddObject(md, "AtomicMasses" , exposed_atom_masses);
 	PyModule_AddObject(md, "AtomicNumbers" , exposed_symbol2number);
+
+	Py_INCREF(&EAMffType);
+	PyModule_AddObject(md, "EAMff", (PyObject *)&EAMffType);
 }
 
