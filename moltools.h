@@ -23,6 +23,7 @@
 
 
 #define PY_ARRAY_UNIQUE_SYMBOL MOLTOOLS
+#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 
 #include <Python.h>
 #include <numpy/arrayobject.h>
@@ -45,6 +46,7 @@ typedef const struct element__ {
 		double mass;
 		const char *symbol;
 		const char *name;
+		float covalent_radius;
 	} Element;
 
 typedef enum ff_type__ {
@@ -59,7 +61,8 @@ PyObject *read_xyz(FILE *fd, float factor);
 PyObject *read_molden(FILE *fd);
 PyObject *read_fractional(FILE *fd);
 PyObject *read_gro(FILE *fd);
-int write_xyz(FILE *, PyObject *, PyObject *, char *);
-int write_gro(FILE *, PyObject *, PyObject *, char *, PyObject *, PyObject *, PyObject *);
-double evaluate_energy(PyObject *,PyObject *, FFType, PyObject *, float *);
+int write_xyz(FILE *, PyObject *, PyArrayObject *, char *);
+int write_gro(FILE *, PyObject *, PyArrayObject *, char *, PyObject *, PyObject *, PyArrayObject *);
+double evaluate_energy(PyArrayObject *,PyObject *, FFType, PyObject *, float *);
 
+//extern Element element_table[];

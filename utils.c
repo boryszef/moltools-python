@@ -119,3 +119,13 @@ int stripline(char *line) {
 	return length;
 }
 
+int getElementIndexBySymbol(const char *symbol) {
+	extern Element element_table[];
+	int idx = 0;
+
+	while (element_table[idx].number != -1) {
+		if (!strcmp(symbol, element_table[idx++].symbol)) break;
+	}
+
+	return idx;
+}
