@@ -26,6 +26,7 @@
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 
 #include <Python.h>
+#include "structmember.h"
 #include <numpy/arrayobject.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -65,4 +66,18 @@ int write_xyz(FILE *, PyObject *, PyArrayObject *, char *);
 int write_gro(FILE *, PyObject *, PyArrayObject *, char *, PyObject *, PyObject *, PyArrayObject *);
 double evaluate_energy(PyArrayObject *,PyObject *, FFType, PyObject *, float *);
 
-//extern Element element_table[];
+typedef struct {
+	PyObject_HEAD
+	PyObject *rscale; /* values of r used by RHO and Z */
+	PyObject *rhoscale; /* values of rho used by F */
+	PyObject *rho; /* values of rho */
+	PyObject *rho2; /* values of the second derivative of rho */
+	PyObject *Z; /* values of Z */
+	PyObject *Z2; /* values of the second derivative of Z */
+	PyObject *F; /* values of F */
+	PyObject *F2; /* values of the second derivative of F */
+} EAMff;
+
+void cspline_calculate_drv2(double y2[], int n, double x[], double y[]);
+double cspline_interpolate_y(double v, int n, double x[], double y[], double y2[]);
+double cspline_interpolate_drv(double v, int n, double x[], double y[], double y2[]);
