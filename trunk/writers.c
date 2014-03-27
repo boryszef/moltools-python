@@ -24,7 +24,7 @@
 #include "moltools.h"
 
 
-int write_xyz(FILE *fd, PyObject *py_symbols, PyObject *py_coords, char *comment) {
+int write_xyz(FILE *fd, PyObject *py_symbols, PyArrayObject *py_coords, char *comment) {
 
 	int nat, i, type;
 	double x, y, z;
@@ -61,8 +61,8 @@ int write_xyz(FILE *fd, PyObject *py_symbols, PyObject *py_coords, char *comment
     return nat;
 }
 
-int write_gro(FILE *fd, PyObject *py_symbols, PyObject *py_coords, char *comment,
-              PyObject *py_resnam, PyObject *py_resid, PyObject *py_box) {
+int write_gro(FILE *fd, PyObject *py_symbols, PyArrayObject *py_coords, char *comment,
+              PyObject *py_resnam, PyObject *py_resid, PyArrayObject *py_box) {
 
 	int nat, i, type;
 	long int resid;

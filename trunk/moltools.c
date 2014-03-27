@@ -23,7 +23,7 @@
 
 #include "moltools.h"
 
-#include "periodic_table.c"
+//#include "periodic_table.c"
 
 
 
@@ -39,7 +39,8 @@ static PyObject *exposed_energy(PyObject *self, PyObject *args, PyObject *kwds) 
 	static char *kwlist[] = {
 		"coordinates", "types", "ff_type", "ff", "box", NULL };
 
-	PyObject *py_types, *py_coords, *py_ff, *py_box = NULL;
+	PyObject *py_types, *py_ff;
+	PyArrayObject *py_coords, *py_box = NULL;
 	PyObject *py_result = NULL;
 
 	if(!PyArg_ParseTupleAndKeywords(args, kwds, "O!O!|sO!O!", kwlist,
@@ -225,8 +226,9 @@ static PyObject *exposed_write(PyObject *self, PyObject *args, PyObject *kwds) {
 		"file", "symbols", "coordinates", "comment", "residues",
 		"residue_numbers", "box", "format", "mode", NULL };
 
-	PyObject *py_symbols, *py_coords, *val;
-	PyObject *py_resnam = NULL, *py_resid = NULL, *py_box = NULL;
+	PyObject *py_symbols, *val;
+	PyArrayObject *py_coords, *py_box = NULL;
+	PyObject *py_resnam = NULL, *py_resid = NULL;
 
 	if(!PyArg_ParseTupleAndKeywords(args, kwds, "sO!O!|sO!O!O!ss", kwlist,
 			&filename,
@@ -296,24 +298,30 @@ static PyObject *exposed_write(PyObject *self, PyObject *args, PyObject *kwds) {
 
 	fclose(fd);
 
-	return Py_None;
+	Py_RETURN_NONE;
 }
 
 
-static PyObject *find_bonds(PyObject *self, PyObject *args) {
-	int i, j, nat, type;
+static PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds) {
+	extern Element element_table[];
+	int i, j, nat, type, idx;
 	float ax, ay, az, bx, by, bz;
 	double ar, br, dist;
 	npy_intp *numpyint;
+	float factor = 1.3;
+
+	static char *kwlist[] = {
+		"coordinates", "types", "factor", NULL };
 
 	PyObject *val1, *val2, *tmp_list;
-	PyObject *py_symbols, *py_coords, *py_types;
+	PyObject *py_symbols;
+	PyArrayObject *py_coords;
 	PyObject *py_result = NULL;
 
-	if(!PyArg_ParseTuple(args, "O!O!O!",
+	if(!PyArg_ParseTupleAndKeywords(args, kwds, "O!O!|f", kwlist,
 			&PyList_Type, &py_symbols,
 			&PyArray_Type, &py_coords,
-			&PyDict_Type, &py_types))
+			&factor))
 		return NULL;
 
 	nat = PyList_Size(py_symbols);
@@ -341,8 +349,16 @@ static PyObject *find_bonds(PyObject *self, PyObject *args) {
 			az = *( (double*) PyArray_GETPTR2(py_coords, i, 2) );
 		}
 		val1 = PyList_GetItem(py_symbols, i); // borrowed
-		val2 = PyDict_GetItem(py_types, val1); // borrowed
-		ar = PyFloat_AsDouble(val2);
+		//val2 = PyDict_GetItem(py_types, val1); // borrowed
+		//ar = PyFloat_AsDouble(val2);
+		idx = getElementIndexBySymbol(PyString_AsString(val1));
+		if(element_table[idx].number == -1) {
+			PyErr_SetString(PyExc_RuntimeError, "Symbol unrecognized.");
+			return NULL; }
+		ar = element_table[idx].covalent_radius;
+		if(ar < 0) {
+			PyErr_SetString(PyExc_RuntimeError, "Covalent radius undefined.");
+			return NULL; }
 		tmp_list = PyList_New(0); // new
 		for (j = 0; j < nat; j++) {
 			if (i == j) continue;
@@ -356,10 +372,19 @@ static PyObject *find_bonds(PyObject *self, PyObject *args) {
 				bz = *( (double*) PyArray_GETPTR2(py_coords, j, 2) );
 			}
 			val1 = PyList_GetItem(py_symbols, j); // borrowed
-			val2 = PyDict_GetItem(py_types, val1); // borrowed
-			br = PyFloat_AsDouble(val2);
+			//val2 = PyDict_GetItem(py_types, val1); // borrowed
+			//br = PyFloat_AsDouble(val2);
+			idx = getElementIndexBySymbol(PyString_AsString(val1));
+			if(element_table[idx].number == -1) {
+				PyErr_SetString(PyExc_RuntimeError, "Symbol unrecognized.");
+				return NULL; }
+			br = element_table[idx].covalent_radius;
+			if(br < 0) {
+				PyErr_SetString(PyExc_RuntimeError, "Covalent radius undefined.");
+				return NULL; }
 			dist = sq(bx-ax) + sq(by-ay) + sq(bz-az);
-			if (dist < sq(ar+br)) {
+			//if (dist < sq((ar+br) * factor)) {
+			if (sqrt(dist) < (ar+br) * factor) {
 				val2 = PyInt_FromLong(j); // new
 				PyList_Append(tmp_list, val2);
 				Py_DECREF(val2);
@@ -419,7 +444,7 @@ static PyObject *centerofmass(PyObject *self, PyObject *args) {
 	npy_intp dims[1];
 	double mass;
 
-	PyObject *py_coords, *py_masses;
+	PyArrayObject *py_coords, *py_masses;
 	PyObject *py_result = NULL;
 
 	if(!PyArg_ParseTuple(args, "O!O!", &PyArray_Type, &py_coords, &PyArray_Type, &py_masses))
@@ -463,7 +488,8 @@ static PyObject *rot_inertia(PyObject *self, PyObject *args, PyObject *kwds) {
 
 
 static PyObject *inertia(PyObject *self, PyObject *args, PyObject *kwds) {
-	PyObject *py_coords, *py_masses, *py_inertia;
+	PyArrayObject *py_coords, *py_masses;
+	PyObject *py_inertia;
 	npy_intp *dim1, *dim2, dims[2];
 	int nat, i, j, type;
 	double *I;
@@ -538,8 +564,8 @@ static PyObject *inertia(PyObject *self, PyObject *args, PyObject *kwds) {
 
 static PyObject *mep_distance(PyObject *self, PyObject *args, PyObject *kwds) {
 
-	PyObject *py_coords1, *py_coords2;
-	PyObject *py_masses = NULL;
+	PyArrayObject *py_coords1, *py_coords2;
+	PyArrayObject *py_masses = NULL;
 	PyObject *py_result;
 	npy_intp *dim1, *dim2, *dim3;
 	int nat, i, type1, type2;
@@ -662,14 +688,14 @@ static PyMethodDef moltoolsMethods[] = {
 		"\n"
 		"FIXME"
 		"\n" },
-	{"find_bonds", (PyCFunction)find_bonds, METH_VARARGS,
+	{"find_bonds", (PyCFunction)find_bonds, METH_VARARGS | METH_KEYWORDS,
 		"\n"
-		"find_bonds(symbols, coordinates, vdWradii) -> topology\n"
+		"find_bonds(symbols, coordinates, factor=1.3) -> topology\n"
 		"\n"
 		"Finds connections between atoms. 'symbols' is a list of atomic types,\n"
-		"'coordinates' is a numpy array of coordinates and 'vdWradii' is a dictionary\n"
-		"of van der Waals radii for atomic types found in 'symbols'. Returns 'topology,'\n"
-		"which is a dictionary of indices <center> : (<center1>, <center2>, ... )\n"
+		"'coordinates' is a numpy array of coordinates and factor is a factor used\n"
+		"to multiply the covalent radii. Returns 'topology', which is a dictionary\n"
+		"of indices <center> : (<center1>, <center2>, ... )\n"
 		"\n" },
     {"energy", (PyCFunction)exposed_energy, METH_VARARGS | METH_KEYWORDS,
 		"\n"
