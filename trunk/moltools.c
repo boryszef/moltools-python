@@ -529,25 +529,37 @@ static PyObject *exposed_write(PyObject *self, PyObject *args, PyObject *kwds) {
 
 static PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds) {
 	extern Element element_table[];
-	int i, j, nat, type, idx;
+	int i, j, nat, type, idx, start;
 	float ax, ay, az, bx, by, bz;
 	double ar, br, dist;
 	npy_intp *numpyint;
 	float factor = 1.3;
+	char *format = NULL;
+	enum Formats { FMT_LIST, FMT_DICT } fmt = FMT_LIST;
 
 	static char *kwlist[] = {
-		"coordinates", "types", "factor", NULL };
+		"coordinates", "types", "factor", "format", NULL };
 
-	PyObject *val1, *val2, *tmp_list;
+	PyObject *val1, *val2, *tmp_list, *tmptup;
 	PyObject *py_symbols;
 	PyArrayObject *py_coords;
 	PyObject *py_result = NULL;
 
-	if(!PyArg_ParseTupleAndKeywords(args, kwds, "O!O!|f", kwlist,
+	if(!PyArg_ParseTupleAndKeywords(args, kwds, "O!O!|fs", kwlist,
 			&PyList_Type, &py_symbols,
 			&PyArray_Type, &py_coords,
-			&factor))
+			&factor,
+			&format))
 		return NULL;
+
+	if(format != NULL && !strcmp(format, "list"))
+		fmt = FMT_LIST;
+	else if (format != NULL && !strcmp(format, "dict"))
+		fmt = FMT_DICT;
+	else if (format != NULL) {
+		PyErr_SetString(PyExc_RuntimeError, "Unrecognized format.");
+		return NULL;
+	}
 
 	nat = PyList_Size(py_symbols);
 	numpyint = PyArray_DIMS(py_coords);
@@ -562,7 +574,12 @@ static PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds) {
 		return NULL;
 	}
 
-	py_result = PyDict_New();
+	if (fmt == FMT_DICT) {
+		py_result = PyDict_New();
+	} else {
+		py_result = PyList_New(0);
+	}
+
 	for (i = 0; i < nat; i++) {
 		if (type == NPY_FLOAT) {
 			ax = *( (float*) PyArray_GETPTR2(py_coords, i, 0) );
@@ -585,7 +602,10 @@ static PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds) {
 			PyErr_SetString(PyExc_RuntimeError, "Covalent radius undefined.");
 			return NULL; }
 		tmp_list = PyList_New(0); // new
-		for (j = 0; j < nat; j++) {
+		val1 = PyInt_FromLong(i); // new
+		if (fmt == FMT_DICT) start = 0;
+		else start = i+1;
+		for (j = start; j < nat; j++) {
 			if (i == j) continue;
 			if (type == NPY_FLOAT) {
 				bx = *( (float*) PyArray_GETPTR2(py_coords, j, 0) );
@@ -596,10 +616,8 @@ static PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds) {
 				by = *( (double*) PyArray_GETPTR2(py_coords, j, 1) );
 				bz = *( (double*) PyArray_GETPTR2(py_coords, j, 2) );
 			}
-			val1 = PyList_GetItem(py_symbols, j); // borrowed
-			//val2 = PyDict_GetItem(py_types, val1); // borrowed
-			//br = PyFloat_AsDouble(val2);
-			idx = getElementIndexBySymbol(PyString_AsString(val1));
+			val2 = PyList_GetItem(py_symbols, j); // borrowed
+			idx = getElementIndexBySymbol(PyString_AsString(val2));
 			if(element_table[idx].number == -1) {
 				PyErr_SetString(PyExc_RuntimeError, "Symbol unrecognized.");
 				return NULL; }
@@ -611,13 +629,21 @@ static PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds) {
 			//if (dist < sq((ar+br) * factor)) {
 			if (sqrt(dist) < (ar+br) * factor) {
 				val2 = PyInt_FromLong(j); // new
-				PyList_Append(tmp_list, val2);
+				if (fmt == FMT_DICT)
+					PyList_Append(tmp_list, val2);
+				else {
+					tmptup = PyTuple_New(2);
+					PyTuple_SetItem(tmptup, 0, val1);
+					PyTuple_SetItem(tmptup, 1, val2);
+					PyList_Append(py_result, tmptup);
+					Py_DECREF(tmptup);
+				}
 				Py_DECREF(val2);
 			}
 		}
-		val1 = PyInt_FromLong(i); // new
-		if (PyList_Size(tmp_list))
-			PyDict_SetItem(py_result, val1, tmp_list);
+		if (fmt == FMT_DICT)
+			if (PyList_Size(tmp_list))
+				PyDict_SetItem(py_result, val1, tmp_list);
 		Py_DECREF(val1);
 		Py_DECREF(tmp_list);
 	}
@@ -886,35 +912,40 @@ static PyMethodDef moltoolsMethods[] = {
 		"dict = read(filename [, unit ] )\n"
 		"\n"
 		"Reads a coordinate file and returns data as a dictionary.\n"
-		"Currently, supports only XYZ and Molden formats. In some file formats\n"
-		"the unit can be chosen between unit = angs, bohr, nm.\n"
+		"Currently, supports only XYZ and Molden formats. In some file\n"
+		"formats the unit can be chosen between unit = angs, bohr, nm.\n"
 		"\n"
-		"XYZ:    supports extended files (charges in the fifth column) as well\n"
-		"        as standard files; coordinates are assumed to be in Angstroms.\n"
-		"        Also supports multiframe files. In that case, returns a list\n"
-		"        of dictionaries.\n"
+		"XYZ:    supports extended files (charges in the fifth column)\n"
+		"        as well as standard files; coordinates are assumed to be\n"
+		"        in Angstroms. Also supports multiframe files. In that\n"
+		"        case, returns a list of dictionaries.\n"
 		"\n"
-		"Molden: supports groups N_GEO, GEOCONV (energies only), GEOMETRIES\n"
-		"        (XYZ only), ATOMS (Angstroms only).\n"
+		"Molden: supports groups N_GEO, GEOCONV (energies only),\n"
+		"        GEOMETRIES (XYZ only), ATOMS (Angstroms only).\n"
 		"\n"
-		"Output structure, dictionary including various keys, depending on what\n"
-		"is found in the file:\n"
+		"Output structure, dictionary including various keys, depending\n"
+		"on what is found in the file:\n"
 		"\n"
 		"number_of_atoms - number of atoms (int)\n"
 		"comment         - comment line extracted from second line (str)\n"
 		"symbols         - atom symbols (list)\n"
-		"coordinates     - array of [number_of_atoms,3] coordinates (numpy array)\n"
-		"charges         - array of [number_of_atoms] point charges (numpy array)\n"
-		"energies        - energies of the subsequent configurations (numpy array)\n"
+		"coordinates     - array of [number_of_atoms,3] coordinates\n"
+		"                  (numpy array)\n"
+		"charges         - array of [number_of_atoms] point charges\n"
+		"                  (numpy array)\n"
+		"energies        - energies of the subsequent configurations\n"
+		"                  (numpy array)\n"
 		"geometries      - list of dictionaries, one for each configuration\n"
 		"atomic_numbers  - atomic numbers (nuclear charge, numpy array, int)\n"
 		"\n" },
     {"write", (PyCFunction)exposed_write, METH_VARARGS | METH_KEYWORDS,
 		"\n"
-		"write(FILENAME, SYMBOLS, COORDS, [ comment=COMMENT, residues=RESNAM,\n"
-		"      residue_numbers=RESNUM, box=PBCBOX, format=FORMAT, mode=MODE ])\n"
+		"write(FILENAME, SYMBOLS, COORDS, [ comment=COMMENT,\n"
+		"      residues=RESNAM, residue_numbers=RESNUM, box=PBCBOX,\n"
+		"      format=FORMAT, mode=MODE ])\n"
 		"\n"
-		"Write structure in XYZ or GRO format. Following parameters are obligatory:\n"
+		"Write structure in XYZ or GRO format. Following parameters are\n"
+		"obligatory:\n"
 		"FILENAME - file name (string)\n"
 		"SYMBOLS  - atomic symbols (list)\n"
 		"COORDS   - coordinates (numpy array)\n"
@@ -922,19 +953,23 @@ static PyMethodDef moltoolsMethods[] = {
 		"FORMAT   - file format, 'XYZ' or 'GRO' (default 'XYZ')\n"
 		"MODE     - writing mode, 'w' or 'a' (default 'w')\n"
 		"COMMENT  - comment text (string), default is empty\n"
-		"RESNAM   - residue names (list of strings), default are empty strings\n"
+		"RESNAM   - residue names (list of strings), default are empty\n"
+		"           strings\n"
 		"RESNUM   - residue numbers (list if int), default is 1\n"
 		"PBCBOX   - Dimentions of the box, used in PBC (numpy array);\n"
 		"           required when GRO format is used\n"
 		"\n" },
 	{"find_bonds", (PyCFunction)find_bonds, METH_VARARGS | METH_KEYWORDS,
 		"\n"
-		"find_bonds(symbols, coordinates, factor=1.3) -> topology\n"
+		"find_bonds(symbols, coordinates, factor=1.3, format=list)\n"
 		"\n"
-		"Finds connections between atoms. 'symbols' is a list of atomic types,\n"
-		"'coordinates' is a numpy array of coordinates and factor is a factor used\n"
-		"to multiply the covalent radii. Returns 'topology', which is a dictionary\n"
-		"of indices <center> : (<center1>, <center2>, ... )\n"
+		"Finds connections between atoms. 'symbols' is a list of atomic\n"
+		"types, 'coordinates' is a numpy array of coordinates and factor\n"
+		"is a factor used to multiply the covalent radii. Depending on the\n"
+		"optional parameter 'format', returns either a dictionary of\n"
+		"indices { <center> : (<center1>, <center2>, ... ) ... } for every\n"
+		"atom or a list of unique bonds as tuples [ (center1, center2),\n"
+		"(center1, center3), ... ]\n"
 		"\n" },
     {"energy", (PyCFunction)exposed_energy, METH_VARARGS | METH_KEYWORDS,
 		"\n"
@@ -954,14 +989,15 @@ static PyMethodDef moltoolsMethods[] = {
 		"\n"
 		"COM(coordinates, masses)\n"
 		"\n"
-		"For given coordinates (numpy array) evaluate the center of mass (numpy array).\n"
+		"For given coordinates (numpy array) evaluate the center of mass\n"
+		"(numpy array).\n"
 		"\n" },
 	{"MEP_distance", (PyCFunction)mep_distance, METH_VARARGS | METH_KEYWORDS,
 		"\n"
 		"MEP_distance(coordinates1, coordinates2, masses=None)\n"
 		"\n"
-		"Computes mass-weighted distance of two structures, as used in IRC/MEP calculations.\n"
-		"If masses are omitted, no weighting is done.\n"
+		"Computes mass-weighted distance of two structures, as used in\n"
+		"IRC/MEP calculations. If masses are omitted, no weighting is done.\n"
 		"\n" },
 	{"inertia", (PyCFunction)inertia, METH_VARARGS | METH_KEYWORDS,
 		"\n"
@@ -973,8 +1009,8 @@ static PyMethodDef moltoolsMethods[] = {
 		"\n"
 		"coordinates_rot, principal_moments = rot_inertia(coordinates, inertia_tensor)\n"
 		"\n"
-		"Rotates the coordinates so that the principal moments of inertia are aligned"
-		"with axes of the coordinate system.\n"
+		"Rotates the coordinates so that the principal moments of inertia\n"
+		"are aligned with axes of the coordinate system.\n"
 		"\n" },
 
     {NULL, NULL, 0, NULL}        /* Sentinel */
