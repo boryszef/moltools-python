@@ -652,6 +652,90 @@ static PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds) {
 }
 
 
+static PyObject *find_molecules(PyObject *self, PyObject *args, PyObject *kwds) {
+	int nbonds, i, j, k, molcount = 0, indexFound, natoms;
+	unsigned int pyNAtoms;
+	long int idx1, idx2, idx3;
+	int *checkTable;
+
+	static char *kwlist[] = {
+		"natoms", "bonds", NULL };
+
+	PyObject *bond, *mol, *atomIdx;
+	PyObject *py_bonds;
+	PyObject *py_result = NULL;
+
+	if(!PyArg_ParseTupleAndKeywords(args, kwds, "IO!", kwlist,
+			&pyNAtoms, &PyList_Type, &py_bonds))
+		return NULL;
+
+	checkTable = (int *)malloc(pyNAtoms * sizeof(int));
+	for (i = 0; i < pyNAtoms; i++)
+		checkTable[i] = 0;
+
+	nbonds = PyList_Size(py_bonds);
+	py_result = PyList_New(0);
+
+	for (i = 0; i < nbonds; i++) {
+		bond = PyList_GetItem(py_bonds, i); // borrowed
+		atomIdx = PyTuple_GetItem(bond, 0);
+		idx1 = PyInt_AsLong(atomIdx);
+		atomIdx = PyTuple_GetItem(bond, 1);
+		idx2 = PyInt_AsLong(atomIdx);
+		if (!PyTuple_Check(bond)) {
+			PyErr_SetString(PyExc_RuntimeError, "List of bonds should contain tuples.");
+			return NULL; }
+		if (PyTuple_Size(bond) != 2) {
+			PyErr_SetString(PyExc_RuntimeError, "Bond tuple must have exactly two indices.");
+			return NULL; }
+		indexFound = 0;
+		for (j = 0; j < molcount; j++) {
+			mol = PyList_GetItem(py_result, j);
+			natoms = PyList_Size(mol);
+			for (k = 0; k < natoms; k++) {
+				atomIdx = PyList_GetItem(mol, k);
+				idx3 = PyInt_AsLong(atomIdx);
+				if ( idx3 == idx1 ) {
+					indexFound = 1;
+					atomIdx = PyInt_FromLong(idx2);
+					PyList_Append(mol, atomIdx);
+					Py_DECREF(atomIdx);
+				} else if ( idx3 == idx2 ) {
+					indexFound = 1;
+					atomIdx = PyInt_FromLong(idx1);
+					PyList_Append(mol, atomIdx);
+					Py_DECREF(atomIdx);
+				}
+			}
+		}
+		//printf("%d %ld %ld\n", indexFound, idx1, idx2);
+		if (!indexFound) {
+			mol = PyList_New(2);
+			PyList_SetItem(mol, 0, PyInt_FromLong(idx1));
+			PyList_SetItem(mol, 1, PyInt_FromLong(idx2));
+			PyList_Append(py_result, mol);
+			Py_DECREF(mol);
+			molcount += 1;
+		}
+		checkTable[idx1] = 1;
+		checkTable[idx2] = 1;
+	}
+
+	for (i = 0; i < pyNAtoms; i++) {
+		if ( !checkTable[i] ) {
+			mol = PyList_New(1);
+			PyList_SetItem(mol, 0, PyInt_FromLong(i));
+			PyList_Append(py_result, mol);
+			Py_DECREF(mol);
+			molcount += 1;
+		}
+	}
+
+	free(checkTable);
+	return py_result;
+}
+
+
 static PyObject *mass_list(PyObject *self, PyObject *args) {
 	int nat, i, j;
 	extern Element element_table[];
@@ -959,9 +1043,9 @@ static PyMethodDef moltoolsMethods[] = {
 		"PBCBOX   - Dimentions of the box, used in PBC (numpy array);\n"
 		"           required when GRO format is used\n"
 		"\n" },
-	{"find_bonds", (PyCFunction)find_bonds, METH_VARARGS | METH_KEYWORDS,
+	{"findBonds", (PyCFunction)find_bonds, METH_VARARGS | METH_KEYWORDS,
 		"\n"
-		"find_bonds(symbols, coordinates, factor=1.3, format=list)\n"
+		"findBonds(symbols, coordinates, factor=1.3, format=list)\n"
 		"\n"
 		"Finds connections between atoms. 'symbols' is a list of atomic\n"
 		"types, 'coordinates' is a numpy array of coordinates and factor\n"
@@ -970,6 +1054,13 @@ static PyMethodDef moltoolsMethods[] = {
 		"indices { <center> : (<center1>, <center2>, ... ) ... } for every\n"
 		"atom or a list of unique bonds as tuples [ (center1, center2),\n"
 		"(center1, center3), ... ]\n"
+		"\n" },
+	{"findMolecules", (PyCFunction)find_molecules, METH_VARARGS | METH_KEYWORDS,
+		"\n"
+		"findMolecules(numberOfAtoms, bonds)\n"
+		"\n"
+		"Given a list of bonds as tuples, find sets of topologically\n"
+		"connected atoms (molecules).\n"
 		"\n" },
     {"energy", (PyCFunction)exposed_energy, METH_VARARGS | METH_KEYWORDS,
 		"\n"
