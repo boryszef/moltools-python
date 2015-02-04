@@ -24,6 +24,131 @@
 #include "moltools.h"
 
 
+PyObject *exposed_read(PyObject *self, PyObject *args, PyObject *kwds) {
+
+	const char *filename;
+	char *line;
+	char *unit = NULL;
+	enum { GUESS, XYZ, MOLDEN, FRAC, GRO } type = GUESS;
+	char *str_type = NULL;
+	float factor;
+	FILE *fd, *test;
+	long int fpos;
+	struct stat fst;
+	char ext[5];
+
+	static char *kwlist[] = {"file", "format", "unit", NULL};
+
+	PyObject *py_result, *py_list;
+
+	py_result = NULL;
+
+	/* Process the arguments */
+	if(!PyArg_ParseTupleAndKeywords(args, kwds, "s|ss",
+		kwlist, &filename, &str_type, &unit)) return NULL;
+
+	/* Get the unit measure for coordinates and set the factor accordingly */
+	if (unit == NULL) factor = 1.0;
+	else {
+		make_lowercase(unit);
+		if ( !strcmp(unit, "angs") ) factor = 1.0;
+		else if ( !strcmp(unit, "bohr") ) factor = BOHR;
+		else if ( !strcmp(unit, "nm") ) factor = 10.0;
+		else {
+			PyErr_SetString(PyExc_ValueError, "Unrecognized measure unit name");
+			return NULL; }
+	}
+
+	/* Set the enum symbol of the file format */
+	if ( str_type != NULL ) {
+		if      ( !strcmp(str_type,    "XYZ") ) type = XYZ;
+		else if ( !strcmp(str_type, "MOLDEN") ) type = MOLDEN;
+		else if ( !strcmp(str_type,   "FRAC") ) type = FRAC;
+		else if ( !strcmp(str_type,    "GRO") ) type = GRO;
+	}
+
+	/* Open the coordinate file */
+	if ( (fd = fopen(filename, "r")) == NULL ) {
+		PyErr_SetFromErrno(PyExc_IOError);
+		return NULL; }
+
+	/* Guess the file format, if not given explicitly */
+	if ( type == GUESS ) {
+		strcpy(ext, filename + strlen(filename) - 4);
+		if      ( !strcmp(ext, ".xyz") ) type = XYZ;
+		else if ( !strcmp(ext, ".gro") ) type = GRO;
+		else {
+			/* Extract the first line */
+			if ( (test = fopen(filename, "r")) == NULL ) {
+				PyErr_SetFromErrno(PyExc_IOError);
+				return NULL; }
+			if ( (line = readline(test)) == NULL ) {
+				PyErr_SetFromErrno(PyExc_IOError);
+				return NULL; }
+			make_lowercase(line);
+			stripline(line);
+			fclose(test);
+
+			/* Perhaps it's Molden format? */
+			if ( !strcmp(line, "[molden format]") ) type = MOLDEN;
+
+			free(line);
+		}
+	}
+
+	/* Router */
+	switch(type) {
+		case XYZ:
+			py_result = read_xyz(fd, factor);
+			/* Support for multiframe XYZ: check the current position in
+ 			 * the file; if we are near the end, finish; else, continue
+ 			 * reading. The criteria is that there should be no more than
+ 			 * 3 bytes left. */
+			fpos = ftell(fd);
+			if ( fpos == -1 ) {
+				PyErr_SetFromErrno(PyExc_IOError);
+				return NULL; }
+			if ( fstat(fileno(fd), &fst) == -1 ) {
+				PyErr_SetFromErrno(PyExc_IOError);
+				return NULL; }
+			if ( fst.st_size - fpos > 3 ) {
+				py_list = PyList_New(1);
+				PyList_SetItem(py_list, 0, py_result);
+			} else {
+				break;
+			}
+			while ( fst.st_size - fpos > 3 ) {
+				py_result = read_xyz(fd, factor);
+				PyList_Append(py_list, py_result);
+				fpos = ftell(fd);
+				if ( fpos == -1 ) {
+					PyErr_SetFromErrno(PyExc_IOError);
+					return NULL; }
+			}
+			py_result = py_list;
+			break;
+		case MOLDEN:
+			py_result = read_molden(fd);
+			break;
+		case FRAC:
+			py_result = read_fractional(fd);
+			break;
+		case GRO:
+			py_result = read_gro(fd);
+			break;
+		/* If the file format is GUESS or different,
+		   it means we've failed to guess :-(        */
+		case GUESS:
+		default:
+			PyErr_SetString(PyExc_ValueError, "Unsupported file format");
+			return NULL;
+	}
+
+	fclose(fd);
+	return py_result;
+}
+
+
 
 PyObject *read_xyz(FILE *fd, float factor) {
 

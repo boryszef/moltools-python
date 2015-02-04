@@ -78,6 +78,46 @@ typedef struct {
 	PyObject *F2; /* values of the second derivative of F */
 } EAMff;
 
+typedef struct {
+
+	PyObject_HEAD
+	
+	PyObject *frames; /* 3D array of frames */
+	float *frames_raw;
+	npy_intp frames_dim[3];
+	
+	PyObject *symbols; /* list of symbols */
+	
+	PyObject *comment; /* comment */
+	
+	PyObject *charges; /* comment */
+	float *charges_raw;
+	npy_intp charges_dim[2];
+	
+	PyObject *energies; /* energies */
+	float *energies_raw;
+	npy_intp energies_dim[1];
+	
+	PyObject *atomicnumbers; /* atomic numbers */
+	
+	int natoms; /* number of atoms */
+	
+	int nframes; /* number of frames */
+
+} Molecule;
+
 void cspline_calculate_drv2(double y2[], int n, double x[], double y[]);
-double cspline_interpolate_y(double v, int n, double x[], double y[], double y2[]);
-double cspline_interpolate_drv(double v, int n, double x[], double y[], double y2[]);
+//double cspline_interpolate_y(double v, int n, double x[], double y[], double y2[]);
+double cspline_interpolate_y(double v, PyObject *, PyObject *, PyObject *);
+double cspline_interpolate_drv(double v, PyObject *, PyObject *, PyObject *);
+
+PyObject *exposed_read(PyObject *, PyObject *, PyObject *);
+PyObject *exposed_write(PyObject *, PyObject *, PyObject *);
+PyObject *centerofmass(PyObject *, PyObject *);
+PyObject *inertia(PyObject *, PyObject *, PyObject *);
+PyObject *mep_distance(PyObject *, PyObject *, PyObject *);
+
+int read_topo_from_xyz(FILE *fd, Molecule *self);
+int read_topo_from_molden(FILE *fd, Molecule *self);
+int read_topo_from_molden(FILE *fd, Molecule *self);
+int read_frame_from_xyz(FILE *fd, float factor, Molecule *);

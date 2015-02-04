@@ -24,6 +24,97 @@
 #include "moltools.h"
 
 
+PyObject *exposed_write(PyObject *self, PyObject *args, PyObject *kwds) {
+
+	char *filename;
+	char *comment = NULL;
+	char *str_format = NULL;
+	char *mode = NULL;
+	enum { XYZ, GRO } format = XYZ;
+	FILE *fd;
+	int nat, i;
+
+	static char *kwlist[] = {
+		"file", "symbols", "coordinates", "comment", "residues",
+		"residue_numbers", "box", "format", "mode", NULL };
+
+	PyObject *py_symbols, *val;
+	PyArrayObject *py_coords, *py_box = NULL;
+	PyObject *py_resnam = NULL, *py_resid = NULL;
+
+	if(!PyArg_ParseTupleAndKeywords(args, kwds, "sO!O!|sO!O!O!ss", kwlist,
+			&filename,
+			&PyList_Type, &py_symbols,
+			&PyArray_Type, &py_coords,
+			&comment,
+			&PyList_Type, &py_resnam,
+			&PyList_Type, &py_resid,
+			&PyArray_Type, &py_box,
+			&str_format,
+			&mode))
+		return NULL;
+
+	if ( mode == NULL || !strcmp(mode, "w") ) {
+		if( (fd = fopen(filename, "w")) == NULL ) {
+			PyErr_SetFromErrno(PyExc_IOError);
+			return NULL; }
+	} else if ( !strcmp(mode, "a") ) {
+		if( (fd = fopen(filename, "a")) == NULL ) {
+			PyErr_SetFromErrno(PyExc_IOError);
+			return NULL; }
+	} else {
+		PyErr_SetString(PyExc_ValueError, "Unsupported file mode");
+		return NULL; }
+
+	if ( str_format != NULL ) {
+		if      ( !strcmp(str_format, "XYZ") ) format = XYZ;
+		else if ( !strcmp(str_format, "GRO") ) format = GRO;
+	}
+
+	switch(format) {
+		case XYZ:
+			if ( write_xyz(fd, py_symbols, py_coords, comment) == -1 )
+				return NULL;
+			break;
+		case GRO:
+			if ( py_box == NULL ) {
+				PyErr_SetString(PyExc_ValueError, "Box vector must be given, when GRO format is used");
+				return NULL; }
+			nat = PyList_Size(py_symbols);
+			if ( py_resnam == NULL ) {
+				py_resnam = PyList_New(nat);
+				val = Py_BuildValue("s", "");
+				for ( i = 0; i < nat; i++ ) {
+					PyList_SetItem(py_resnam, i, val);
+					Py_INCREF(val);
+				}
+				Py_DECREF(val);
+			}
+			if ( py_resid == NULL ) {
+				py_resid = PyList_New(nat);
+				val = Py_BuildValue("i", 1);
+				for ( i = 0; i < nat; i++ ) {
+					PyList_SetItem(py_resid, i, val);
+					Py_INCREF(val);
+				}
+				Py_DECREF(val);
+			}
+			if ( write_gro(fd, py_symbols, py_coords, comment,
+			               py_resnam, py_resid, py_box) == -1 )
+				return NULL;
+			break;
+		default:
+			PyErr_SetString(PyExc_RuntimeError, "This was unexpected...");
+			return NULL;
+	}
+
+	fclose(fd);
+
+	Py_RETURN_NONE;
+}
+
+
+
 int write_xyz(FILE *fd, PyObject *py_symbols, PyArrayObject *py_coords, char *comment) {
 
 	int nat, i, type;
