@@ -64,7 +64,7 @@ PyObject *read_fractional(FILE *fd);
 PyObject *read_gro(FILE *fd);
 int write_xyz(FILE *, PyObject *, PyArrayObject *, char *);
 int write_gro(FILE *, PyObject *, PyArrayObject *, char *, PyObject *, PyObject *, PyArrayObject *);
-double evaluate_energy(PyArrayObject *,PyObject *, FFType, PyObject *, float *);
+//double evaluate_energy(PyArrayObject *,PyObject *, FFType, PyObject *, float *);
 
 typedef struct {
 	PyObject_HEAD
@@ -116,6 +116,8 @@ PyObject *exposed_write(PyObject *, PyObject *, PyObject *);
 PyObject *centerofmass(PyObject *, PyObject *);
 PyObject *inertia(PyObject *, PyObject *, PyObject *);
 PyObject *mep_distance(PyObject *, PyObject *, PyObject *);
+PyObject *find_molecules(PyObject *self, PyObject *args, PyObject *kwds);
+PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds);
 
 int read_topo_from_xyz(FILE *fd, Molecule *self);
 int read_topo_from_molden(FILE *fd, Molecule *self);
