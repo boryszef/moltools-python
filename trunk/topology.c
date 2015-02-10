@@ -24,6 +24,62 @@
 #include "moltools.h"
 
 
+typedef struct {
+	int len;
+	int *idx;
+} Group;
+
+
+static int groupOverlap(Group a, Group b) {
+	int i, j;
+
+	for (i = 0; i < a.len; i++) {
+		for (j = 0; j < b.len; j++)
+			if (a.idx[i] == b.idx[j]) return 1;
+	}
+	return 0;
+}
+
+static void groupMerge(Group *a, Group b) {
+	int i, j, k, newLen;
+	int duplicate;
+
+	newLen = a->len + b.len;
+	a->idx = (int*)realloc(a->idx, newLen * sizeof(int));
+	for (i = a->len, j = 0; j < b.len; j++) {
+		duplicate = 0;
+		for (k = 0; k < a->len; k++)
+			if ( (a->idx)[k] == b.idx[j] ) {
+				duplicate = 1;
+				break;
+			}
+		if (!duplicate)
+			(a->idx)[i++] = b.idx[j];
+	}
+	newLen = i;
+	a->idx = (int*)realloc(a->idx, newLen * sizeof(int));
+	a->len = newLen;
+}
+
+static void groupDelete(Group *a) {
+	free(a->idx);
+	a->idx = NULL;
+	a->len = 0;
+}
+
+static void groupPurge(int *n, Group *g) {
+	int i, j;
+
+	for (i = 0; i < *n;) {
+		if(g[i].len == 0) {
+			for (j = i; j < *n-1; j++)
+				g[j] = g[j+1];
+			*n -= 1;
+		} else i++;
+	}
+}
+
+
 PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds) {
 	extern Element element_table[];
 	int i, j, nat, type, idx, start;
@@ -150,10 +206,10 @@ PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds) {
 
 
 PyObject *find_molecules(PyObject *self, PyObject *args, PyObject *kwds) {
-	int nbonds, i, j, k, molcount = 0, indexFound, natoms;
+	int merged, nbonds, i, j, nmols, indexFound, natoms;
 	unsigned int pyNAtoms;
 	long int idx1, idx2, idx3;
-	int *checkTable;
+	Group *groups;
 
 	static char *kwlist[] = {
 		"natoms", "bonds", NULL };
@@ -166,14 +222,11 @@ PyObject *find_molecules(PyObject *self, PyObject *args, PyObject *kwds) {
 			&pyNAtoms, &PyList_Type, &py_bonds))
 		return NULL;
 
-	checkTable = (int *)malloc(pyNAtoms * sizeof(int));
-	for (i = 0; i < pyNAtoms; i++)
-		checkTable[i] = 0;
-
 	nbonds = PyList_Size(py_bonds);
-	py_result = PyList_New(0);
+	nmols = nbonds;
 
-	for (i = 0; i < nbonds; i++) {
+	groups = (Group*) malloc(nmols * sizeof(Group));
+	for (i = 0; i < nmols; i++) {
 		bond = PyList_GetItem(py_bonds, i); // borrowed
 		atomIdx = PyTuple_GetItem(bond, 0);
 		idx1 = PyInt_AsLong(atomIdx);
@@ -185,50 +238,36 @@ PyObject *find_molecules(PyObject *self, PyObject *args, PyObject *kwds) {
 		if (PyTuple_Size(bond) != 2) {
 			PyErr_SetString(PyExc_RuntimeError, "Bond tuple must have exactly two indices.");
 			return NULL; }
-		indexFound = 0;
-		for (j = 0; j < molcount; j++) {
-			mol = PyList_GetItem(py_result, j);
-			natoms = PyList_Size(mol);
-			for (k = 0; k < natoms; k++) {
-				atomIdx = PyList_GetItem(mol, k);
-				idx3 = PyInt_AsLong(atomIdx);
-				if ( idx3 == idx1 ) {
-					indexFound = 1;
-					atomIdx = PyInt_FromLong(idx2);
-					PyList_Append(mol, atomIdx);
-					Py_DECREF(atomIdx);
-				} else if ( idx3 == idx2 ) {
-					indexFound = 1;
-					atomIdx = PyInt_FromLong(idx1);
-					PyList_Append(mol, atomIdx);
-					Py_DECREF(atomIdx);
+		groups[i].len = 2;
+		groups[i].idx = (int*) malloc(2 * sizeof(int));
+		groups[i].idx[0] = idx1;
+		groups[i].idx[1] = idx2;
+	}
+		
+	py_result = PyList_New(0);
+
+	do {
+		merged = 0;
+		for (i = 0; i < nmols; i++) {
+			for (j = i+1; j < nmols; j++) {
+				if (groupOverlap(groups[i], groups[j])) {
+					groupMerge(groups+i, groups[j]);
+					groupDelete(groups+j);
+					merged = 1;
 				}
 			}
 		}
-		//printf("%d %ld %ld\n", indexFound, idx1, idx2);
-		if (!indexFound) {
-			mol = PyList_New(2);
-			PyList_SetItem(mol, 0, PyInt_FromLong(idx1));
-			PyList_SetItem(mol, 1, PyInt_FromLong(idx2));
-			PyList_Append(py_result, mol);
-			Py_DECREF(mol);
-			molcount += 1;
-		}
-		checkTable[idx1] = 1;
-		checkTable[idx2] = 1;
+		groupPurge(&nmols, groups);
+	} while(merged);
+		
+	for (i = 0; i < nmols; i++) {
+		mol = PyList_New(groups[i].len);
+		for(j = 0; j < groups[i].len; j++)
+			PyList_SetItem(mol, 0, PyInt_FromLong(groups[i].idx[j]));
+		PyList_Append(py_result, mol);
+		Py_DECREF(mol);
 	}
 
-	for (i = 0; i < pyNAtoms; i++) {
-		if ( !checkTable[i] ) {
-			mol = PyList_New(1);
-			PyList_SetItem(mol, 0, PyInt_FromLong(i));
-			PyList_Append(py_result, mol);
-			Py_DECREF(mol);
-			molcount += 1;
-		}
-	}
-
-	free(checkTable);
 	return py_result;
 }
 
