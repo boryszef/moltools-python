@@ -79,6 +79,17 @@ static void groupPurge(int *n, Group *g) {
 	}
 }
 
+/*static void groupPrint(int n, Group *g) {
+	int i, j;
+
+	printf("%d groups:\n", n);
+	for (i = 0; i < n; i++) {
+		printf("%3d: [", i);
+		for (j = 0; j < g[i].len; j++)
+			printf(" %3d,", g[i].idx[j]);
+		printf("]\n");
+	}
+}*/
 
 PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds) {
 	extern Element element_table[];
@@ -243,6 +254,7 @@ PyObject *find_molecules(PyObject *self, PyObject *args, PyObject *kwds) {
 		groups[i].idx[0] = idx1;
 		groups[i].idx[1] = idx2;
 	}
+	//groupPrint(nmols, groups);
 		
 	py_result = PyList_New(0);
 
@@ -258,12 +270,13 @@ PyObject *find_molecules(PyObject *self, PyObject *args, PyObject *kwds) {
 			}
 		}
 		groupPurge(&nmols, groups);
+		//groupPrint(nmols, groups);
 	} while(merged);
 		
 	for (i = 0; i < nmols; i++) {
 		mol = PyList_New(groups[i].len);
 		for(j = 0; j < groups[i].len; j++)
-			PyList_SetItem(mol, 0, PyInt_FromLong(groups[i].idx[j]));
+			PyList_SetItem(mol, j, PyInt_FromLong(groups[i].idx[j]));
 		PyList_Append(py_result, mol);
 		Py_DECREF(mol);
 	}
