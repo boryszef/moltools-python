@@ -4,8 +4,8 @@ moltools = Extension('moltools',
 	sources = [ 'eam.c', 'periodic_table.c', 'utils.c', 'readers.c',
 	            'measure.c', 'constants.c', 'writers.c', 'topology.c',
 	            'molecule.c', 'moltools.c', ],
-	extra_compile_args=["-g"],
-	extra_link_args=["-g"]
+	#extra_compile_args=["-O0 -g"],
+	#extra_link_args=["-O0 -g"]
 )
 
 setup (name = 'moltools-python', version = '0.1',
