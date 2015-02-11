@@ -197,8 +197,10 @@ PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds) {
 					PyList_Append(tmp_list, val2);
 				else {
 					tmptup = PyTuple_New(2);
-					PyTuple_SetItem(tmptup, 0, val1);
+					PyTuple_SetItem(tmptup, 0, val1); // steals reference
+					Py_INCREF(val1); // decreased after the inner loop
 					PyTuple_SetItem(tmptup, 1, val2);
+					Py_INCREF(val2); // decreased just below
 					PyList_Append(py_result, tmptup);
 					Py_DECREF(tmptup);
 				}
@@ -217,9 +219,10 @@ PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds) {
 
 
 PyObject *find_molecules(PyObject *self, PyObject *args, PyObject *kwds) {
-	int merged, nbonds, i, j, nmols, indexFound, natoms;
-	unsigned int pyNAtoms;
-	long int idx1, idx2, idx3;
+	int merged, nbonds, i, j, nmols;
+	unsigned int natoms;
+	long int idx1, idx2;
+	int *checkTable;
 	Group *groups;
 
 	static char *kwlist[] = {
@@ -230,11 +233,13 @@ PyObject *find_molecules(PyObject *self, PyObject *args, PyObject *kwds) {
 	PyObject *py_result = NULL;
 
 	if(!PyArg_ParseTupleAndKeywords(args, kwds, "IO!", kwlist,
-			&pyNAtoms, &PyList_Type, &py_bonds))
+			&natoms, &PyList_Type, &py_bonds))
 		return NULL;
 
 	nbonds = PyList_Size(py_bonds);
 	nmols = nbonds;
+	checkTable = (int*) malloc(natoms * sizeof(int));
+	for (i = 0; i < natoms; i++) checkTable[i] = 0;
 
 	groups = (Group*) malloc(nmols * sizeof(Group));
 	for (i = 0; i < nmols; i++) {
@@ -275,10 +280,21 @@ PyObject *find_molecules(PyObject *self, PyObject *args, PyObject *kwds) {
 		
 	for (i = 0; i < nmols; i++) {
 		mol = PyList_New(groups[i].len);
-		for(j = 0; j < groups[i].len; j++)
+		for(j = 0; j < groups[i].len; j++) {
 			PyList_SetItem(mol, j, PyInt_FromLong(groups[i].idx[j]));
+			checkTable[groups[i].idx[j]] = 1;
+		}
 		PyList_Append(py_result, mol);
 		Py_DECREF(mol);
+	}
+
+	for (i = 0; i < natoms; i++) {
+		if (!checkTable[i]) {
+			mol = PyList_New(1);
+			PyList_SetItem(mol, 0, PyInt_FromLong(i));
+			PyList_Append(py_result, mol);
+			Py_DECREF(mol);
+		}
 	}
 
 	return py_result;
