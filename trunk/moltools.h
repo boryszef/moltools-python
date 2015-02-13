@@ -118,6 +118,7 @@ PyObject *inertia(PyObject *, PyObject *, PyObject *);
 PyObject *mep_distance(PyObject *, PyObject *, PyObject *);
 PyObject *find_molecules(PyObject *self, PyObject *args, PyObject *kwds);
 PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds);
+PyObject *distanceMatrix(PyObject *self, PyObject *args, PyObject *kwds);
 
 int read_topo_from_xyz(FILE *fd, Molecule *self);
 int read_topo_from_molden(FILE *fd, Molecule *self);
