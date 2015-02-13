@@ -1,6 +1,131 @@
 #include "moltools.h"
 
 
+PyObject *distanceMatrix(PyObject *self, PyObject *args, PyObject *kwds) {
+	PyArrayObject *py_coords, *py_box = NULL;
+	PyObject *py_dist;
+	int i, j, natoms, type;
+	npy_intp *numpyint;
+	double ax, ay, az, bx, by, bz, dx, dy, dz, dist;
+	double box[3], half[3];
+	npy_intp dims[2];
+	float *distances;
+	int use_pbc;
+
+	static char *kwlist[] = {
+		"coordinates", "box", NULL };
+
+	if(!PyArg_ParseTupleAndKeywords(args, kwds, "O!|O!", kwlist,
+			&PyArray_Type, &py_coords,
+			&PyArray_Type, &py_box))
+		return NULL;
+
+	if (py_box == NULL) use_pbc = 0;
+	else use_pbc = 1;
+
+	numpyint = PyArray_DIMS(py_coords);
+	natoms = numpyint[0];
+
+	distances = (float*) malloc(natoms * natoms * sizeof(float));
+	if(distances == NULL) {
+		PyErr_SetFromErrno(PyExc_MemoryError);
+		return NULL; }
+
+	if (use_pbc) {
+		numpyint = PyArray_DIMS(py_box);
+		if (numpyint[0] != 3) {
+			PyErr_SetString(PyExc_ValueError, "BOX should contain exactly 3 numbers");
+			return NULL; }
+		type = PyArray_TYPE(py_box);
+		if( type != NPY_FLOAT && type != NPY_DOUBLE) {
+			PyErr_SetString(PyExc_ValueError, "Incorrect type of the BOX array");
+			return NULL; }
+		switch(type) {
+			case NPY_FLOAT:
+				box[0] = *( (float*) PyArray_GETPTR1(py_box, 0) );
+				box[1] = *( (float*) PyArray_GETPTR1(py_box, 1) );
+				box[2] = *( (float*) PyArray_GETPTR1(py_box, 2) );
+				break;
+			case NPY_DOUBLE:
+				box[0] = *( (double*) PyArray_GETPTR1(py_box, 0) );
+				box[1] = *( (double*) PyArray_GETPTR1(py_box, 1) );
+				box[2] = *( (double*) PyArray_GETPTR1(py_box, 2) );
+				break;
+		}
+		half[0] = box[0] / 2.0;
+		half[1] = box[1] / 2.0;
+		half[2] = box[2] / 2.0;
+	}
+
+	type = PyArray_TYPE(py_coords);
+	if( type != NPY_FLOAT && type != NPY_DOUBLE) {
+		PyErr_SetString(PyExc_ValueError, "Incorrect type of the coordinate set");
+		return NULL; }
+
+	for ( i = 0; i < natoms; i++ ) {
+		switch(type) {
+			case NPY_FLOAT:
+				ax = *( (float*) PyArray_GETPTR2(py_coords, i, 0) );
+				ay = *( (float*) PyArray_GETPTR2(py_coords, i, 1) );
+				az = *( (float*) PyArray_GETPTR2(py_coords, i, 2) );
+				break;
+			case NPY_DOUBLE:
+				ax = *( (double*) PyArray_GETPTR2(py_coords, i, 0) );
+				ay = *( (double*) PyArray_GETPTR2(py_coords, i, 1) );
+				az = *( (double*) PyArray_GETPTR2(py_coords, i, 2) );
+				break;
+		}
+		if (use_pbc) {
+			ax = fmod(ax, box[0]);
+			ay = fmod(ay, box[1]);
+			az = fmod(az, box[2]);
+			if (ax < 0) ax += box[0];
+			if (ay < 0) ay += box[1];
+			if (az < 0) az += box[2];
+		}
+		distances[i*natoms + i] = 0.0;
+		for ( j = i + 1; j < natoms; j++ ) {
+			switch(type) {
+				case NPY_FLOAT:
+					bx = *( (float*) PyArray_GETPTR2(py_coords, j, 0) );
+					by = *( (float*) PyArray_GETPTR2(py_coords, j, 1) );
+					bz = *( (float*) PyArray_GETPTR2(py_coords, j, 2) );
+					break;
+				case NPY_DOUBLE:
+					bx = *( (double*) PyArray_GETPTR2(py_coords, j, 0) );
+					by = *( (double*) PyArray_GETPTR2(py_coords, j, 1) );
+					bz = *( (double*) PyArray_GETPTR2(py_coords, j, 2) );
+					break;
+			}
+			if (use_pbc) {
+				bx = fmod(bx, box[0]);
+				by = fmod(by, box[1]);
+				bz = fmod(bz, box[2]);
+				if (bx < 0) bx += box[0];
+				if (by < 0) by += box[1];
+				if (bz < 0) bz += box[2];
+			}
+			dx = fabs(ax-bx);
+			dy = fabs(ay-by);
+			dz = fabs(az-bz);
+			if (use_pbc) {
+				if (dx > half[0]) dx = box[0] - dx;
+				if (dy > half[1]) dy = box[1] - dy;
+				if (dz > half[2]) dz = box[2] - dz;
+			}
+			dist = sqrt(sq(dx) + sq(dy) + sq(dz));
+			distances[i*natoms + j] = dist;
+			distances[j*natoms + i] = dist;
+		}
+	}
+	dims[0] = natoms;
+	dims[1] = natoms;
+	py_dist = PyArray_SimpleNewFromData(2, dims, NPY_FLOAT, (float*) distances);
+
+	return py_dist;
+}
+
+
 PyObject *centerofmass(PyObject *self, PyObject *args) {
 	int i, nat;
 	double totalmass = 0.0;
@@ -77,8 +202,7 @@ PyObject *inertia(PyObject *self, PyObject *args, PyObject *kwds) {
 	type = PyArray_TYPE(py_coords);
 	if( type != NPY_FLOAT && type != NPY_DOUBLE) {
 		PyErr_SetString(PyExc_ValueError, "Incorrect type of the coordinate set");
-		return NULL;
-	}
+		return NULL; }
 
 	I = (double*) malloc(9 * sizeof(double));
 	if( I == NULL) {

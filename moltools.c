@@ -226,6 +226,13 @@ static PyMethodDef moltoolsMethods[] = {
 		"Computes mass-weighted distance of two structures, as used in\n"
 		"IRC/MEP calculations. If masses are omitted, no weighting is done.\n"
 		"\n" },
+	{"distanceMatrix", (PyCFunction)distanceMatrix, METH_VARARGS | METH_KEYWORDS,
+		"\n"
+		"distanceMatrix(coordinates, box=None)\n"
+		"\n"
+		"Calculates distance matrix, taking PBC into account when specified.\n"
+		"box - dimentions of the PBC box (numpy array).\n"
+		"\n" },
 	{"inertia", (PyCFunction)inertia, METH_VARARGS | METH_KEYWORDS,
 		"\n"
 		"inertia_tensor = inertia(coordinates, masses)\n"
