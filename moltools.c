@@ -228,10 +228,28 @@ static PyMethodDef moltoolsMethods[] = {
 		"\n" },
 	{"distanceMatrix", (PyCFunction)distanceMatrix, METH_VARARGS | METH_KEYWORDS,
 		"\n"
-		"distanceMatrix(coordinates, box=None)\n"
+		"distanceMatrix(coordinates, box=None, squared=False)\n"
 		"\n"
 		"Calculates distance matrix, taking PBC into account when specified.\n"
 		"box - dimentions of the PBC box (numpy array).\n"
+		"squared - use square of distance to avoid calculating roots.\n"
+		"\n" },
+	{"measureAngleCosine", (PyCFunction)measureAngleCosine, METH_VARARGS | METH_KEYWORDS,
+		"\n"
+		"measureAngleCosine(atom1, atom2, atom3, box=None)\n"
+		"\n"
+		"Returns the cosine of the angle between 1-2-3.\n"
+		"box - dimentions of the PBC box (numpy array).\n"
+		"\n" },
+	{"findHBonds", (PyCFunction)findHBonds, METH_VARARGS | METH_KEYWORDS,
+		"\n"
+		"findHBonds(symbols, coordinates, acceptors,\n"
+		"           box=None, cutoff=3.5, carbon_cutoff=cutoff, angle_cutoff=30)\n"
+		"\n"
+		"Returns a list of hydrogen bonds according to definition similar to Chandler'.\n"
+		"donor - acceptor distance must be less than cutoff, unless if donor/acceptor\n"
+		"is carbon; in such a case the carbon_cutoff is used. Additionally, the angle\n"
+		"H - donor - acceptor is required to be less than angle_cutoff degrees.\n"
 		"\n" },
 	{"inertia", (PyCFunction)inertia, METH_VARARGS | METH_KEYWORDS,
 		"\n"

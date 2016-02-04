@@ -119,8 +119,17 @@ PyObject *mep_distance(PyObject *, PyObject *, PyObject *);
 PyObject *find_molecules(PyObject *self, PyObject *args, PyObject *kwds);
 PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds);
 PyObject *distanceMatrix(PyObject *self, PyObject *args, PyObject *kwds);
+PyObject *measureAngleCosine(PyObject *self, PyObject *args, PyObject *kwds);
+PyObject *findHBonds(PyObject *self, PyObject *args, PyObject *kwds);
 
 int read_topo_from_xyz(FILE *fd, Molecule *self);
 int read_topo_from_molden(FILE *fd, Molecule *self);
 int read_topo_from_molden(FILE *fd, Molecule *self);
 int read_frame_from_xyz(FILE *fd, float factor, Molecule *);
+
+double *boxArray2double(double box[], PyArrayObject *arr);
+void wrapCartesian(double point[3], double box[3]);
+void nearestImage(double center[3], double other[3], double half[3]);
+double threePointAngleCosine(double A[3], double B[3], double C[3]);
+double distanceSquare(double p[3], double q[3]);
+double copyPoint(double dst[3], double src[3]);
