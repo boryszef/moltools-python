@@ -79,17 +79,6 @@ static void groupPurge(int *n, Group *g) {
 	}
 }
 
-/*static void groupPrint(int n, Group *g) {
-	int i, j;
-
-	printf("%d groups:\n", n);
-	for (i = 0; i < n; i++) {
-		printf("%3d: [", i);
-		for (j = 0; j < g[i].len; j++)
-			printf(" %3d,", g[i].idx[j]);
-		printf("]\n");
-	}
-}*/
 
 PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds) {
 	extern Element element_table[];
@@ -155,8 +144,6 @@ PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds) {
 			az = *( (double*) PyArray_GETPTR2(py_coords, i, 2) );
 		}
 		val1 = PyList_GetItem(py_symbols, i); // borrowed
-		//val2 = PyDict_GetItem(py_types, val1); // borrowed
-		//ar = PyFloat_AsDouble(val2);
 		idx = getElementIndexBySymbol(PyString_AsString(val1));
 		if(element_table[idx].number == -1) {
 			PyErr_SetString(PyExc_RuntimeError, "Symbol unrecognized.");
@@ -190,7 +177,6 @@ PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds) {
 				PyErr_SetString(PyExc_RuntimeError, "Covalent radius undefined.");
 				return NULL; }
 			dist = sq(bx-ax) + sq(by-ay) + sq(bz-az);
-			//if (dist < sq((ar+br) * factor)) {
 			if (sqrt(dist) < (ar+br) * factor) {
 				val2 = PyInt_FromLong(j); // new
 				if (fmt == FMT_DICT)
@@ -259,7 +245,6 @@ PyObject *find_molecules(PyObject *self, PyObject *args, PyObject *kwds) {
 		groups[i].idx[0] = idx1;
 		groups[i].idx[1] = idx2;
 	}
-	//groupPrint(nmols, groups);
 		
 	py_result = PyList_New(0);
 
@@ -275,7 +260,6 @@ PyObject *find_molecules(PyObject *self, PyObject *args, PyObject *kwds) {
 			}
 		}
 		groupPurge(&nmols, groups);
-		//groupPrint(nmols, groups);
 	} while(merged);
 		
 	for (i = 0; i < nmols; i++) {

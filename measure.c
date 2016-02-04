@@ -554,12 +554,10 @@ PyObject *mep_distance(PyObject *self, PyObject *args, PyObject *kwds) {
 				break;
 		}
 
-		//printf("%f %f %lf\n", az, bz, mass);
 		delta += mass * (sq(ax - bx) + sq(ay - by) + sq(az - bz));
 		totalmass += mass;
 	}
 	delta = sqrt(delta/totalmass);
-	//delta /= sqrt(totalmass);
 
 	return PyFloat_FromDouble((double)delta);
 }

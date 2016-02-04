@@ -50,7 +50,6 @@ char *readline(FILE *fd) {
 	if ( fgets(buffer, CHUNK, fd) == NULL ) buffer[0] = '\0';
 	last = strlen(buffer) - 1;
 	length = last + 1;
-	//printf("First chunk:%s:\n", buffer);
 
 	/* Continue reading because this is not the end of the line yet */
 	while( buffer[last] != '\n' && last != -1) {
@@ -59,9 +58,7 @@ char *readline(FILE *fd) {
 		if ( fgets(buffer, CHUNK, fd) == NULL ) buffer[0] = '\0';
 		last = strlen(buffer) - 1;
 		length += last + 1;
-		//printf("Next  chunk:%s:\n", buffer);
 	}
-	//printf("Last = %d, length = %d\n", (int)last, length);
 
 	/* Rewind the file */
 	if ( fseek(fd, offset, SEEK_SET) == -1 ) {
@@ -73,7 +70,6 @@ char *readline(FILE *fd) {
 
 	/* Realliy read the data */
 	if ( fgets(line, length + 1, fd) == NULL ) buffer[0] = '\0';
-	//printf("Line:%s:\n", line);
 
 	return line;
 }
@@ -113,7 +109,6 @@ int stripline(char *line) {
 		if ( c != ' ' && c != '\t' && c != '\n' && c != '\r' ) break;
 	}
 	end += 1;
-	//printf("%d %d %d\n", length, start, end);
 	length = end-start+1;
 	for(i = 0; i < length; i++) {
 		line[i] = line[i+start];

@@ -64,7 +64,6 @@ PyObject *read_fractional(FILE *fd);
 PyObject *read_gro(FILE *fd);
 int write_xyz(FILE *, PyObject *, PyArrayObject *, char *);
 int write_gro(FILE *, PyObject *, PyArrayObject *, char *, PyObject *, PyObject *, PyArrayObject *);
-//double evaluate_energy(PyArrayObject *,PyObject *, FFType, PyObject *, float *);
 
 typedef struct {
 	PyObject_HEAD
@@ -105,11 +104,6 @@ typedef struct {
 	int nframes; /* number of frames */
 
 } Molecule;
-
-void cspline_calculate_drv2(double y2[], int n, double x[], double y[]);
-//double cspline_interpolate_y(double v, int n, double x[], double y[], double y2[]);
-double cspline_interpolate_y(double v, PyObject *, PyObject *, PyObject *);
-double cspline_interpolate_drv(double v, PyObject *, PyObject *, PyObject *);
 
 PyObject *exposed_read(PyObject *, PyObject *, PyObject *);
 PyObject *exposed_write(PyObject *, PyObject *, PyObject *);
