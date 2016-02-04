@@ -37,6 +37,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#ifdef HAVE_GROMACS
+	#include <gromacs/fileio/xtcio.h>
+#endif
 
 #define BOHR 0.529177209
 
@@ -62,6 +65,9 @@ PyObject *read_xyz(FILE *fd, float factor);
 PyObject *read_molden(FILE *fd);
 PyObject *read_fractional(FILE *fd);
 PyObject *read_gro(FILE *fd);
+#ifdef HAVE_GROMACS
+PyObject *read_xtc(const char *filename);
+#endif
 int write_xyz(FILE *, PyObject *, PyArrayObject *, char *);
 int write_gro(FILE *, PyObject *, PyArrayObject *, char *, PyObject *, PyObject *, PyArrayObject *);
 //double evaluate_energy(PyArrayObject *,PyObject *, FFType, PyObject *, float *);

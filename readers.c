@@ -29,7 +29,7 @@ PyObject *exposed_read(PyObject *self, PyObject *args, PyObject *kwds) {
 	const char *filename;
 	char *line;
 	char *unit = NULL;
-	enum { GUESS, XYZ, MOLDEN, FRAC, GRO } type = GUESS;
+	enum { GUESS, XYZ, MOLDEN, FRAC, GRO, XTC } type = GUESS;
 	char *str_type = NULL;
 	float factor;
 	FILE *fd, *test;
@@ -65,6 +65,7 @@ PyObject *exposed_read(PyObject *self, PyObject *args, PyObject *kwds) {
 		else if ( !strcmp(str_type, "MOLDEN") ) type = MOLDEN;
 		else if ( !strcmp(str_type,   "FRAC") ) type = FRAC;
 		else if ( !strcmp(str_type,    "GRO") ) type = GRO;
+		else if ( !strcmp(str_type,    "XTC") ) type = XTC;
 	}
 
 	/* Open the coordinate file */
@@ -77,6 +78,7 @@ PyObject *exposed_read(PyObject *self, PyObject *args, PyObject *kwds) {
 		strcpy(ext, filename + strlen(filename) - 4);
 		if      ( !strcmp(ext, ".xyz") ) type = XYZ;
 		else if ( !strcmp(ext, ".gro") ) type = GRO;
+		else if ( !strcmp(ext, ".xtc") ) type = XTC;
 		else {
 			/* Extract the first line */
 			if ( (test = fopen(filename, "r")) == NULL ) {
@@ -135,6 +137,14 @@ PyObject *exposed_read(PyObject *self, PyObject *args, PyObject *kwds) {
 			break;
 		case GRO:
 			py_result = read_gro(fd);
+			break;
+		case XTC:
+#ifdef HAVE_GROMACS
+			fclose(fd);
+			py_result = read_xtc(filename);
+#else
+			PyErr_SetString(PyExc_SystemError, "This module needs gromacs libraries to handle XTC files");
+#endif
 			break;
 		/* If the file format is GUESS or different,
 		   it means we've failed to guess :-(        */
@@ -841,3 +851,7 @@ PyObject *read_gro(FILE *fd) {
 }
 
 
+#ifdef HAVE_GROMACS
+PyObject *read_xtc(const char *filename) {
+}
+#endif
