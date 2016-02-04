@@ -1,8 +1,246 @@
 #include "moltools.h"
 
 
+int lookupStringInList(char *needle, char **stack, int len) {
+	int i;
+
+	for (i = 0; i < len; i++)
+		if (!strcmp(needle, stack[i])) return 1;
+	return 0;
+}
+
+
+PyObject *findHBonds(PyObject *self, PyObject *args, PyObject *kwds) {
+	PyArrayObject *py_coords, *py_box;
+	PyObject *py_syms, *py_accs, *out, *tuple;
+	char *atomSymbol1, *atomSymbol2;
+	npy_intp *numpyint;
+    int use_pbc, type, naccept, natoms;
+	int h, i, j;
+	double box[3], half[3];
+	double H[3], I[3], J[3], other[3], nearHI[3], nearHJ[3];
+	double *A, *B, *C;
+	double d2hi, d2hj, d2ij, cosval, cos_cutoff;
+	double cutoff = 3.5, carbon_cutoff = -1.0, angle_cutoff = 30.;
+	char **acceptors;
+
+	static char *kwlist[] = {
+		"symbols", "coordinates", "acceptors", "box", "cutoff",
+		"carbon_cutoff", "angle_cutoff", NULL };
+
+	if(!PyArg_ParseTupleAndKeywords(args, kwds, "O!O!O!|O!ddd", kwlist,
+			&PyList_Type, &py_syms,
+			&PyArray_Type, &py_coords,
+			&PyList_Type, &py_accs,
+			&PyArray_Type, &py_box,
+			&cutoff, &carbon_cutoff, &angle_cutoff))
+		return NULL;
+
+	if (carbon_cutoff < 0) carbon_cutoff = cutoff;
+
+	cutoff *= cutoff;
+	carbon_cutoff *= carbon_cutoff;
+
+	cos_cutoff = cos(angle_cutoff / 180. * M_PI);
+
+	if (py_box == NULL) use_pbc = 0;
+	else use_pbc = 1;
+
+    if (use_pbc) {
+		vectorToDouble(box, py_box);
+        half[0] = box[0] / 2.0;
+        half[1] = box[1] / 2.0;
+        half[2] = box[2] / 2.0;
+    }
+
+	type = PyArray_TYPE(py_coords);
+	if( type != NPY_FLOAT && type != NPY_DOUBLE) {
+		PyErr_SetString(PyExc_ValueError, "Incorrect type of the coordinate set");
+		return NULL; }
+
+	naccept = PyList_Size(py_accs);
+	acceptors = (char**) malloc(naccept * sizeof(char*));
+	for (i = 0; i < naccept; i++)
+		acceptors[i] = PyString_AsString(PyList_GetItem(py_accs, i));
+
+	numpyint = PyArray_DIMS(py_coords);
+	natoms = numpyint[0];
+
+	out = PyList_New(0);
+
+	for ( h = 0; h < natoms; h++ ) {
+
+		atomSymbol1 = PyString_AsString(PyList_GetItem(py_syms, h));
+
+		if(strcmp(atomSymbol1, "H")) continue;
+
+		switch(type) {
+			case NPY_FLOAT:
+				H[0] = *( (float*) PyArray_GETPTR2(py_coords, h, 0) );
+				H[1] = *( (float*) PyArray_GETPTR2(py_coords, h, 1) );
+				H[2] = *( (float*) PyArray_GETPTR2(py_coords, h, 2) );
+				break;
+			case NPY_DOUBLE:
+				H[0] = *( (double*) PyArray_GETPTR2(py_coords, h, 0) );
+				H[1] = *( (double*) PyArray_GETPTR2(py_coords, h, 1) );
+				H[2] = *( (double*) PyArray_GETPTR2(py_coords, h, 2) );
+				break;
+		}
+		if (use_pbc) wrapCartesian(H, box);
+
+		for (i = 0; i < natoms; i++) {
+
+			if (h == i) continue;
+
+			atomSymbol1 = PyString_AsString(PyList_GetItem(py_syms, i));
+			if (!lookupStringInList(atomSymbol1, acceptors, naccept)) continue;
+
+			switch(type) {
+				case NPY_FLOAT:
+					I[0] = *( (float*) PyArray_GETPTR2(py_coords, i, 0) );
+					I[1] = *( (float*) PyArray_GETPTR2(py_coords, i, 1) );
+					I[2] = *( (float*) PyArray_GETPTR2(py_coords, i, 2) );
+					break;
+				case NPY_DOUBLE:
+					I[0] = *( (double*) PyArray_GETPTR2(py_coords, i, 0) );
+					I[1] = *( (double*) PyArray_GETPTR2(py_coords, i, 1) );
+					I[2] = *( (double*) PyArray_GETPTR2(py_coords, i, 2) );
+					break;
+			}
+			if (use_pbc) {
+				wrapCartesian(I, box);
+				copyPoint(nearHI, I);
+				nearestImage(H, nearHI, half);
+				d2hi = distanceSquare(H, nearHI);
+			} else
+				d2hi = distanceSquare(H, I);
+
+			if (d2hi > cutoff) continue;
+
+			if (!strcmp(atomSymbol1, "C") && d2hi > carbon_cutoff) continue;
+
+			for (j = i+1; j < natoms; j++) {
+
+				atomSymbol2 = PyString_AsString(PyList_GetItem(py_syms, j));
+				if (!lookupStringInList(atomSymbol2, acceptors, naccept)) continue;
+
+				switch(type) {
+					case NPY_FLOAT:
+						J[0] = *( (float*) PyArray_GETPTR2(py_coords, j, 0) );
+						J[1] = *( (float*) PyArray_GETPTR2(py_coords, j, 1) );
+						J[2] = *( (float*) PyArray_GETPTR2(py_coords, j, 2) );
+						break;
+					case NPY_DOUBLE:
+						J[0] = *( (double*) PyArray_GETPTR2(py_coords, j, 0) );
+						J[1] = *( (double*) PyArray_GETPTR2(py_coords, j, 1) );
+						J[2] = *( (double*) PyArray_GETPTR2(py_coords, j, 2) );
+						break;
+				}
+
+				if (use_pbc) {
+					wrapCartesian(J, box);
+					copyPoint(nearHJ, J);
+					nearestImage(H, nearHJ, half);
+					d2hj = distanceSquare(H, nearHJ);
+				} else
+					d2hj = distanceSquare(H, J);
+
+				if (d2hj > cutoff) continue;
+
+				if (!strcmp(atomSymbol2, "C") && d2hj > carbon_cutoff) continue;
+
+				if (use_pbc) {
+					copyPoint(other, J);
+					nearestImage(I, other, half);
+					d2ij = distanceSquare(I, other);
+				} else
+					d2ij = distanceSquare(I, J);
+
+				if (d2ij > cutoff) continue;
+
+				if (!strcmp(atomSymbol1, "C") || !strcmp(atomSymbol2, "C") && d2ij > carbon_cutoff) continue;
+
+				A = H;
+				if (d2hi < d2hj) {
+					B = I;
+					C = J;
+				} else {
+					B = J;
+					C = I;
+				}
+
+				if (use_pbc) {
+					nearestImage(B, A, half);
+					nearestImage(B, C, half);
+				}
+
+				cosval = threePointAngleCosine(A, B, C);
+
+				if (cosval > cos_cutoff) {
+					tuple = Py_BuildValue("(iii)", h, i, j);
+					PyList_Append(out, tuple);
+					Py_DECREF(tuple);
+				}
+			}
+
+		}
+	}
+
+	free(acceptors);
+
+	return out;
+}
+
+
+PyObject *measureAngleCosine(PyObject *self, PyObject *args, PyObject *kwds) {
+	PyArrayObject *py_atom1, *py_atom2, *py_atom3, *py_box = NULL;
+	PyObject *out;
+	double box[3], half[3];
+	double A[3], B[3], C[3], p[3], q[3];
+	double lp, lq, cos;
+	int use_pbc, type;
+	npy_intp *numpyint;
+
+	static char *kwlist[] = {
+		"atom1", "atom2", "atom3", "box", NULL };
+
+	if(!PyArg_ParseTupleAndKeywords(args, kwds, "O!O!O!|O!", kwlist,
+			&PyArray_Type, &py_atom1,
+			&PyArray_Type, &py_atom2,
+			&PyArray_Type, &py_atom3,
+			&PyArray_Type, &py_box))
+		return NULL;
+
+	if (py_box == NULL) use_pbc = 0;
+	else use_pbc = 1;
+
+    if (use_pbc) {
+		vectorToDouble(box, py_box);
+        half[0] = box[0] / 2.0;
+        half[1] = box[1] / 2.0;
+        half[2] = box[2] / 2.0;
+    }
+
+	vectorToDouble(A, py_atom1);
+	vectorToDouble(B, py_atom2);
+	vectorToDouble(C, py_atom3);
+
+	if (use_pbc) {
+		wrapCartesian(A, box);
+		wrapCartesian(B, box);
+		wrapCartesian(C, box);
+		nearestImage(B, A, half);
+		nearestImage(B, C, half);
+	}
+
+	cos = threePointAngleCosine(A, B, C);
+
+	return PyFloat_FromDouble(cos);
+}
+
+
 PyObject *distanceMatrix(PyObject *self, PyObject *args, PyObject *kwds) {
-	PyArrayObject *py_coords, *py_box = NULL;
+	PyArrayObject *py_coords, *py_box = NULL, *py_squared = NULL;
 	PyObject *py_dist;
 	int i, j, natoms, type;
 	npy_intp *numpyint;
@@ -10,18 +248,22 @@ PyObject *distanceMatrix(PyObject *self, PyObject *args, PyObject *kwds) {
 	double box[3], half[3];
 	npy_intp dims[2];
 	float *distances;
-	int use_pbc;
+	int use_pbc, use_square;
 
 	static char *kwlist[] = {
-		"coordinates", "box", NULL };
+		"coordinates", "box", "squared", NULL };
 
-	if(!PyArg_ParseTupleAndKeywords(args, kwds, "O!|O!", kwlist,
+	if(!PyArg_ParseTupleAndKeywords(args, kwds, "O!|O!O!", kwlist,
 			&PyArray_Type, &py_coords,
-			&PyArray_Type, &py_box))
+			&PyArray_Type, &py_box,
+			&PyBool_Type, &py_squared))
 		return NULL;
 
 	if (py_box == NULL) use_pbc = 0;
 	else use_pbc = 1;
+
+	if(py_squared == NULL || !PyBool_Check(py_squared)) use_square = 0;
+	else use_square = 1;
 
 	numpyint = PyArray_DIMS(py_coords);
 	natoms = numpyint[0];
@@ -32,26 +274,7 @@ PyObject *distanceMatrix(PyObject *self, PyObject *args, PyObject *kwds) {
 		return NULL; }
 
 	if (use_pbc) {
-		numpyint = PyArray_DIMS(py_box);
-		if (numpyint[0] != 3) {
-			PyErr_SetString(PyExc_ValueError, "BOX should contain exactly 3 numbers");
-			return NULL; }
-		type = PyArray_TYPE(py_box);
-		if( type != NPY_FLOAT && type != NPY_DOUBLE) {
-			PyErr_SetString(PyExc_ValueError, "Incorrect type of the BOX array");
-			return NULL; }
-		switch(type) {
-			case NPY_FLOAT:
-				box[0] = *( (float*) PyArray_GETPTR1(py_box, 0) );
-				box[1] = *( (float*) PyArray_GETPTR1(py_box, 1) );
-				box[2] = *( (float*) PyArray_GETPTR1(py_box, 2) );
-				break;
-			case NPY_DOUBLE:
-				box[0] = *( (double*) PyArray_GETPTR1(py_box, 0) );
-				box[1] = *( (double*) PyArray_GETPTR1(py_box, 1) );
-				box[2] = *( (double*) PyArray_GETPTR1(py_box, 2) );
-				break;
-		}
+		vectorToDouble(box, py_box);
 		half[0] = box[0] / 2.0;
 		half[1] = box[1] / 2.0;
 		half[2] = box[2] / 2.0;
@@ -113,7 +336,8 @@ PyObject *distanceMatrix(PyObject *self, PyObject *args, PyObject *kwds) {
 				if (dy > half[1]) dy = box[1] - dy;
 				if (dz > half[2]) dz = box[2] - dz;
 			}
-			dist = sqrt(sq(dx) + sq(dy) + sq(dz));
+			dist = sq(dx) + sq(dy) + sq(dz);
+			if(!use_square) dist = sqrt(dist);
 			distances[i*natoms + j] = dist;
 			distances[j*natoms + i] = dist;
 		}
@@ -121,6 +345,7 @@ PyObject *distanceMatrix(PyObject *self, PyObject *args, PyObject *kwds) {
 	dims[0] = natoms;
 	dims[1] = natoms;
 	py_dist = PyArray_SimpleNewFromData(2, dims, NPY_FLOAT, (float*) distances);
+	PyArray_ENABLEFLAGS((PyArrayObject*)py_dist, NPY_ARRAY_OWNDATA);
 
 	return py_dist;
 }

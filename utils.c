@@ -133,3 +133,86 @@ int getElementIndexBySymbol(const char *symbol) {
 
 	return idx;
 }
+
+
+double *vectorToDouble(double dvec[], PyArrayObject *arr) {
+	int type;
+	npy_intp *numpyint;
+
+    numpyint = PyArray_DIMS(arr);
+    if (numpyint[0] != 3) {
+        PyErr_SetString(PyExc_ValueError, "Cartesian vector should contain exactly 3 numbers");
+        return NULL; }
+
+	type = PyArray_TYPE(arr);
+    if( type != NPY_FLOAT && type != NPY_DOUBLE) {
+        PyErr_SetString(PyExc_ValueError, "Incorrect type of the array");
+        return NULL; }
+    switch(type) {
+        case NPY_FLOAT:
+            dvec[0] = *( (float*) PyArray_GETPTR1(arr, 0) );
+            dvec[1] = *( (float*) PyArray_GETPTR1(arr, 1) );
+            dvec[2] = *( (float*) PyArray_GETPTR1(arr, 2) );
+            break;
+        case NPY_DOUBLE:
+            dvec[0] = *( (double*) PyArray_GETPTR1(arr, 0) );
+            dvec[1] = *( (double*) PyArray_GETPTR1(arr, 1) );
+            dvec[2] = *( (double*) PyArray_GETPTR1(arr, 2) );
+            break;
+    }
+    return dvec;
+}
+
+
+void wrapCartesian(double point[3], double box[3]) {
+	point[0] = fmod(point[0], box[0]);
+	point[1] = fmod(point[1], box[1]);
+	point[2] = fmod(point[2], box[2]);
+	if (point[0] < 0.0) point[0] += box[0];
+	if (point[1] < 0.0) point[1] += box[1];
+	if (point[2] < 0.0) point[2] += box[2];
+}
+
+
+
+void nearestImage(double center[3], double other[3], double half[3]) {
+	if (center[0] - other[0] > half[0]) other[0] += half[0]+half[0];
+	else if (center[0] - other[0] < -half[0]) other[0] -= half[0]+half[0];
+	if (center[1] - other[1] > half[1]) other[1] += half[1]+half[1];
+	else if (center[1] - other[1] < -half[1]) other[1] -= half[1]+half[1];
+	if (center[2] - other[2] > half[2]) other[2] += half[2]+half[2];
+	else if (center[2] - other[2] < -half[2]) other[2] -= half[2]+half[2];
+}
+
+
+double threePointAngleCosine(double A[3], double B[3], double C[3]) {
+	double p[3], q[3];
+	double lp, lq, cos;
+
+	p[0] = A[0] - B[0];
+	p[1] = A[1] - B[1];
+	p[2] = A[2] - B[2];
+
+	q[0] = C[0] - B[0];
+	q[1] = C[1] - B[1];
+	q[2] = C[2] - B[2];
+
+	lp = sq(p[0]) + sq(p[1]) + sq(p[2]);
+	lq = sq(q[0]) + sq(q[1]) + sq(q[2]);
+
+	cos = (p[0]*q[0] + p[1]*q[1] + p[2]*q[2])/sqrt(lp*lq);
+
+	return cos;
+}
+
+
+double distanceSquare(double p[3], double q[3]) {
+	return sq(p[0]-q[0]) + sq(p[1]-q[1]) + sq(p[2]-q[2]);
+}
+
+
+double copyPoint(double dst[3], double src[3]) {
+	dst[0] = src[0];
+	dst[1] = src[1];
+	dst[2] = src[2];
+}
