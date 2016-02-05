@@ -874,22 +874,7 @@ PyObject *read_xtc(const char *filename) {
 		PyErr_SetString(PyExc_IOError, "Error reading first frame");
 		return NULL; }
 
-	/* Set-up the raw arrays for coordinates and charges */
-	xyz = (float*) malloc(3 * natoms * sizeof(float));
-	if(xyz == NULL) {
-		PyErr_SetFromErrno(PyExc_MemoryError);
-		return NULL; }
-
-	if ( (boxdim = (float*) malloc(6 * sizeof(float))) == NULL ) {
-		PyErr_SetFromErrno(PyExc_MemoryError);
-		return NULL; }
-
 	py_result = PyList_New(0);
-
-	/* Only orthogonal boxes; implement other later */
-	boxdim[3] = 0.0;
-	boxdim[4] = 0.0;
-	boxdim[5] = 0.0;
 
 	do {
 		/* Create the dictionary that will be returned */
@@ -913,6 +898,14 @@ PyObject *read_xtc(const char *filename) {
 		Py_DECREF(key);
 		Py_DECREF(val);
 
+		if ( (boxdim = (float*) malloc(6 * sizeof(float))) == NULL ) {
+			PyErr_SetFromErrno(PyExc_MemoryError);
+			return NULL; }
+
+		/* Only orthogonal boxes; implement other later */
+		boxdim[3] = 0.0;
+		boxdim[4] = 0.0;
+		boxdim[5] = 0.0;
 		boxdim[0] = box[0][0];
 		boxdim[1] = box[1][1];
 		boxdim[2] = box[2][2];
@@ -922,6 +915,12 @@ PyObject *read_xtc(const char *filename) {
 		PyDict_SetItem(py_dict, key, py_box);
 		Py_DECREF(key);
 		Py_DECREF(py_box);
+
+		/* Set-up the raw arrays for coordinates and charges */
+		xyz = (float*) malloc(3 * natoms * sizeof(float));
+		if(xyz == NULL) {
+			PyErr_SetFromErrno(PyExc_MemoryError);
+			return NULL; }
 
 		for (i = 0; i < natoms; i++) {
 			/* Times 10, because converting from nm */
