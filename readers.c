@@ -140,7 +140,6 @@ PyObject *exposed_read(PyObject *self, PyObject *args, PyObject *kwds) {
 			break;
 		case XTC:
 #ifdef HAVE_GROMACS
-			fclose(fd);
 			py_result = read_xtc(filename);
 #else
 			PyErr_SetString(PyExc_SystemError, "This module needs gromacs libraries to handle XTC files");
@@ -853,5 +852,82 @@ PyObject *read_gro(FILE *fd) {
 
 #ifdef HAVE_GROMACS
 PyObject *read_xtc(const char *filename) {
+
+	t_fileio *xd;
+	int natoms, step, i;
+	real time, prec;
+	matrix box;
+	rvec *x;
+	gmx_bool bOK;
+	float *xyz;
+	char buffer[256];
+
+	PyObject *py_dict, *py_result, *val, *key, *py_coord;
+
+	npy_intp dims[2];
+
+	xd = open_xtc(filename, "r");
+	if (xd == NULL) {
+		PyErr_SetString(PyExc_IOError, "Error opening XTC file");
+		return NULL; }
+
+	if (!read_first_xtc(xd, &natoms, &step, &time, box, &x, &prec, &bOK) && bOK) {
+		PyErr_SetString(PyExc_IOError, "Error reading first frame");
+		return NULL; }
+
+	/* Set-up the raw arrays for coordinates and charges */
+	xyz = (float*) malloc(3 * natoms * sizeof(float));
+	if(xyz == NULL) {
+		PyErr_SetFromErrno(PyExc_MemoryError);
+		return NULL; }
+
+	py_result = PyList_New(0);
+
+	do {
+		/* Create the dictionary that will be returned */
+		py_dict = PyDict_New();
+
+	    val = Py_BuildValue("i", natoms);
+		key = PyString_FromString("number_of_atoms");
+		PyDict_SetItem(py_dict, key, val);
+		Py_DECREF(key);
+		Py_DECREF(val);
+
+		sprintf(buffer, "step = %d, time = %.6f", step, time);
+		val = Py_BuildValue("s", buffer);
+		key = PyString_FromString("comment");
+		PyDict_SetItem(py_dict, key, val);
+		Py_DECREF(key);
+		Py_DECREF(val);
+
+		for (i = 0; i < natoms; i++) {
+			/* Times 10, because converting from nm */
+			xyz[i*3    ] = (float)x[i][0] * 10.0;
+			xyz[i*3 + 1] = (float)x[i][2] * 10.0;
+			xyz[i*3 + 2] = (float)x[i][3] * 10.0;
+		}
+
+		/* Add coordinates to the dictionary */
+		dims[0] = natoms;
+		dims[1] = 3;
+		py_coord = PyArray_SimpleNewFromData(2, dims, NPY_FLOAT, (float*) xyz);
+		/***************************************************************
+		 * Do not free the raw array! It will be still used by Python! *
+	     ***************************************************************/
+
+		key = PyString_FromString("coordinates");
+		PyDict_SetItem(py_dict, key, py_coord);
+		Py_DECREF(key);
+		Py_DECREF(py_coord);
+
+		PyList_Append(py_result, py_dict);
+		Py_DECREF(py_dict);
+
+	} while (read_next_xtc(xd, natoms, &step, &time, box, x, &prec, &bOK));
+
+	sfree(x);
+	close_xtc(xd);
+
+	return py_result;
 }
 #endif

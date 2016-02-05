@@ -38,6 +38,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #ifdef HAVE_GROMACS
+	#include <gromacs/utility/smalloc.h>
 	#include <gromacs/fileio/xtcio.h>
 #endif
 
