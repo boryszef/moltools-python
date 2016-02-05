@@ -859,10 +859,9 @@ PyObject *read_xtc(const char *filename) {
 	matrix box;
 	rvec *x;
 	gmx_bool bOK;
-	float *xyz;
-	char buffer[256];
+	float *xyz, *boxdim;
 
-	PyObject *py_dict, *py_result, *val, *key, *py_coord;
+	PyObject *py_dict, *py_result, *val, *key, *py_coord, *py_box;
 
 	npy_intp dims[2];
 
@@ -881,7 +880,16 @@ PyObject *read_xtc(const char *filename) {
 		PyErr_SetFromErrno(PyExc_MemoryError);
 		return NULL; }
 
+	if ( (boxdim = (float*) malloc(6 * sizeof(float))) == NULL ) {
+		PyErr_SetFromErrno(PyExc_MemoryError);
+		return NULL; }
+
 	py_result = PyList_New(0);
+
+	/* Only orthogonal boxes; implement other later */
+	boxdim[3] = 0.0;
+	boxdim[4] = 0.0;
+	boxdim[5] = 0.0;
 
 	do {
 		/* Create the dictionary that will be returned */
@@ -893,12 +901,27 @@ PyObject *read_xtc(const char *filename) {
 		Py_DECREF(key);
 		Py_DECREF(val);
 
-		sprintf(buffer, "step = %d, time = %.6f", step, time);
-		val = Py_BuildValue("s", buffer);
-		key = PyString_FromString("comment");
+		val = Py_BuildValue("i", step);
+		key = PyString_FromString("step");
 		PyDict_SetItem(py_dict, key, val);
 		Py_DECREF(key);
 		Py_DECREF(val);
+
+		val = Py_BuildValue("f", time);
+		key = PyString_FromString("time");
+		PyDict_SetItem(py_dict, key, val);
+		Py_DECREF(key);
+		Py_DECREF(val);
+
+		boxdim[0] = box[0][0];
+		boxdim[1] = box[1][1];
+		boxdim[2] = box[2][2];
+		dims[0] = 6;
+		py_box = PyArray_SimpleNewFromData(1, dims, NPY_FLOAT, boxdim);
+		key = PyString_FromString("lattice");
+		PyDict_SetItem(py_dict, key, py_box);
+		Py_DECREF(key);
+		Py_DECREF(py_box);
 
 		for (i = 0; i < natoms; i++) {
 			/* Times 10, because converting from nm */
