@@ -88,31 +88,25 @@ typedef struct {
 typedef struct {
 
 	PyObject_HEAD
-	
-	PyObject *frames; /* 3D array of frames */
-	float *frames_raw;
-	npy_intp frames_dim[3];
+
+	enum { GUESS, XYZ, MOLDEN, FRAC, GRO, XTC } type;
+
+	char mode;
+
+	char *filename; /* Used while opening the file and for __repr__ */
+
+	/* The following pointer depends on the type; it can be *
+     * XDR* for XTC file format or FILE* otherwise          */
+	void *fd;
+
+	int nofatoms;
 	
 	PyObject *symbols; /* list of symbols */
 	
-	PyObject *comment; /* comment */
-	
-	PyObject *charges; /* comment */
-	float *charges_raw;
-	npy_intp charges_dim[2];
-	
-	PyObject *energies; /* energies */
-	float *energies_raw;
-	npy_intp energies_dim[1];
-	
 	PyObject *atomicnumbers; /* atomic numbers */
-	
-	int natoms; /* number of atoms */
-	
-	int nframes; /* number of frames */
 
-} Molecule;
-
+} Trajectory;
+	
 void cspline_calculate_drv2(double y2[], int n, double x[], double y[]);
 //double cspline_interpolate_y(double v, int n, double x[], double y[], double y2[]);
 double cspline_interpolate_y(double v, PyObject *, PyObject *, PyObject *);
@@ -129,10 +123,9 @@ PyObject *distanceMatrix(PyObject *self, PyObject *args, PyObject *kwds);
 PyObject *measureAngleCosine(PyObject *self, PyObject *args, PyObject *kwds);
 PyObject *findHBonds(PyObject *self, PyObject *args, PyObject *kwds);
 
-int read_topo_from_xyz(FILE *fd, Molecule *self);
-int read_topo_from_molden(FILE *fd, Molecule *self);
-int read_topo_from_molden(FILE *fd, Molecule *self);
-int read_frame_from_xyz(FILE *fd, float factor, Molecule *);
+int read_topo_from_xyz(FILE *fd, Trajectory *self);
+int read_topo_from_molden(FILE *fd, Trajectory *self);
+int read_topo_from_molden(FILE *fd, Trajectory *self);
 
 double *boxArray2double(double box[], PyArrayObject *arr);
 void wrapCartesian(double point[3], double box[3]);

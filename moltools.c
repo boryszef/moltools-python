@@ -127,6 +127,7 @@ static PyObject *rot_inertia(PyObject *self, PyObject *args, PyObject *kwds) {
 
 
 static PyMethodDef moltoolsMethods[] = {
+
     {"read", (PyCFunction)exposed_read, METH_VARARGS | METH_KEYWORDS,
 		"\n"
 		"dict = read(filename [, unit ] )\n"
@@ -158,6 +159,8 @@ static PyMethodDef moltoolsMethods[] = {
 		"geometries      - list of dictionaries, one for each configuration\n"
 		"atomic_numbers  - atomic numbers (nuclear charge, numpy array, int)\n"
 		"\n" },
+
+
     {"write", (PyCFunction)exposed_write, METH_VARARGS | METH_KEYWORDS,
 		"\n"
 		"write(FILENAME, SYMBOLS, COORDS, [ comment=COMMENT,\n"
@@ -276,7 +279,7 @@ PyMODINIT_FUNC initmoltools(void)
 	PyObject *exposed_atom_masses, *exposed_symbol2number;
 	PyObject *exposed_covalentradii;
 	extern PyTypeObject EAMffType;
-	extern PyTypeObject MoleculeType;
+	extern PyTypeObject TrajectoryType;
 
 	/* Use system-wide locale, but make sure that decimal point is a point! */
 	setlocale(LC_ALL, "");
@@ -284,7 +287,7 @@ PyMODINIT_FUNC initmoltools(void)
 
 	if (PyType_Ready(&EAMffType) < 0)
 		return;
-	if (PyType_Ready(&MoleculeType) < 0)
+	if (PyType_Ready(&TrajectoryType) < 0)
 		return;
 
     md = Py_InitModule3("moltools", moltoolsMethods,
@@ -310,7 +313,8 @@ PyMODINIT_FUNC initmoltools(void)
 	Py_INCREF(&EAMffType);
 	PyModule_AddObject(md, "EAMff", (PyObject *)&EAMffType);
 
-	Py_INCREF(&MoleculeType);
-	PyModule_AddObject(md, "Molecule", (PyObject *)&MoleculeType);
+
+	Py_INCREF(&TrajectoryType);
+	PyModule_AddObject(md, "Trajectory", (PyObject *)&TrajectoryType);
 }
 

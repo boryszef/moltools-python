@@ -25,7 +25,7 @@ if extraPackagePresent('libgromacs'):
 moltools = Extension('moltools',
 	sources = [ 'eam.c', 'periodic_table.c', 'utils.c', 'readers.c',
 	            'measure.c', 'constants.c', 'writers.c', 'topology.c',
-	            'molecule.c', 'moltools.c', ],
+	            'trajectory.c', 'moltools.c', ],
 	extra_compile_args=extraCFlags,	extra_link_args=extraLFlags,
 )
 
