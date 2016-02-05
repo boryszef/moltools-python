@@ -184,7 +184,7 @@ PyObject *read_xyz(FILE *fd, float factor) {
 		return NULL; }
 
     val = Py_BuildValue("i", nofatoms);
-	key = PyString_FromString("number_of_atoms");
+	key = PyString_FromString("nofatoms");
 	PyDict_SetItem(py_result, key, val);
 	Py_DECREF(key);
 	Py_DECREF(val);
@@ -536,7 +536,7 @@ PyObject *read_fractional(FILE *fd) {
 		return NULL; }
 
     val = Py_BuildValue("i", nofatoms);
-	key = PyString_FromString("number_of_atoms");
+	key = PyString_FromString("nofatoms");
 	PyDict_SetItem(py_result, key, val);
 	Py_DECREF(key);
 	Py_DECREF(val);
@@ -708,7 +708,7 @@ PyObject *read_gro(FILE *fd) {
 		return NULL; }
 
     val = Py_BuildValue("i", nofatoms);
-	key = PyString_FromString("number_of_atoms");
+	key = PyString_FromString("nofatoms");
 	PyDict_SetItem(py_result, key, val);
 	Py_DECREF(key);
 	Py_DECREF(val);
@@ -881,7 +881,7 @@ PyObject *read_xtc(const char *filename) {
 		py_dict = PyDict_New();
 
 	    val = Py_BuildValue("i", natoms);
-		key = PyString_FromString("number_of_atoms");
+		key = PyString_FromString("nofatoms");
 		PyDict_SetItem(py_dict, key, val);
 		Py_DECREF(key);
 		Py_DECREF(val);
