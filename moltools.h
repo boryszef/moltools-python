@@ -104,6 +104,8 @@ typedef struct {
 	int lastFrame;
 	PyObject *symbols; /* list of symbols */
 	PyObject *atomicnumbers; /* atomic numbers */
+	PyObject *resids; /* residue numbers */
+	PyObject *resnames; /* residue names */
 
 } Trajectory;
 
@@ -128,6 +130,10 @@ PyObject *findHBonds(PyObject *self, PyObject *args, PyObject *kwds);
 int read_topo_from_xyz(Trajectory *self);
 int read_topo_from_molden(Trajectory *self);
 int read_topo_from_gro(Trajectory *self);
+PyObject *read_frame_from_xyz(Trajectory *self);
+PyObject *read_frame_from_molden(Trajectory *self);
+PyObject *read_frame_from_gro(Trajectory *self);
+PyObject *read_frame_from_xtc(Trajectory *self);
 
 double *boxArray2double(double box[], PyArrayObject *arr);
 void wrapCartesian(double point[3], double box[3]);

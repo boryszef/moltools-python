@@ -6,3 +6,5 @@ Things that need to be done:
 * Port the code into Python3.
 
 * Code refactoring.
+
+* Parallelize.

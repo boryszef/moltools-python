@@ -28,9 +28,12 @@
 
 /* Methods of the Trajectory object */
 
+
 static void Trajectory_dealloc(Trajectory* self)
 {
 	Py_XDECREF(self->symbols);
+	Py_XDECREF(self->resids);
+	Py_XDECREF(self->resnames);
 	Py_XDECREF(self->atomicnumbers);
 	self->ob_type->tp_free((PyObject*)self);
 	free(self->filename);
@@ -49,6 +52,8 @@ static void Trajectory_dealloc(Trajectory* self)
 	sfree(self->xtcCoord);
 #endif
 }
+
+
 
 static PyObject *Trajectory_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
@@ -72,10 +77,18 @@ static PyObject *Trajectory_new(PyTypeObject *type, PyObject *args, PyObject *kw
 		
 		Py_INCREF(Py_None);
 	    self->atomicnumbers = Py_None;
+		
+		Py_INCREF(Py_None);
+	    self->resids = Py_None;
+		
+		Py_INCREF(Py_None);
+	    self->resnames = Py_None;
     }
 
     return (PyObject *)self;
 }
+
+
 
 /* This method should just guess the type, open the file and collect     *
  * general data like number of atoms and list of symbols. Actual reading *
@@ -218,6 +231,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 }
 
 
+
 static PyObject *Trajectory_read(Trajectory *self) {
 
 	switch(self->type) {
@@ -231,6 +245,463 @@ static PyObject *Trajectory_read(Trajectory *self) {
 			return read_frame_from_xtc(self);
 	}
 
+}
+
+
+PyObject *read_frame_from_xyz(Trajectory *self) {
+
+	PyObject *py_result, *py_coord, *py_charges, *val, *key;
+	char *buffer, *buffpos, *token;
+	int pos, nat;
+	float factor;
+	float *xyz, *charges;
+	unsigned short int charges_present;
+	npy_intp dims[2];
+
+	switch(self->units) {
+		case ANGS: factor = 1.0; break;
+		case NM: factor = 10.0; break;
+		case BOHR: factor = BOHRTOANGS; break;
+	}
+	/* Create the dictionary that will be returned */
+	py_result = PyDict_New();
+
+	/* Read number of atoms */
+	if( (buffer = readline(self->fd)) == NULL) {
+		PyErr_SetFromErrno(PyExc_IOError);
+		return NULL; }
+
+	if( sscanf(buffer, "%d", &nat) != 1 || nat != self->nofatoms) {
+		PyErr_SetString(PyExc_IOError, "Error reading number of atoms");
+		return NULL; }
+
+	/* Read the comment line */
+	if((buffer = readline(self->fd)) == NULL) {
+		PyErr_SetFromErrno(PyExc_IOError);
+		return NULL; }
+	buffer[strlen(buffer)-1] = '\0';
+
+	val = Py_BuildValue("s", buffer);
+	free(buffer);
+	key = PyString_FromString("comment");
+	PyDict_SetItem(py_result, key, val);
+	Py_DECREF(key);
+	Py_DECREF(val);
+
+	/* Set-up the raw arrays for coordinates and charges */
+	xyz = (float*) malloc(3 * self->nofatoms * sizeof(float));
+	if(xyz == NULL) {
+		PyErr_SetFromErrno(PyExc_MemoryError);
+		return NULL; }
+	charges = (float*) malloc(self->nofatoms * sizeof(float));
+	if(charges == NULL) {
+		PyErr_SetFromErrno(PyExc_MemoryError);
+		return NULL; }
+	charges_present = 0;
+
+	/* Atom loop */
+	for(pos = 0; pos < self->nofatoms; pos++) {
+
+		/* Get the whole line */
+		if((buffer = readline(self->fd)) == NULL) {
+			PyErr_SetFromErrno(PyExc_IOError);
+			return NULL; }
+		buffer[strlen(buffer)-1] = '\0';
+		buffpos = buffer;
+
+		/* Read symbol */
+		token = strtok(buffpos, " ");
+
+		/* Read coordinates */
+		if ( (token = strtok(NULL, " ")) == NULL) {
+			PyErr_SetString(PyExc_IOError, "Missing coordinate");
+			return NULL; }
+		xyz[3*pos + 0] = atof(token) * factor;
+		if ( (token = strtok(NULL, " ")) == NULL) {
+			PyErr_SetString(PyExc_IOError, "Missing coordinate");
+			return NULL; }
+		xyz[3*pos + 1] = atof(token) * factor;
+		if ( (token = strtok(NULL, " ")) == NULL) {
+			PyErr_SetString(PyExc_IOError, "Missing coordinate");
+			return NULL; }
+		xyz[3*pos + 2] = atof(token) * factor;
+
+		/* Read charge, if present */
+		token = strtok(NULL, " ");
+		if ( token != NULL ) {
+
+			/* This is bad: until now, there were no charges */
+			if ( pos > 0 && !charges_present ) {
+				PyErr_SetString(PyExc_IOError, "Unexpected charges found");
+				return NULL;
+			}
+
+			charges_present = 1;
+			charges[pos] = atof(token);
+
+		} else {
+
+			/* This is bad: we were expecting charges here and found nothing */
+			if ( pos > 0 && charges_present ) {
+				PyErr_SetString(PyExc_IOError, "Missing charges");
+				return NULL;
+			}
+		}
+
+		/* Free the line buffer */
+		free(buffer);
+	}
+
+	/* Add coordinates to the dictionary */
+	dims[0] = self->nofatoms;
+	dims[1] = 3;
+	py_coord = PyArray_SimpleNewFromData(2, dims, NPY_FLOAT, (float*) xyz);
+	/***************************************************************
+	 * Do not free the raw array! It will be still used by Python! *
+     ***************************************************************/
+
+	key = PyString_FromString("coordinates");
+	PyDict_SetItem(py_result, key, py_coord);
+	Py_DECREF(key);
+	Py_DECREF(py_coord);
+
+
+	/* Add charges, if present */
+	if ( charges_present ) {
+		py_charges = PyArray_SimpleNewFromData(1, dims, NPY_FLOAT, charges);
+		key = PyString_FromString("charges");
+		PyDict_SetItem(py_result, key, py_charges);
+		Py_DECREF(key);
+		Py_DECREF(py_charges);
+	} else
+		/* Free the charges ONLY if the Python object was not created! */
+		free(charges);
+
+	return py_result;
+
+}
+
+
+PyObject *read_frame_from_molden(Trajectory *self) {
+
+//	char *line;
+//	char *buffpos, *token;
+//	char **line_store;
+//	int n_geo, i, nat;
+//	float *xyz;
+//	int *anum;
+//
+//	double *geoconv;
+//	npy_intp dims[2];
+//	PyObject *py_anum, *py_syms, *py_geom, *py_geoconv, *py_result, *key, *val;
+//
+//
+//	/* Prepare dictionary */
+//
+//	py_result = PyDict_New();
+//
+//	/* Loop over the lines */
+//
+//	line = readline(fd);
+//
+//	while ( strlen(line) ) {
+//
+//		stripline(line);
+//		make_lowercase(line);
+//
+//		/* This is a start of a new block */
+//		if ( line[0] == '[' ) {
+//
+//			/* Number of geometries present in the file */
+//			if ( !strcmp(line, "[n_geo]") ) {
+//				free(line);
+//				line = readline(fd);
+//				stripline(line);
+//				n_geo = atoi(line);
+//				key = PyString_FromString("number_of_geometries");
+//				val = Py_BuildValue("i", n_geo);
+//				PyDict_SetItem(py_result, key, val);
+//				Py_DECREF(key);
+//				Py_DECREF(val);
+//
+//				/* This will be used by arrays depending on number of geoms */
+//				dims[0] = n_geo;
+//				dims[1] = 3;
+//			}
+//
+//			/* Energy of the subsequent geometries */
+//			else if ( !strcmp(line, "[geoconv]" ) ) {
+//				free(line);
+//				line = readline(fd);
+//				geoconv = (double*) malloc(n_geo * sizeof(double));
+//				if(geoconv == NULL) {
+//					PyErr_SetFromErrno(PyExc_MemoryError);
+//					return NULL; }
+//				for( i = 0; i < n_geo; i++) {
+//					free(line);
+//					line = readline(fd);
+//					stripline(line);
+//					geoconv[i] = atof(line);
+//				}
+//				py_geoconv = PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, geoconv);
+//				key = PyString_FromString("energies");
+//				PyDict_SetItem(py_result, key, py_geoconv);
+//				Py_DECREF(key);
+//				Py_DECREF(py_geoconv);
+//			}
+//
+//			/* Energy of the subsequent geometries */
+//			else if ( !strcmp(line, "[geometries] (xyz)" ) ) {
+//				py_geom = PyList_New(n_geo);
+//				for ( i = 0; i < n_geo; i++ )
+//					PyList_SetItem(py_geom, i, read_xyz(fd, 1.0));
+//				key = PyString_FromString("geometries");
+//				PyDict_SetItem(py_result, key, py_geom);
+//				Py_DECREF(key);
+//				Py_DECREF(py_geom);
+//			}
+//
+//			/* Section 'atoms' present - this is one-geometry file */
+//			else if ( !strcmp(line, "[atoms] angs" ) ) {
+//
+//				n_geo = 1;
+//				key = PyString_FromString("number_of_geometries");
+//				val = Py_BuildValue("i", n_geo);
+//				PyDict_SetItem(py_result, key, val);
+//				Py_DECREF(key);
+//				Py_DECREF(val);
+//
+//				free(line);
+//				line = readline(fd);
+//				stripline(line);
+//
+//				/* We don't know how many atoms are there, so we have to
+//                   store the lines. */
+//				nat = 0;
+//				line_store = (char**) malloc(10 * sizeof(char*));
+//				if ( line_store == NULL ) {
+//					PyErr_SetFromErrno(PyExc_MemoryError);
+//					return NULL; }
+//				while ( line[0] != '[' ) {
+//					line_store[nat++] = line;
+//					if ( nat % 10 == 0 ) {
+//						line_store = realloc(line_store, (nat + 10) * sizeof(char*));
+//						if( line_store == NULL ) {
+//							PyErr_SetFromErrno(PyExc_MemoryError);
+//						return NULL; }
+//					}
+//					line = readline(fd);
+//					stripline(line);
+//				}
+//
+//				xyz = (float*) malloc(3 * nat * sizeof(float));
+//				if(xyz == NULL) {
+//					PyErr_SetFromErrno(PyExc_MemoryError);
+//					return NULL; }
+//				anum = (int*) malloc(nat * sizeof(int));
+//				if(anum == NULL) {
+//					PyErr_SetFromErrno(PyExc_MemoryError);
+//					return NULL; }
+//
+//				py_syms = PyList_New(nat);
+//
+//				/* Loop over atoms */
+//				for ( i = 0; i < nat; i++ ) {
+//
+//					buffpos = line_store[i];
+//					token = strtok(buffpos, " ");
+//					val = Py_BuildValue("s", token);
+//					PyList_SetItem(py_syms, i, val);
+//
+//					token = strtok(NULL, " ");
+//					/* not used */
+//
+//					token = strtok(NULL, " ");
+//					anum[i] = atoi(token);
+//
+//					token = strtok(NULL, " ");
+//					xyz[3*i+0] = atof(token);
+//
+//					token = strtok(NULL, " ");
+//					xyz[3*i+1] = atof(token);
+//
+//					token = strtok(NULL, " ");
+//					xyz[3*i+2] = atof(token);
+//
+//					/* Get rid of the line. */
+//					free(line_store[i]);
+//
+//				}
+//
+//				/* Free the stored line pointers. */
+//				free(line_store);
+//
+//				/* Add symbols to the dictionary */
+//				key = PyString_FromString("symbols");
+//				PyDict_SetItem(py_result, key, py_syms);
+//				Py_DECREF(key);
+//				Py_DECREF(py_syms);
+//
+//				/* Add coordinates to the dictionary */
+//				dims[0] = nat;
+//				dims[1] = 3;
+//				py_geom = PyArray_SimpleNewFromData(2, dims, NPY_FLOAT, (float*) xyz);
+//				key = PyString_FromString("coordinates");
+//				PyDict_SetItem(py_result, key, py_geom);
+//				Py_DECREF(key);
+//				Py_DECREF(py_geom);
+//
+//				/* Add atomic numbers to the dictionary */
+//				py_anum = PyArray_SimpleNewFromData(1, dims, NPY_INT, (int*) anum);
+//				key = PyString_FromString("atomic_numbers");
+//				PyDict_SetItem(py_result, key, py_anum);
+//				Py_DECREF(key);
+//				Py_DECREF(py_anum);
+//
+//				/* This is to avoid reading the next line! */
+//				continue;
+//			}
+//
+//		}
+//
+//		line = readline(fd);
+//
+//	}
+//
+//	return py_result;
+	return NULL;
+
+}
+
+
+PyObject *read_frame_from_gro(Trajectory *self) {
+
+	int nat, pos;
+	char *buffer;
+	char symbuf[100];
+	float *xyz, *vel;
+	unsigned short int velocities_present = 0;
+
+	npy_intp dims[2];
+
+	PyObject *key, *val, *py_result, *py_coord, *py_vel;
+
+
+	/* Create the dictionary that will be returned */
+	py_result = PyDict_New();
+
+	/* Read the comment line */
+	if((buffer = readline(self->fd)) == NULL) {
+		PyErr_SetFromErrno(PyExc_IOError);
+		return NULL; }
+	buffer[strlen(buffer)-1] = '\0';
+	stripline(buffer);
+
+	val = Py_BuildValue("s", buffer);
+	free(buffer);
+	key = PyString_FromString("comment");
+	PyDict_SetItem(py_result, key, val);
+	Py_DECREF(key);
+	Py_DECREF(val);
+
+	/* Read number of atoms */
+	if( (buffer = readline(self->fd)) == NULL) {
+		PyErr_SetFromErrno(PyExc_IOError);
+		return NULL; }
+	if( sscanf(buffer, "%d", &nat) != 1 || nat != self->nofatoms) {
+		PyErr_SetString(PyExc_IOError, "Incorrect atom number");
+		return NULL; }
+
+
+	/* Set-up the raw arrays for coordinates and charges */
+	xyz = (float*) malloc(3 * self->nofatoms * sizeof(float));
+	if(xyz == NULL) {
+		PyErr_SetFromErrno(PyExc_MemoryError);
+		return NULL; }
+	vel = (float*) malloc(3 * self->nofatoms * sizeof(float));
+	if(vel == NULL) {
+		PyErr_SetFromErrno(PyExc_MemoryError);
+		return NULL; }
+
+	/* Atom loop */
+	for(pos = 0; pos < self->nofatoms; pos++) {
+
+		/* Get the whole line */
+		if((buffer = readline(self->fd)) == NULL) {
+			PyErr_SetFromErrno(PyExc_IOError);
+			return NULL; }
+		if(pos == 0 && strlen(buffer) > 50) velocities_present = 1;
+
+		/* Read coordinates */
+		strncpy(symbuf, buffer+20, 8);
+		symbuf[8] = '\0';
+		stripline(symbuf);
+		xyz[3*pos + 0] = atof(symbuf);
+		strncpy(symbuf, buffer+28, 8);
+		symbuf[8] = '\0';
+		stripline(symbuf);
+		xyz[3*pos + 1] = atof(symbuf);
+		strncpy(symbuf, buffer+36, 8);
+		symbuf[8] = '\0';
+		stripline(symbuf);
+		xyz[3*pos + 2] = atof(symbuf);
+
+		/* Read velocities */
+		if(velocities_present) {
+			strncpy(symbuf, buffer+44, 8);
+			symbuf[8] = '\0';
+			stripline(symbuf);
+			vel[3*pos + 0] = atof(symbuf);
+			strncpy(symbuf, buffer+52, 8);
+			symbuf[8] = '\0';
+			stripline(symbuf);
+			vel[3*pos + 1] = atof(symbuf);
+			strncpy(symbuf, buffer+60, 8);
+			symbuf[8] = '\0';
+			stripline(symbuf);
+			vel[3*pos + 2] = atof(symbuf);
+		}
+
+		/* Free the line buffer */
+		free(buffer);
+	}
+
+	/* Add coordinates to the dictionary */
+	dims[0] = self->nofatoms;
+	dims[1] = 3;
+	py_coord = PyArray_SimpleNewFromData(2, dims, NPY_FLOAT, (float*) xyz);
+	/***************************************************************
+	 * Do not free the raw array! It will be still used by Python! *
+     ***************************************************************/
+
+	key = PyString_FromString("coordinates");
+	PyDict_SetItem(py_result, key, py_coord);
+	Py_DECREF(key);
+	Py_DECREF(py_coord);
+
+
+	/* Add velocities to the dictionary */
+	if(velocities_present) {
+		py_vel = PyArray_SimpleNewFromData(2, dims, NPY_FLOAT, (float*) vel);
+		/***************************************************************
+		 * Do not free the raw array! It will be still used by Python! *
+    	 ***************************************************************/
+
+		key = PyString_FromString("velocities");
+		PyDict_SetItem(py_result, key, py_vel);
+		Py_DECREF(key);
+		Py_DECREF(py_vel);
+	} else
+		free(vel);
+
+
+	return py_result;
+
+}
+
+
+PyObject *read_frame_from_xtc(Trajectory *self) {
+	return NULL;
 }
 
 
@@ -508,9 +979,18 @@ int read_topo_from_gro(Trajectory *self) {
 		PyErr_SetString(PyExc_IOError, "Incorrect atom number");
 		return -1; }
 
-	/* Get rid of Py_None in self->symbols */
+	/* Get rid of Py_None in self->symbols etc. */
 	Py_DECREF(Py_None);
 	self->symbols = PyList_New(nofatoms);
+	Py_DECREF(Py_None);
+	self->resids = PyList_New(nofatoms);
+	Py_DECREF(Py_None);
+	self->resnames = PyList_New(nofatoms);
+
+	resid = (int*) malloc(nofatoms * sizeof(int));
+	if(resid == NULL) {
+		PyErr_SetFromErrno(PyExc_MemoryError);
+		return -1; }
 
 	/* Atom loop */
 	for(pos = 0; pos < nofatoms; pos++) {
@@ -518,6 +998,19 @@ int read_topo_from_gro(Trajectory *self) {
 		/* Get the whole line */
 		if((buffer = readline(self->fd)) == NULL) {
 			return -1; }
+
+		/* Read residue id */
+		strncpy(symbuf, buffer, 5);
+		symbuf[5] = '\0';
+		stripline(symbuf);
+		resid[pos] = atoi(symbuf);
+
+		/* Read residue name */
+		strncpy(symbuf, buffer+5, 5);
+		symbuf[5] = '\0';
+		stripline(symbuf);
+		val = Py_BuildValue("s", symbuf);
+		PyList_SetItem(self->resnames, pos, val);
 
 		/* Read atom name */
 		strncpy(symbuf, buffer+10, 5);
@@ -533,163 +1026,3 @@ int read_topo_from_gro(Trajectory *self) {
 	self->nofatoms = nofatoms;
 	return 0;
 }
-
-
-
-//int read_frame_from_xyz(FILE *fd, float factor, Trajectory *self) {
-//
-//	int nofatoms, pos, size;
-//	char *buffer, *buffpos, *token;
-//	float *ptr;
-//	/* The following enum is used to decide if there are any charges to read.
-//	 * If equal to NONE, it means that previous frames had no charges, so we
-//	 * raise an exception if some are present.
-//	 * If equal to REQUIRED, it means that previous frames had charges, so we
-//	 * require them.
-//	 * If equal to POSSIBLE, then we don't know yet. On the first line it will
-//	 * be switched to NONE or REQUIRED, depending if we find the fourth number. */
-//	enum { NONE, POSSIBLE, REQUIRED } charges_section;
-//
-//	PyObject *val;
-//
-//	/* Read number of atoms */
-//	if( (buffer = readline(fd)) == NULL) {
-//		PyErr_SetFromErrno(PyExc_IOError);
-//		return -1; }
-//	if( sscanf(buffer, "%d", &nofatoms) != 1 ) {
-//		PyErr_SetString(PyExc_IOError, "Failed to read number of atoms");
-//		return -1; }
-//	if( nofatoms != self->nofatoms ) {
-//		PyErr_SetString(PyExc_RuntimeError, "Incorrect number of atoms");
-//		return -1; }
-//
-//	/* Read the comment line */
-//	if((buffer = readline(fd)) == NULL) {
-//		PyErr_SetFromErrno(PyExc_IOError);
-//		return -1; }
-//	buffer[strlen(buffer)-1] = '\0';
-//
-//	/* Determine wether we are expecting to find charges. */
-//
-//	if ( self->charges_dim[0] )
-//		/* Charges must be present */
-//		charges_section = REQUIRED;
-//	else if ( ! self->charges_dim && self->frames_dim )
-//		/* We have some frames but no charges, so there shouldn't be any */
-//		charges_section = NONE;
-//	else {
-//		/* Possibly there will be charges */
-//		charges_section = POSSIBLE;
-//	}
-//
-//	/* Set-up the raw array and PyArray for coordinates */
-//
-//	if ( self->frames_raw == NULL ) {
-//		self->frames_dim[0] = 1;
-//		ptr = (float*) malloc(3 * self->frames_dim[1] * sizeof(float));
-//	} else {
-//		Py_DECREF(self->frames);
-//		self->frames_dim[0] += 1;
-//		ptr = realloc(self->frames_raw, self->frames_dim[0] * self->frames_dim[1] * 3 * sizeof(float));
-//	}
-//	if( ptr == NULL) {
-//		PyErr_NoMemory();
-//		return -1; }
-//	self->frames_raw = ptr;
-//	self->frames = PyArray_SimpleNewFromData(3, self->frames_dim, NPY_FLOAT, self->frames_raw);
-//
-//	/* Set-up the raw array and PyArray for charges.
-//	 * If charges are not present, self->charges will be set back
-//	 * to None at the end of this function. */
-//
-//	if ( self->charges_raw == NULL ) {
-//		self->charges_dim[0] = 1;
-//		ptr = (float*) malloc(self->charges_dim[1] * sizeof(float));
-//	} else {
-//		Py_DECREF(self->charges);
-//		self->charges_dim[0] += 1;
-//		ptr = realloc(self->charges_raw, self->charges_dim[0] * self->charges_dim[1] * sizeof(float));
-//	}
-//	if(ptr == NULL) {
-//		PyErr_NoMemory();
-//		return -1; }
-//	self->charges_raw = ptr;
-//	self->charges = PyArray_SimpleNewFromData(2, self->charges_dim, NPY_FLOAT, self->charges_raw);
-//
-//	/* Atom loop */
-//	for(pos = 0; pos < nofatoms; pos++) {
-//
-//		/* Get the whole line */
-//		if((buffer = readline(fd)) == NULL) {
-//			PyErr_SetFromErrno(PyExc_IOError);
-//			return -1; }
-//		buffer[strlen(buffer)-1] = '\0';
-//		buffpos = buffer;
-//
-//		/* Read symbol */
-//		token = strtok(buffpos, " ");
-//
-//		/* Read coordinates */
-//		if ( (token = strtok(NULL, " ")) == NULL) {
-//			PyErr_SetString(PyExc_IOError, "Missing coordinate");
-//			return -1; }
-//		self->frames_raw[3*nofatoms*(self->frames_dim[0] - 1) + 3*pos + 0] = atof(token) * factor;
-//		if ( (token = strtok(NULL, " ")) == NULL) {
-//			PyErr_SetString(PyExc_IOError, "Missing coordinate");
-//			return -1; }
-//		self->frames_raw[3*nofatoms*(self->frames_dim[0] - 1) + 3*pos + 1] = atof(token) * factor;
-//		if ( (token = strtok(NULL, " ")) == NULL) {
-//			PyErr_SetString(PyExc_IOError, "Missing coordinate");
-//			return -1; }
-//		self->frames_raw[3*nofatoms*(self->frames_dim[0] - 1) + 3*pos + 2] = atof(token) * factor;
-//
-//		/* Read charge, if present */
-//		token = strtok(NULL, " ");
-//		if ( token != NULL ) {
-//
-//			/* This is bad: didn't expect the charges! */
-//			if ( charges_section == NONE ) {
-//				PyErr_SetString(PyExc_RuntimeError, "Found unexpected charge data");
-//				return -1;
-//			}
-//
-//			if ( charges_section == POSSIBLE ) charges_section = REQUIRED;
-//
-//			self->charges_raw[nofatoms*(self->charges_dim[0] - 1) + pos] = atof(token);
-//
-//		} else {
-//
-//			/* This is bad: we were expecting charges here and found nothing */
-//			if ( charges_section == REQUIRED ) {
-//				PyErr_SetString(PyExc_RuntimeError, "Missing charges");
-//				return -1;
-//			}
-//
-//			if ( charges_section == POSSIBLE ) charges_section = NONE;
-//
-//		}
-//
-//		/* Free the line buffer */
-//		free(buffer);
-//	}
-//
-//	self->nframes += 1;
-//
-//	if ( charges_section == NONE ) {
-//
-//		Py_DECREF(self->charges);
-//		free(self->charges_raw);
-//		self->charges_raw = NULL;
-//		Py_INCREF(Py_None);
-//		self->charges = Py_None;
-//	
-//	} else if ( charges_section == POSSIBLE ) {
-//
-//			PyErr_SetString(PyExc_AssertionError, "Internal error when reading charges");
-//			return -1;
-//	
-//	}
-//
-//	return nofatoms;
-//}
-
