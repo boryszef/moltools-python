@@ -52,7 +52,7 @@ PyObject *exposed_read(PyObject *self, PyObject *args, PyObject *kwds) {
 	else {
 		make_lowercase(unit);
 		if ( !strcmp(unit, "angs") ) factor = 1.0;
-		else if ( !strcmp(unit, "bohr") ) factor = BOHR;
+		else if ( !strcmp(unit, "bohr") ) factor = BOHRTOANGS;
 		else if ( !strcmp(unit, "nm") ) factor = 10.0;
 		else {
 			PyErr_SetString(PyExc_ValueError, "Unrecognized measure unit name");

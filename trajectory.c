@@ -38,7 +38,6 @@ static void Trajectory_dealloc(Trajectory* self)
 		case XYZ:
 		case MOLDEN:
 		case GRO:
-		case FRAC:
 			if (self->fd != NULL) fclose(self->fd);
 			break;
 #ifdef HAVE_GROMACS
@@ -46,6 +45,9 @@ static void Trajectory_dealloc(Trajectory* self)
 			if (self->xd != NULL) close_xtc(self->xd);
 #endif
 	}
+#ifdef HAVE_GROMACS
+	sfree(self->xtcCoord);
+#endif
 }
 
 static PyObject *Trajectory_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
@@ -61,6 +63,9 @@ static PyObject *Trajectory_new(PyTypeObject *type, PyObject *args, PyObject *kw
 		self->mode = 'r';
 		self->type = GUESS;
 		self->nofatoms = 0;
+		self->xtcCoord = NULL;
+		self->units = ANGS;
+		self->lastFrame = -1;
 
 		Py_INCREF(Py_None);
 	    self->symbols = Py_None;
@@ -83,11 +88,18 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 	char ext[5];
 	char *line;
 	char *mode = NULL;
+	char *units = NULL;
+#ifdef HAVE_GROMACS
+	int step;
+	real time, prec;
+	matrix box;
+	gmx_bool bOK;
+#endif
 
 	static char *kwlist[] = {
-		"filename", "format", "mode", NULL };
+		"filename", "format", "mode", "units", NULL };
 
-	if(!PyArg_ParseTupleAndKeywords(args, kwds, "s|ss", kwlist, &filename, &str_type, &mode))
+	if(!PyArg_ParseTupleAndKeywords(args, kwds, "s|sss", kwlist, &filename, &str_type, &mode, &units))
 		return -1;
 
 	self->filename = (char*) malloc(strlen(filename) * sizeof(char));
@@ -101,7 +113,6 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 	if ( str_type != NULL ) {
 		if      ( !strcmp(str_type,    "XYZ") ) self->type = XYZ;
 		else if ( !strcmp(str_type, "MOLDEN") ) self->type = MOLDEN;
-		else if ( !strcmp(str_type,   "FRAC") ) self->type = FRAC;
 		else if ( !strcmp(str_type,    "GRO") ) self->type = GRO;
 		else if ( !strcmp(str_type,    "XTC") ) self->type = XTC;
 	}
@@ -130,10 +141,26 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 		}
 	}
 
+	if (units == NULL) {
+		switch(self->type) {
+			case XYZ:
+			case MOLDEN:
+				self->units = ANGS;
+				break;
+			case GRO:
+			case XTC:
+				self->units = NM;
+				break;
+		}
+	} else {
+		if      (!strcmp(units, "angs")) self->units = ANGS;
+		else if (!strcmp(units, "bohr")) self->units = BOHR;
+		else if (!strcmp(units,   "nm")) self->units = NM;
+	}
+
 	/* Open the coordinate file */
 	switch(self->type) {
 		case XYZ:
-		case FRAC:
 		case MOLDEN:
 		case GRO:
 			if ( (self->fd = fopen(filename, "r")) == NULL ) {
@@ -155,19 +182,24 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 	/* Router */
 	switch(self->type) {
 		case XYZ:
-		case FRAC:
-			self->nofatoms = read_topo_from_xyz(self);
+			if (read_topo_from_xyz(self) == -1) return -1;
 			rewind(self->fd);
 			break;
 		case MOLDEN:
-			self->nofatoms = read_topo_from_molden(self);
+			if (read_topo_from_molden(self) == -1) return -1;
 			rewind(self->fd);
 			break;
 		case GRO:
-			self->nofatoms = read_topo_from_gro(self);
+			if (read_topo_from_gro(self) == -1) return -1;
 			rewind(self->fd);
 			break;
 		case XTC:
+#ifdef HAVE_GROMACS
+			if (!read_first_xtc(self->xd, &(self->nofatoms), &step, &time,
+                                box, &(self->xtcCoord), &prec, &bOK) && bOK) {
+				PyErr_SetString(PyExc_IOError, "Error reading first frame");
+				return -1; }
+#endif
 			break;
 		/* If the file format is GUESS or different,
 		   it means we've failed to guess :-(        */
@@ -177,135 +209,29 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 			return -1;
 	}
 
-	if ( self->nofatoms == -1 ) {
-		return -1; }
+	/* If there are any atoms, try to guess their atomic numbers */
+	if (self->nofatoms > 0) {
+		self->atomicnumbers = PyList_New(self->nofatoms);
+	}
 
 	return 0;
 }
 
 
-//static PyObject *Trajectory_read(Trajectory *self, PyObject *args, PyObject *kwds) {
-//
-//	const char *filename;
-//	char *line;
-//	char *unit = NULL;
-//	enum { GUESS, XYZ, MOLDEN, FRAC, GRO } type = GUESS;
-//	char *str_type = NULL;
-//	float factor;
-//	FILE *fd, *test;
-//	long int fpos;
-//	struct stat fst;
-//	char ext[5];
-//	int nat;
-//	char buffer[1000];
-//
-//	static char *kwlist[] = {"filename", "format", "unit", NULL};
-//
-//	/* Process the arguments */
-//	if(!PyArg_ParseTupleAndKeywords(args, kwds, "s|ss",
-//		kwlist, &filename, &str_type, &unit)) return NULL;
-//
-//	/* Get the unit measure for coordinates and set the factor accordingly */
-//	if (unit == NULL) factor = 1.0;
-//	else {
-//		make_lowercase(unit);
-//		if ( !strcmp(unit, "angs") ) factor = 1.0;
-//		else if ( !strcmp(unit, "bohr") ) factor = BOHR;
-//		else if ( !strcmp(unit, "nm") ) factor = 10.0;
-//		else {
-//			PyErr_SetString(PyExc_ValueError, "Unrecognized measure unit name");
-//			return NULL; }
-//	}
-//
-//	/* Set the enum symbol of the file format */
-//	if ( str_type != NULL ) {
-//		if      ( !strcmp(str_type,    "XYZ") ) type = XYZ;
-//		else if ( !strcmp(str_type, "MOLDEN") ) type = MOLDEN;
-//		else if ( !strcmp(str_type,   "FRAC") ) type = FRAC;
-//		else if ( !strcmp(str_type,    "GRO") ) type = GRO;
-//	}
-//
-//	/* Guess the file format, if not given explicitly */
-//	if ( type == GUESS ) {
-//		strcpy(ext, filename + strlen(filename) - 4);
-//		if      ( !strcmp(ext, ".xyz") ) type = XYZ;
-//		else if ( !strcmp(ext, ".gro") ) type = GRO;
-//		else {
-//			/* Extract the first line */
-//			if ( (test = fopen(filename, "r")) == NULL ) {
-//				PyErr_SetFromErrno(PyExc_IOError);
-//				return NULL; }
-//			if ( (line = readline(test)) == NULL ) {
-//				PyErr_SetFromErrno(PyExc_IOError);
-//				return NULL; }
-//			make_lowercase(line);
-//			stripline(line);
-//			fclose(test);
-//
-//			/* Perhaps it's Molden format? */
-//			if ( !strcmp(line, "[molden format]") ) type = MOLDEN;
-//
-//			free(line);
-//		}
-//	}
-//
-//	/* Open the coordinate file */
-//	if ( (fd = fopen(filename, "r")) == NULL ) {
-//		PyErr_SetFromErrno(PyExc_IOError);
-//		return NULL; }
-//
-//	/* Router */
-//	switch(type) {
-//		case XYZ:
-//			nat = read_frame_from_xyz(fd, factor, self);
-//			if ( nat == -1 ) return NULL;
-//			/* Support for multiframe XYZ: check the current position in
-// 			 * the file; if we are near the end, finish; else, continue
-// 			 * reading. The criteria is that there should be no more than
-// 			 * 3 bytes left. */
-//			fpos = ftell(fd);
-//			if ( fpos == -1 ) {
-//				PyErr_SetFromErrno(PyExc_IOError);
-//				return NULL; }
-//			if ( fstat(fileno(fd), &fst) == -1 ) {
-//				PyErr_SetFromErrno(PyExc_IOError);
-//				return NULL; }
-//			if ( fst.st_size - fpos <= 3 ) {
-//				break;
-//			}
-//			while ( fst.st_size - fpos > 3 ) {
-//				nat = read_frame_from_xyz(fd, factor, self);
-//				if ( nat == -1 ) return NULL;
-//				fpos = ftell(fd);
-//				if ( fpos == -1 ) {
-//					PyErr_SetFromErrno(PyExc_IOError);
-//					return NULL; }
-//			}
-//			break;
-//		case MOLDEN:
-//			//nat = read_frame_from_molden(fd, self);
-//			if ( nat == -1 ) return NULL;
-//			break;
-//		case FRAC:
-//			//nat = read_frame_from_fractional(fd, self);
-//			if ( nat == -1 ) return NULL;
-//			break;
-//		case GRO:
-//			//nat = read_frame_from_gro(fd, self);
-//			if ( nat == -1 ) return NULL;
-//			break;
-//		/* If the file format is GUESS or different,
-//		   it means we've failed to guess :-(        */
-//		case GUESS:
-//		default:
-//			PyErr_SetString(PyExc_ValueError, "Unsupported file format");
-//			return NULL;
-//	}
-//
-//	fclose(fd);
-//	Py_RETURN_NONE;
-//}
+static PyObject *Trajectory_read(Trajectory *self) {
 
+	switch(self->type) {
+		case XYZ:
+			return read_frame_from_xyz(self);
+		case GRO:
+			return read_frame_from_gro(self);
+		case MOLDEN:
+			return read_frame_from_molden(self);
+		case XTC:
+			return read_frame_from_xtc(self);
+	}
+
+}
 
 
 static PyObject* Trajectory_repr(Trajectory *self) {
@@ -318,8 +244,6 @@ static PyObject* Trajectory_repr(Trajectory *self) {
 			strcpy(format,    "XYZ"); break;
 		case MOLDEN:
 			strcpy(format, "MOLDEN"); break;
-		case FRAC:
-			strcpy(format,   "FRAC"); break;
 		case GRO:
 			strcpy(format,    "GRO"); break;
 		case XTC:
@@ -347,27 +271,17 @@ static PyMemberDef Trajectory_members[] = {
 
 
 static PyMethodDef Trajectory_methods[] = {
-//    {"read", (PyCFunction)Trajectory_read, METH_VARARGS | METH_KEYWORDS,
-//		"\n"
-//		"Trajectory.read(filename [, unit ] )\n"
-//		"\n"
-//		"Read frames from coordinate file and append to Trajectory.\n"
-//		"Currently, supports only XYZ and Molden formats. In some file\n"
-//		"formats the unit can be chosen between unit = angs, bohr, nm.\n"
-//		"\n"
-//		"XYZ:    supports extended files (charges in the fifth column)\n"
-//		"        as well as standard files; coordinates are assumed to be\n"
-//		"        in Angstroms. Also supports multiframe files.\n"
-//		"\n"
-//		"Molden: supports groups N_GEO, GEOCONV (energies only),\n"
-//		"        GEOMETRIES (XYZ only), ATOMS (Angstroms only).\n"
-//		"\n" },
-    /*{"COM", (PyCFunction)Trajectory_COM, METH_VARARGS,
+    {"read", (PyCFunction)Trajectory_read, METH_VARARGS | METH_KEYWORDS,
 		"\n"
-		"COM()\n"
+		"Trajectory.read()\n"
 		"\n"
-		"Returns the center of mass as numpy array.\n"
-		"\n" },*/
+		"Read next frame from trajectory. Returns a dictionary:\n"
+		"\n"
+		"coordinates (ndarray)\n"
+		"step (int)\n"
+		"time (float)\n"
+		"box (ndarray) [a, b, c, alpha, beta, gamma]\n"
+		"\n" },
 	{NULL}  /* Sentinel */
 };
 
@@ -394,8 +308,13 @@ PyTypeObject TrajectoryType = {
 	0,                         /*tp_setattro*/
 	0,                         /*tp_as_buffer*/
 	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,        /*tp_flags*/
-	"Trajectory class. Implements reading of trajectories from various"
-	"file formats. Coordinates are stored in numpy array.",           /* tp_doc */
+	"Trajectory class. Implements reading of trajectories from various "
+	"file formats. Coordinates are stored in numpy array. "
+	"Creating an instance:\n"
+	"traj = Trajectory(filename [, format='GUESS' [, mode='r' [, units='angs']]])\n"
+	"Available formats include: XYZ, GRO, MOLDEN, XTC - guessed if not specified.\n"
+	"Mode: 'r' (default), 'w', 'a'.\n"
+	"Units: 'angs' (default), 'bohr', 'nm'.\n",           /* tp_doc */
 	0,		               /* tp_traverse */
 	0,		               /* tp_clear */
 	0,		               /* tp_richcompare */
@@ -458,7 +377,8 @@ int read_topo_from_xyz(Trajectory *self) {
 		free(buffer);
 	}
 
-	return nofatoms;
+	self->nofatoms = nofatoms;
+	return 0;
 }
 
 
@@ -492,7 +412,8 @@ int read_topo_from_molden(Trajectory *self) {
 					PyErr_SetString(PyExc_RuntimeError, "Multiple geometry/atom sections");
 					return -1; } */
 				section_present = 1;
-				nat = read_topo_from_xyz(self);
+				read_topo_from_xyz(self);
+				nat = self->nofatoms;
 				break;
 			}
 
@@ -560,7 +481,8 @@ int read_topo_from_molden(Trajectory *self) {
 		PyErr_SetString(PyExc_RuntimeError, "geometry/atom section missing");
 		return -1; }
 
-	return nat;
+	self->nofatoms = nat;
+	return 0;
 }
 
 
@@ -608,7 +530,8 @@ int read_topo_from_gro(Trajectory *self) {
 		free(buffer);
 	}
 
-	return nofatoms;
+	self->nofatoms = nofatoms;
+	return 0;
 }
 
 

@@ -42,7 +42,7 @@
 	#include <gromacs/fileio/xtcio.h>
 #endif
 
-#define BOHR 0.529177209
+#define BOHRTOANGS 0.529177209
 
 #define sq(a) ((a) * (a))
 
@@ -91,21 +91,18 @@ typedef struct {
 
 	PyObject_HEAD
 
-	enum { GUESS, XYZ, MOLDEN, FRAC, GRO, XTC } type;
-
+	enum { GUESS, XYZ, MOLDEN, GRO, XTC } type;
+	enum { ANGS, BOHR, NM } units;
 	char mode;
-
 	char *filename; /* Used while opening the file and for __repr__ */
-
 	FILE *fd;
 #ifdef HAVE_GROMACS
 	t_fileio *xd;
+	rvec *xtcCoord;
 #endif
-
 	int nofatoms;
-	
+	int lastFrame;
 	PyObject *symbols; /* list of symbols */
-	
 	PyObject *atomicnumbers; /* atomic numbers */
 
 } Trajectory;
