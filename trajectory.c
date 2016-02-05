@@ -34,6 +34,18 @@ static void Trajectory_dealloc(Trajectory* self)
 	Py_XDECREF(self->atomicnumbers);
 	self->ob_type->tp_free((PyObject*)self);
 	free(self->filename);
+	switch(self->type) {
+		case XYZ:
+		case MOLDEN:
+		case GRO:
+		case FRAC:
+			if (self->fd != NULL) fclose(self->fd);
+			break;
+#ifdef HAVE_GROMACS
+		case XTC:
+			if (self->xd != NULL) close_xtc(self->xd);
+#endif
+	}
 }
 
 static PyObject *Trajectory_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
@@ -44,18 +56,17 @@ static PyObject *Trajectory_new(PyTypeObject *type, PyObject *args, PyObject *kw
 	if (self != NULL) {
 
 	    self->filename = NULL;
-
+		self->fd = NULL;
+		self->xd = NULL;
 		self->mode = 'r';
-
 		self->type = GUESS;
+		self->nofatoms = 0;
 
 		Py_INCREF(Py_None);
 	    self->symbols = Py_None;
 		
 		Py_INCREF(Py_None);
 	    self->atomicnumbers = Py_None;
-		
-		self->nofatoms = 0;
     }
 
     return (PyObject *)self;
@@ -67,7 +78,7 @@ static PyObject *Trajectory_new(PyTypeObject *type, PyObject *args, PyObject *kw
 static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 
 	const char *filename;
-	FILE *topofile, *test;
+	FILE *test;
 	char *str_type = NULL;
 	char ext[5];
 	char *line;
@@ -120,21 +131,41 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 	}
 
 	/* Open the coordinate file */
-	if ( (topofile = fopen(filename, "r")) == NULL ) {
-		PyErr_SetFromErrno(PyExc_IOError);
-		return -1; }
+	switch(self->type) {
+		case XYZ:
+		case FRAC:
+		case MOLDEN:
+		case GRO:
+			if ( (self->fd = fopen(filename, "r")) == NULL ) {
+				PyErr_SetFromErrno(PyExc_IOError);
+				return -1; }
+			break;
+		case XTC:
+#ifdef HAVE_GROMACS
+			if( (self->xd = open_xtc(filename, "r")) == NULL) {
+				PyErr_SetString(PyExc_IOError, "Error opening XTC file");
+				return -1; }
+#else
+			PyErr_SetString(PyExc_SystemError, "The module has to be compiled with gromacs support to handle XTC files");
+			return -1;
+#endif
+			break;
+	}
 
 	/* Router */
 	switch(self->type) {
 		case XYZ:
 		case FRAC:
-			self->nofatoms = read_topo_from_xyz(topofile, self);
+			self->nofatoms = read_topo_from_xyz(self);
+			rewind(self->fd);
 			break;
 		case MOLDEN:
-			self->nofatoms = read_topo_from_molden(topofile, self);
+			self->nofatoms = read_topo_from_molden(self);
+			rewind(self->fd);
 			break;
 		case GRO:
-			self->nofatoms = read_topo_from_gro(topofile, self);
+			self->nofatoms = read_topo_from_gro(self);
+			rewind(self->fd);
 			break;
 		case XTC:
 			break;
@@ -148,8 +179,6 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 
 	if ( self->nofatoms == -1 ) {
 		return -1; }
-
-	fclose(topofile);
 
 	return 0;
 }
@@ -389,7 +418,7 @@ PyTypeObject TrajectoryType = {
 /* End of methods of the Trajectory object */
 
 
-int read_topo_from_xyz(FILE *fd, Trajectory *self) {
+int read_topo_from_xyz(Trajectory *self) {
 
 	int nofatoms, pos;
 	char *buffer, *buffpos, *token;
@@ -397,14 +426,14 @@ int read_topo_from_xyz(FILE *fd, Trajectory *self) {
 	PyObject *val;
 
 	/* Read number of atoms */
-	if( (buffer = readline(fd)) == NULL) {
+	if( (buffer = readline(self->fd)) == NULL) {
 		return -1; }
 	if( sscanf(buffer, "%d", &nofatoms) != 1 ) {
 		PyErr_SetString(PyExc_IOError, "Incorrect atom number");
 		return -1; }
 
 	/* Read the comment line */
-	if( (buffer = readline(fd)) == NULL) {
+	if( (buffer = readline(self->fd)) == NULL) {
 		return -1; }
 
 	/* Get rid of Py_None in self->symbols */
@@ -415,7 +444,7 @@ int read_topo_from_xyz(FILE *fd, Trajectory *self) {
 	for(pos = 0; pos < nofatoms; pos++) {
 
 		/* Get the whole line */
-		if((buffer = readline(fd)) == NULL) {
+		if((buffer = readline(self->fd)) == NULL) {
 			return -1; }
 		buffer[strlen(buffer)-1] = '\0';
 		buffpos = buffer;
@@ -434,7 +463,7 @@ int read_topo_from_xyz(FILE *fd, Trajectory *self) {
 
 
 /* Read molden file */
-int read_topo_from_molden(FILE *fd, Trajectory *self) {
+int read_topo_from_molden(Trajectory *self) {
 
 	char *line;
 	char *buffpos, *token;
@@ -447,7 +476,7 @@ int read_topo_from_molden(FILE *fd, Trajectory *self) {
 
 	/* Loop over the lines */
 
-	if ( (line = readline(fd)) == NULL) return -1;
+	if ( (line = readline(self->fd)) == NULL) return -1;
 
 	while ( strlen(line) ) {
 
@@ -459,22 +488,23 @@ int read_topo_from_molden(FILE *fd, Trajectory *self) {
 
 			/* Several geometries */
 			if ( !strcmp(line, "[geometries] (xyz)" ) ) {
-				if (section_present) {
+				/*if (section_present) {
 					PyErr_SetString(PyExc_RuntimeError, "Multiple geometry/atom sections");
-					return -1; }
+					return -1; } */
 				section_present = 1;
-				nat = read_topo_from_xyz(fd, self);
+				nat = read_topo_from_xyz(self);
+				break;
 			}
 
 			/* Section 'atoms' present - this is one-geometry file */
 			else if ( !strcmp(line, "[atoms] angs" ) ) {
 
-				if (section_present) {
+				/*if (section_present) {
 					PyErr_SetString(PyExc_RuntimeError, "Multiple geometry/atom sections");
-					return -1; }
+					return -1; }*/
 				section_present = 1;
 				free(line);
-				if ( (line = readline(fd)) == NULL ) return -1;
+				if ( (line = readline(self->fd)) == NULL ) return -1;
 				stripline(line);
 
 				/* We don't know how many atoms are there, so we have to
@@ -492,7 +522,7 @@ int read_topo_from_molden(FILE *fd, Trajectory *self) {
 							PyErr_NoMemory();
 						return -1; }
 					}
-					if ( (line = readline(fd)) == NULL ) return -1;
+					if ( (line = readline(self->fd)) == NULL ) return -1;
 					stripline(line);
 				}
 
@@ -516,13 +546,14 @@ int read_topo_from_molden(FILE *fd, Trajectory *self) {
 				/* Free the stored line pointers. */
 				free(line_store);
 
+				break;
 				/* This is to avoid reading the next line! */
-				continue;
+				//continue;
 			}
 
 		}
 
-		if ( (line = readline(fd)) == NULL ) return -1;
+		if ( (line = readline(self->fd)) == NULL ) return -1;
 
 	}
 	if (!section_present) {
@@ -533,7 +564,7 @@ int read_topo_from_molden(FILE *fd, Trajectory *self) {
 }
 
 
-int read_topo_from_gro(FILE *fd, Trajectory *self) {
+int read_topo_from_gro(Trajectory *self) {
 
 	int nofatoms, pos;
 	char *buffer;
@@ -543,13 +574,13 @@ int read_topo_from_gro(FILE *fd, Trajectory *self) {
 	PyObject *val;
 
 	/* Read the comment line */
-	if((buffer = readline(fd)) == NULL) {
+	if((buffer = readline(self->fd)) == NULL) {
 		return -1; }
 	buffer[strlen(buffer)-1] = '\0';
 	stripline(buffer);
 
 	/* Read number of atoms */
-	if( (buffer = readline(fd)) == NULL) {
+	if( (buffer = readline(self->fd)) == NULL) {
 		return -1; }
 	if( sscanf(buffer, "%d", &nofatoms) != 1 ) {
 		PyErr_SetString(PyExc_IOError, "Incorrect atom number");
@@ -563,7 +594,7 @@ int read_topo_from_gro(FILE *fd, Trajectory *self) {
 	for(pos = 0; pos < nofatoms; pos++) {
 
 		/* Get the whole line */
-		if((buffer = readline(fd)) == NULL) {
+		if((buffer = readline(self->fd)) == NULL) {
 			return -1; }
 
 		/* Read atom name */

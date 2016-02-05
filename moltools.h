@@ -85,6 +85,8 @@ typedef struct {
 	PyObject *F2; /* values of the second derivative of F */
 } EAMff;
 
+
+
 typedef struct {
 
 	PyObject_HEAD
@@ -95,9 +97,10 @@ typedef struct {
 
 	char *filename; /* Used while opening the file and for __repr__ */
 
-	/* The following pointer depends on the type; it can be *
-     * XDR* for XTC file format or FILE* otherwise          */
-	void *fd;
+	FILE *fd;
+#ifdef HAVE_GROMACS
+	t_fileio *xd;
+#endif
 
 	int nofatoms;
 	
@@ -106,6 +109,8 @@ typedef struct {
 	PyObject *atomicnumbers; /* atomic numbers */
 
 } Trajectory;
+
+
 	
 void cspline_calculate_drv2(double y2[], int n, double x[], double y[]);
 //double cspline_interpolate_y(double v, int n, double x[], double y[], double y2[]);
@@ -123,9 +128,9 @@ PyObject *distanceMatrix(PyObject *self, PyObject *args, PyObject *kwds);
 PyObject *measureAngleCosine(PyObject *self, PyObject *args, PyObject *kwds);
 PyObject *findHBonds(PyObject *self, PyObject *args, PyObject *kwds);
 
-int read_topo_from_xyz(FILE *fd, Trajectory *self);
-int read_topo_from_molden(FILE *fd, Trajectory *self);
-int read_topo_from_molden(FILE *fd, Trajectory *self);
+int read_topo_from_xyz(Trajectory *self);
+int read_topo_from_molden(Trajectory *self);
+int read_topo_from_gro(Trajectory *self);
 
 double *boxArray2double(double box[], PyArrayObject *arr);
 void wrapCartesian(double point[3], double box[3]);
