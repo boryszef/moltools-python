@@ -123,6 +123,27 @@ int stripline(char *line) {
 	return length;
 }
 
+
+/* Extract number from buf (at pos, with length len) and return as float *
+ * For example: "abc  45.6 xyz"                                          *
+ *               0123456789012                                           *
+ *               strPartFloat(buf, 4, 5) -> " 45.6" -> 45.6              */
+
+float strPartFloat(char *buf, int pos, int len) {
+	char *number;
+	float fret;
+
+	number = (char*) malloc((len+1) * sizeof(char));
+	strncpy(number, buf+pos, len);
+	number[len] = '\0';
+	stripline(number);
+	fret = (float)atof(number);
+	free(number);
+	return fret;
+}
+
+
+
 int getElementIndexBySymbol(const char *symbol) {
 	extern Element element_table[];
 	int idx = 0;

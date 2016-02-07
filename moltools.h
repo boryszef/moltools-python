@@ -62,6 +62,8 @@ typedef enum ff_type__ {
 char *readline(FILE *);
 int make_lowercase(char *);
 int stripline(char *);
+float strPartFloat(char *buf, int pos, int len);
+
 PyObject *read_xyz(FILE *fd, float factor);
 PyObject *read_molden(FILE *fd);
 PyObject *read_fractional(FILE *fd);
@@ -96,6 +98,11 @@ typedef struct {
 	char mode;
 	char *filename; /* Used while opening the file and for __repr__ */
 	FILE *fd;
+	/* Used for keeping track of the position in the file while reading     *
+	 * frames. Two variables are needed, because some formats, like Molden, *
+	 * store geometries and energies in different parts of the file.        */
+	long filePosition1;
+	long filePosition2;
 #ifdef HAVE_GROMACS
 	t_fileio *xd;
 	rvec *xtcCoord;
@@ -108,6 +115,18 @@ typedef struct {
 	PyObject *resnames; /* residue names */
 
 } Trajectory;
+
+
+typedef struct {
+
+	PyObject_HEAD
+
+	int step;
+	float time;
+	PyObject *coordinates;
+	PyObject *velocities;
+
+} Frame;
 
 
 	
