@@ -29,7 +29,7 @@
 
 /* Local helper functions */
 
-int read_topo_from_xyz(Trajectory *self) {
+static int read_topo_from_xyz(Trajectory *self) {
 
 	int nofatoms, pos, idx;
 	char *buffer, *buffpos, *token;
@@ -97,7 +97,7 @@ int read_topo_from_xyz(Trajectory *self) {
 
 
 
-int read_topo_from_molden(Trajectory *self) {
+static int read_topo_from_molden(Trajectory *self) {
 
 	char *line = NULL;
 	char *buffpos, *token;
@@ -266,7 +266,7 @@ int read_topo_from_molden(Trajectory *self) {
 
 
 
-int read_topo_from_gro(Trajectory *self) {
+static int read_topo_from_gro(Trajectory *self) {
 
 	int nofatoms, pos;
 	char *buffer;
@@ -343,7 +343,7 @@ int read_topo_from_gro(Trajectory *self) {
  * read_frame_from_molden_geometries for instance, *
  * so be careful with implementation.              */
 
-PyObject *read_frame_from_xyz(Trajectory *self) {
+static PyObject *read_frame_from_xyz(Trajectory *self) {
 
 	PyObject *py_result, *py_coord, *py_charges, *val, *key;
 	char *buffer, *buffpos, *token;
@@ -487,7 +487,7 @@ PyObject *read_frame_from_xyz(Trajectory *self) {
 
 
 
-PyObject *read_frame_from_molden_atoms(Trajectory *self) {
+static PyObject *read_frame_from_molden_atoms(Trajectory *self) {
 
 	char *line;
 	char *token, *buffpos;
@@ -565,7 +565,7 @@ PyObject *read_frame_from_molden_atoms(Trajectory *self) {
 
 
 
-PyObject *read_frame_from_molden_geometries(Trajectory *self) {
+static PyObject *read_frame_from_molden_geometries(Trajectory *self) {
 
 	char *line;
 	PyObject *py_result, *key, *val;
@@ -598,7 +598,7 @@ PyObject *read_frame_from_molden_geometries(Trajectory *self) {
 
 
 
-PyObject *read_frame_from_gro(Trajectory *self) {
+static PyObject *read_frame_from_gro(Trajectory *self) {
 
 	int nat, pos;
 	char *buffer;
@@ -747,8 +747,92 @@ PyObject *read_frame_from_gro(Trajectory *self) {
 
 
 
-PyObject *read_frame_from_xtc(Trajectory *self) {
-	Py_RETURN_NONE;
+static PyObject *read_frame_from_xtc(Trajectory *self) {
+
+	PyObject *py_dict, *val, *key, *py_coord, *py_box;
+	matrix mbox;
+	float *box, *xyz;
+	float time, prec;
+	npy_intp dims[2];
+	gmx_bool bOK;
+	int i, step;
+
+	/* Create the dictionary that will be returned */
+	py_dict = PyDict_New();
+
+	if (!read_next_xtc(self->xd, self->nofatoms, &step, &time, mbox, self->xtcCoord, &prec, &bOK)) {
+		Py_DECREF(py_dict);
+		Py_RETURN_NONE;
+	}
+
+	if (!bOK) {
+		PyErr_SetString(PyExc_IOError, "Corrupted frame");
+		return NULL;
+	}
+
+	val = Py_BuildValue("i", step);
+	key = PyString_FromString("step");
+	PyDict_SetItem(py_dict, key, val);
+	Py_DECREF(key);
+	Py_DECREF(val);
+
+	val = Py_BuildValue("f", time);
+	key = PyString_FromString("time");
+	PyDict_SetItem(py_dict, key, val);
+	Py_DECREF(key);
+	Py_DECREF(val);
+
+	box = (float*) malloc(9 * sizeof(float));
+	if(box == NULL) {
+		PyErr_SetFromErrno(PyExc_MemoryError);
+		return NULL; }
+
+	/* Only orthogonal boxes; implement other later */
+	box[0] = (float)mbox[0][0];
+	box[1] = (float)mbox[0][1];
+	box[2] = (float)mbox[0][2];
+	box[3] = (float)mbox[1][0];
+	box[4] = (float)mbox[1][1];
+	box[5] = (float)mbox[1][2];
+	box[6] = (float)mbox[2][0];
+	box[7] = (float)mbox[2][1];
+	box[8] = (float)mbox[2][2];
+
+	dims[0] = 3;
+	dims[1] = 3;
+	py_box = PyArray_SimpleNewFromData(2, dims, NPY_FLOAT, (float*)box);
+	key = PyString_FromString("box");
+	PyDict_SetItem(py_dict, key, py_box);
+	Py_DECREF(key);
+	Py_DECREF(py_box);
+
+	/* Set-up the raw arrays for coordinates and charges */
+	xyz = (float*) malloc(3 * self->nofatoms * sizeof(float));
+	if(xyz == NULL) {
+		PyErr_SetFromErrno(PyExc_MemoryError);
+		return NULL; }
+
+	for (i = 0; i < self->nofatoms; i++) {
+		/* Times 10, because converting from nm */
+		xyz[i*3    ] = (float)(self->xtcCoord[i][0] * 10.0);
+		xyz[i*3 + 1] = (float)(self->xtcCoord[i][1] * 10.0);
+		xyz[i*3 + 2] = (float)(self->xtcCoord[i][2] * 10.0);
+	}
+
+	/* Add coordinates to the dictionary */
+	dims[0] = self->nofatoms;
+	dims[1] = 3;
+	py_coord = PyArray_SimpleNewFromData(2, dims, NPY_FLOAT, (float*) xyz);
+	/***************************************************************
+	 * Do not free the raw array! It will be still used by Python! *
+     ***************************************************************/
+
+	key = PyString_FromString("coordinates");
+	PyDict_SetItem(py_dict, key, py_coord);
+	Py_DECREF(key);
+	Py_DECREF(py_coord);
+
+	return py_dict;
 }
 
 /* End of helper functions */
@@ -971,6 +1055,8 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
                                 box, &(self->xtcCoord), &prec, &bOK) && bOK) {
 				PyErr_SetString(PyExc_IOError, "Error reading first frame");
 				return -1; }
+			close_xtc(self->xd);
+			self->xd = open_xtc(filename, "r");
 #endif
 			break;
 		/* If the file format is GUESS or different,
@@ -997,7 +1083,6 @@ static PyObject *Trajectory_read(Trajectory *self) {
 			if (py_result == Py_None) Py_RETURN_NONE;
 			self->filePosition1 = ftell(self->fd);
 			self->filePosition1 = self->filePosition2;
-			self->lastFrame += 1;
 			break;
 
 		case GRO:
@@ -1005,7 +1090,6 @@ static PyObject *Trajectory_read(Trajectory *self) {
 			if (py_result == Py_None) Py_RETURN_NONE;
 			self->filePosition1 = ftell(self->fd);
 			self->filePosition1 = self->filePosition2;
-			self->lastFrame += 1;
 			break;
 
 		case MOLDEN:
@@ -1014,7 +1098,6 @@ static PyObject *Trajectory_read(Trajectory *self) {
 			else
 				py_result = read_frame_from_molden_geometries(self);
 			if (py_result == Py_None) Py_RETURN_NONE;
-			self->lastFrame += 1;
 			break;
 
 		case XTC:
@@ -1025,6 +1108,7 @@ static PyObject *Trajectory_read(Trajectory *self) {
 			break;
 	}
 
+	self->lastFrame += 1;
 	return py_result;
 
 }
@@ -1083,7 +1167,7 @@ static PyMethodDef Trajectory_methods[] = {
 		"coordinates (ndarray)\n"
 		"step (int)\n"
 		"time (float)\n"
-		"box (ndarray) [a, b, c, alpha, beta, gamma]\n"
+		"box (ndarray) [ 3x3 ]\n"
 		"\n" },
 	{NULL}  /* Sentinel */
 };

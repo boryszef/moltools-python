@@ -925,8 +925,8 @@ PyObject *read_xtc(const char *filename) {
 		for (i = 0; i < natoms; i++) {
 			/* Times 10, because converting from nm */
 			xyz[i*3    ] = (float)x[i][0] * 10.0;
-			xyz[i*3 + 1] = (float)x[i][2] * 10.0;
-			xyz[i*3 + 2] = (float)x[i][3] * 10.0;
+			xyz[i*3 + 1] = (float)x[i][1] * 10.0;
+			xyz[i*3 + 2] = (float)x[i][2] * 10.0;
 		}
 
 		/* Add coordinates to the dictionary */
