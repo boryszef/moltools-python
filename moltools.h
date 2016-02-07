@@ -103,11 +103,13 @@ typedef struct {
 	 * store geometries and energies in different parts of the file.        */
 	long filePosition1;
 	long filePosition2;
+	enum { MLGEOMETRY, MLATOMS } moldenStyle;
 #ifdef HAVE_GROMACS
 	t_fileio *xd;
 	rvec *xtcCoord;
 #endif
 	int nofatoms;
+	int nofframes;
 	int lastFrame;
 	PyObject *symbols; /* list of symbols */
 	PyObject *atomicnumbers; /* atomic numbers */
@@ -150,7 +152,8 @@ int read_topo_from_xyz(Trajectory *self);
 int read_topo_from_molden(Trajectory *self);
 int read_topo_from_gro(Trajectory *self);
 PyObject *read_frame_from_xyz(Trajectory *self);
-PyObject *read_frame_from_molden(Trajectory *self);
+PyObject *read_frame_from_molden_atoms(Trajectory *self);
+PyObject *read_frame_from_molden_geometries(Trajectory *self);
 PyObject *read_frame_from_gro(Trajectory *self);
 PyObject *read_frame_from_xtc(Trajectory *self);
 

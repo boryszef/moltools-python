@@ -71,8 +71,8 @@ char *readline(FILE *fd) {
 	/* Allocate the memory */
 	line = (char*) malloc( length + 1 );
 
-	/* Realliy read the data */
-	if ( fgets(line, length + 1, fd) == NULL ) buffer[0] = '\0';
+	/* Really read the data */
+	if ( fgets(line, length + 1, fd) == NULL ) return NULL;
 	//printf("Line:%s:\n", line);
 
 	return line;
@@ -149,10 +149,11 @@ int getElementIndexBySymbol(const char *symbol) {
 	int idx = 0;
 
 	while (element_table[idx].number != -1) {
-		if (!strcmp(symbol, element_table[idx++].symbol)) break;
+		if (!strcmp(symbol, element_table[idx].symbol)) return idx;
+		idx += 1;
 	}
 
-	return idx;
+	return -1;
 }
 
 

@@ -66,6 +66,7 @@ static PyObject *Trajectory_new(PyTypeObject *type, PyObject *args, PyObject *kw
 		self->mode = 'r';
 		self->type = GUESS;
 		self->nofatoms = 0;
+		self->nofframes = 0;
 		self->xtcCoord = NULL;
 		self->units = ANGS;
 		self->lastFrame = -1;
@@ -176,13 +177,11 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 	/* Open the coordinate file */
 	switch(self->type) {
 		case XYZ:
-		case MOLDEN:
 		case GRO:
+		case MOLDEN:
 			if ( (self->fd = fopen(filename, "r")) == NULL ) {
 				PyErr_SetFromErrno(PyExc_IOError);
 				return -1; }
-			self->filePosition1 = ftell(self->fd);
-			self->filePosition1 = self->filePosition2;
 			break;
 		case XTC:
 #ifdef HAVE_GROMACS
@@ -207,8 +206,9 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 		case MOLDEN:
 			if (read_topo_from_molden(self) == -1) return -1;
 			rewind(self->fd);
-			self->filePosition1 = ftell(self->fd);
-			self->filePosition2 = self->filePosition1;
+			/* read_topo_from_molden sets file position accordingly */
+			//self->filePosition1 = ftell(self->fd);
+			//self->filePosition2 = self->filePosition1;
 			break;
 		case GRO:
 			if (read_topo_from_gro(self) == -1) return -1;
@@ -232,11 +232,6 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 			return -1;
 	}
 
-	/* If there are any atoms, try to guess their atomic numbers */
-	if (self->nofatoms > 0) {
-		self->atomicnumbers = PyList_New(self->nofatoms);
-	}
-
 	return 0;
 }
 
@@ -244,16 +239,44 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 
 static PyObject *Trajectory_read(Trajectory *self) {
 
+	PyObject *py_result = NULL;
+
 	switch(self->type) {
+
 		case XYZ:
-			return read_frame_from_xyz(self);
+			py_result = read_frame_from_xyz(self);
+			if (py_result == Py_None) Py_RETURN_NONE;
+			self->filePosition1 = ftell(self->fd);
+			self->filePosition1 = self->filePosition2;
+			self->lastFrame += 1;
+			break;
+
 		case GRO:
-			return read_frame_from_gro(self);
+			py_result = read_frame_from_gro(self);
+			if (py_result == Py_None) Py_RETURN_NONE;
+			self->filePosition1 = ftell(self->fd);
+			self->filePosition1 = self->filePosition2;
+			self->lastFrame += 1;
+			break;
+
 		case MOLDEN:
-			return read_frame_from_molden(self);
+			if (self->moldenStyle == MLATOMS)
+				py_result = read_frame_from_molden_atoms(self);
+			else
+				py_result = read_frame_from_molden_geometries(self);
+			if (py_result == Py_None) Py_RETURN_NONE;
+			self->lastFrame += 1;
+			break;
+
 		case XTC:
-			return read_frame_from_xtc(self);
+			py_result = read_frame_from_xtc(self);
+			break;
+
+		default:
+			break;
 	}
+
+	return py_result;
 
 }
 
@@ -285,11 +308,13 @@ static PyObject* Trajectory_repr(Trajectory *self) {
 
 static PyMemberDef Trajectory_members[] = {
     {"symbols", T_OBJECT_EX, offsetof(Trajectory, symbols), 0,
-     "Symbols of atoms."},
+     "Symbols of atoms"},
     {"atomicnumbers", T_OBJECT_EX, offsetof(Trajectory, atomicnumbers), 0,
-     "Symbols of atoms."},
+     "Atomic numbers"},
     {"nofatoms", T_INT, offsetof(Trajectory, nofatoms), 0,
-     "Number of atoms."},
+     "Number of atoms"},
+    {"nofframes", T_INT, offsetof(Trajectory, nofframes), 0,
+     "Number of frames"},
     {NULL}  /* Sentinel */
 };
 
@@ -335,7 +360,7 @@ PyTypeObject TrajectoryType = {
 	"Trajectory class. Implements reading of trajectories from various "
 	"file formats. Coordinates are stored in numpy array. "
 	"Creating an instance:\n"
-	"traj = Trajectory(filename [, format='GUESS' [, mode='r' [, units='angs']]])\n"
+	"traj = Trajectory(filename, format='GUESS', mode='r', units='angs')\n"
 	"Available formats include: XYZ, GRO, MOLDEN, XTC - guessed if not specified.\n"
 	"Mode: 'r' (default), 'w', 'a'.\n"
 	"Units: 'angs' (default), 'bohr', 'nm'.\n",           /* tp_doc */
@@ -363,9 +388,12 @@ PyTypeObject TrajectoryType = {
 
 int read_topo_from_xyz(Trajectory *self) {
 
-	int nofatoms, pos;
+	int nofatoms, pos, idx;
 	char *buffer, *buffpos, *token;
+	int *anum;
+	extern Element element_table[];
 
+	npy_intp dims[2];
 	PyObject *val;
 
 	/* Read number of atoms */
@@ -383,6 +411,11 @@ int read_topo_from_xyz(Trajectory *self) {
 	Py_DECREF(Py_None);
 	self->symbols = PyList_New(nofatoms);
 
+	anum = (int*) malloc(nofatoms * sizeof(int));
+	if(anum == NULL) {
+		PyErr_SetFromErrno(PyExc_MemoryError);
+		return -1; }
+
 	/* Atom loop */
 	for(pos = 0; pos < nofatoms; pos++) {
 
@@ -397,9 +430,21 @@ int read_topo_from_xyz(Trajectory *self) {
 		val = Py_BuildValue("s", token);
 		PyList_SetItem(self->symbols, pos, val);
 
+		idx = getElementIndexBySymbol(token);
+		if (idx == -1)
+			anum[pos] = -1;
+		else
+			anum[pos] = element_table[idx].number;
+
 		/* Free the line buffer */
 		free(buffer);
 	}
+
+	/* Add atomic numbers to the dictionary */
+	dims[0] = nofatoms;
+	dims[1] = 1;
+	Py_DECREF(self->atomicnumbers);
+	self->atomicnumbers = PyArray_SimpleNewFromData(1, dims, NPY_INT, (int*) anum);
 
 	self->nofatoms = nofatoms;
 
@@ -411,20 +456,22 @@ int read_topo_from_xyz(Trajectory *self) {
 /* Read molden file */
 int read_topo_from_molden(Trajectory *self) {
 
-	char *line;
+	char *line = NULL;
 	char *buffpos, *token;
 	char **line_store;
 	int n_geo, i, nat;
 	int *anum;
 	unsigned short int section_present = 0;
 
-	PyObject *val;
+	npy_intp dims[2];
+	PyObject *val, *py_anum;
 
 	/* Loop over the lines */
 
-	if ( (line = readline(self->fd)) == NULL) return -1;
+	do {
 
-	while ( strlen(line) ) {
+		free(line);
+		if ((line = readline(self->fd)) == NULL) return -1;
 
 		stripline(line);
 		make_lowercase(line);
@@ -434,6 +481,11 @@ int read_topo_from_molden(Trajectory *self) {
 
 			/* Several geometries */
 			if ( !strcmp(line, "[geometries] (xyz)" ) ) {
+
+				/* Set filePosition1 for reading frames */
+				self->filePosition1 = ftell(self->fd);
+				self->moldenStyle = MLGEOMETRY;
+
 				/*if (section_present) {
 					PyErr_SetString(PyExc_RuntimeError, "Multiple geometry/atom sections");
 					return -1; } */
@@ -444,7 +496,25 @@ int read_topo_from_molden(Trajectory *self) {
 			}
 
 			/* Section 'atoms' present - this is one-geometry file */
-			else if ( !strcmp(line, "[atoms] angs" ) ) {
+			else if ( !strcmp(line, "[atoms] angs") || !strcmp(line, "[atoms] au") ) {
+
+				/* Set filePosition1 for reading frames */
+				self->filePosition1 = ftell(self->fd);
+				self->moldenStyle = MLATOMS;
+
+				if ( !strcmp(line, "[atoms] angs") )
+					self->units = ANGS;
+				else if ( !strcmp(line, "[atoms] au") )
+					self->units = BOHR;
+				else {
+					PyErr_SetString(PyExc_RuntimeError, "Unrecognized units");
+					return -1;
+				}
+
+				anum = (int*) malloc(nat * sizeof(int));
+				if(anum == NULL) {
+					PyErr_SetFromErrno(PyExc_MemoryError);
+					return -1; }
 
 				/*if (section_present) {
 					PyErr_SetString(PyExc_RuntimeError, "Multiple geometry/atom sections");
@@ -485,6 +555,12 @@ int read_topo_from_molden(Trajectory *self) {
 					val = Py_BuildValue("s", token);
 					PyList_SetItem(self->symbols, i, val);
 
+					token = strtok(NULL, " ");
+					/* not used */
+
+					token = strtok(NULL, " ");
+					anum[i] = atoi(token);
+
 					/* Get rid of the line. */
 					free(line_store[i]);
 
@@ -493,6 +569,12 @@ int read_topo_from_molden(Trajectory *self) {
 				/* Free the stored line pointers. */
 				free(line_store);
 
+				/* Add atomic numbers to the dictionary */
+				dims[0] = nat;
+				dims[1] = 1;
+				Py_DECREF(self->atomicnumbers);
+				self->atomicnumbers = PyArray_SimpleNewFromData(1, dims, NPY_INT, (int*) anum);
+
 				break;
 				/* This is to avoid reading the next line! */
 				//continue;
@@ -500,9 +582,36 @@ int read_topo_from_molden(Trajectory *self) {
 
 		}
 
-		if ( (line = readline(self->fd)) == NULL ) return -1;
+	} while ( strlen(line) );
+	free(line);
 
-	}
+
+	rewind(self->fd);
+	self->filePosition2 = -1;
+	do {
+		if ( (line = readline(self->fd)) == NULL ) return -1;
+		stripline(line);
+		make_lowercase(line);
+		/* This is a start of a new block */
+		if ( line[0] == '[' ) {
+			/* Several geometries */
+			if ( !strcmp(line, "[geoconv]" ) ) {
+				free(line);
+				/* consume the line 'energy' */
+				if ( (line = readline(self->fd)) == NULL ) return -1;
+				self->filePosition2 = ftell(self->fd);
+			}
+			/* Number of geometries present in the file */
+			if ( !strcmp(line, "[n_geo]") ) {
+				free(line);
+				if ( (line = readline(self->fd)) == NULL ) return -1;
+				stripline(line);
+				self->nofframes = atoi(line);
+			}
+		}
+	} while (strlen(line) != 0);
+	free(line);
+
 	if (!section_present) {
 		PyErr_SetString(PyExc_RuntimeError, "geometry/atom section missing");
 		return -1; }
@@ -586,6 +695,9 @@ int read_topo_from_gro(Trajectory *self) {
 
 
 
+/* This function is used by other readers, like    *
+ * read_frame_from_molden_geometries for instance, *
+ * so be careful with implementation.              */
 
 PyObject *read_frame_from_xyz(Trajectory *self) {
 
@@ -610,7 +722,15 @@ PyObject *read_frame_from_xyz(Trajectory *self) {
 		PyErr_SetFromErrno(PyExc_IOError);
 		return NULL; }
 
-	if( sscanf(buffer, "%d", &nat) != 1 || nat != self->nofatoms) {
+	if (sscanf(buffer, "%d", &nat) != 1) {
+		/* Possibly end of file */
+		free(buffer);
+		Py_DECREF(py_result);
+	    Py_RETURN_NONE;
+	}
+	free(buffer);
+
+	if (nat != self->nofatoms) {
 		PyErr_SetString(PyExc_IOError, "Error reading number of atoms");
 		return NULL; }
 
@@ -716,203 +836,116 @@ PyObject *read_frame_from_xyz(Trajectory *self) {
 		/* Free the charges ONLY if the Python object was not created! */
 		free(charges);
 
+	return py_result;
+
+}
+
+
+PyObject *read_frame_from_molden_atoms(Trajectory *self) {
+
+	char *line;
+	char *token, *buffpos;
+	int i;
+	float *xyz;
+	npy_intp dims[2];
+	PyObject *py_result, *key, *val, *py_geom;
+
+	/* Prepare dictionary */
+
+	py_result = PyDict_New();
+
+	xyz = (float*) malloc(3 * self->nofatoms * sizeof(float));
+	if(xyz == NULL) {
+		PyErr_SetFromErrno(PyExc_MemoryError);
+		return NULL; }
+
+	/* Loop over the lines */
+	fseek(self->fd, self->filePosition1, SEEK_SET);
+	for (i = 0; i < self->nofatoms; i++ ) {
+
+		line = readline(self->fd);
+		stripline(line);
+
+		/* If not a letter, then we have run out of frames */
+		if (!isalpha(line[0])) {
+			Py_DECREF(py_result);
+			free(xyz);
+			free(line);
+			Py_RETURN_NONE;
+		}
+
+		buffpos = line;
+		token = strtok(buffpos, " ");
+
+		token = strtok(NULL, " ");
+		/* not used */
+
+		token = strtok(NULL, " ");
+		/* atomic number - not used here */
+
+		token = strtok(NULL, " ");
+		xyz[3*i+0] = atof(token);
+
+		token = strtok(NULL, " ");
+		xyz[3*i+1] = atof(token);
+
+		token = strtok(NULL, " ");
+		xyz[3*i+2] = atof(token);
+
+		if (self->units == BOHR) {
+			xyz[3*i+0] *= BOHRTOANGS;
+			xyz[3*i+1] *= BOHRTOANGS;
+			xyz[3*i+2] *= BOHRTOANGS;
+		}
+
+		free(line);
+
+	}
 	self->filePosition1 = ftell(self->fd);
-	self->filePosition1 = self->filePosition2;
-	self->lastFrame += 1;
+
+	/* Add coordinates to the dictionary */
+	dims[0] = self->nofatoms;
+	dims[1] = 3;
+	py_geom = PyArray_SimpleNewFromData(2, dims, NPY_FLOAT, (float*) xyz);
+	key = PyString_FromString("coordinates");
+	PyDict_SetItem(py_result, key, py_geom);
+	Py_DECREF(key);
+	Py_DECREF(py_geom);
 
 	return py_result;
 
 }
 
 
-PyObject *read_frame_from_molden(Trajectory *self) {
 
-//	char *line;
-//	char *buffpos, *token;
-//	char **line_store;
-//	int n_geo, i, nat;
-//	float *xyz;
-//	int *anum;
-//
-//	double *geoconv;
-//	npy_intp dims[2];
-//	PyObject *py_anum, *py_syms, *py_geom, *py_geoconv, *py_result, *key, *val;
-//
-//
-//	/* Prepare dictionary */
-//
-//	py_result = PyDict_New();
-//
-//	/* Loop over the lines */
-//
-//	line = readline(fd);
-//
-//	while ( strlen(line) ) {
-//
-//		stripline(line);
-//		make_lowercase(line);
-//
-//		/* This is a start of a new block */
-//		if ( line[0] == '[' ) {
-//
-//			/* Number of geometries present in the file */
-//			if ( !strcmp(line, "[n_geo]") ) {
-//				free(line);
-//				line = readline(fd);
-//				stripline(line);
-//				n_geo = atoi(line);
-//				key = PyString_FromString("number_of_geometries");
-//				val = Py_BuildValue("i", n_geo);
-//				PyDict_SetItem(py_result, key, val);
-//				Py_DECREF(key);
-//				Py_DECREF(val);
-//
-//				/* This will be used by arrays depending on number of geoms */
-//				dims[0] = n_geo;
-//				dims[1] = 3;
-//			}
-//
-//			/* Energy of the subsequent geometries */
-//			else if ( !strcmp(line, "[geoconv]" ) ) {
-//				free(line);
-//				line = readline(fd);
-//				geoconv = (double*) malloc(n_geo * sizeof(double));
-//				if(geoconv == NULL) {
-//					PyErr_SetFromErrno(PyExc_MemoryError);
-//					return NULL; }
-//				for( i = 0; i < n_geo; i++) {
-//					free(line);
-//					line = readline(fd);
-//					stripline(line);
-//					geoconv[i] = atof(line);
-//				}
-//				py_geoconv = PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, geoconv);
-//				key = PyString_FromString("energies");
-//				PyDict_SetItem(py_result, key, py_geoconv);
-//				Py_DECREF(key);
-//				Py_DECREF(py_geoconv);
-//			}
-//
-//			/* Energy of the subsequent geometries */
-//			else if ( !strcmp(line, "[geometries] (xyz)" ) ) {
-//				py_geom = PyList_New(n_geo);
-//				for ( i = 0; i < n_geo; i++ )
-//					PyList_SetItem(py_geom, i, read_xyz(fd, 1.0));
-//				key = PyString_FromString("geometries");
-//				PyDict_SetItem(py_result, key, py_geom);
-//				Py_DECREF(key);
-//				Py_DECREF(py_geom);
-//			}
-//
-//			/* Section 'atoms' present - this is one-geometry file */
-//			else if ( !strcmp(line, "[atoms] angs" ) ) {
-//
-//				n_geo = 1;
-//				key = PyString_FromString("number_of_geometries");
-//				val = Py_BuildValue("i", n_geo);
-//				PyDict_SetItem(py_result, key, val);
-//				Py_DECREF(key);
-//				Py_DECREF(val);
-//
-//				free(line);
-//				line = readline(fd);
-//				stripline(line);
-//
-//				/* We don't know how many atoms are there, so we have to
-//                   store the lines. */
-//				nat = 0;
-//				line_store = (char**) malloc(10 * sizeof(char*));
-//				if ( line_store == NULL ) {
-//					PyErr_SetFromErrno(PyExc_MemoryError);
-//					return NULL; }
-//				while ( line[0] != '[' ) {
-//					line_store[nat++] = line;
-//					if ( nat % 10 == 0 ) {
-//						line_store = realloc(line_store, (nat + 10) * sizeof(char*));
-//						if( line_store == NULL ) {
-//							PyErr_SetFromErrno(PyExc_MemoryError);
-//						return NULL; }
-//					}
-//					line = readline(fd);
-//					stripline(line);
-//				}
-//
-//				xyz = (float*) malloc(3 * nat * sizeof(float));
-//				if(xyz == NULL) {
-//					PyErr_SetFromErrno(PyExc_MemoryError);
-//					return NULL; }
-//				anum = (int*) malloc(nat * sizeof(int));
-//				if(anum == NULL) {
-//					PyErr_SetFromErrno(PyExc_MemoryError);
-//					return NULL; }
-//
-//				py_syms = PyList_New(nat);
-//
-//				/* Loop over atoms */
-//				for ( i = 0; i < nat; i++ ) {
-//
-//					buffpos = line_store[i];
-//					token = strtok(buffpos, " ");
-//					val = Py_BuildValue("s", token);
-//					PyList_SetItem(py_syms, i, val);
-//
-//					token = strtok(NULL, " ");
-//					/* not used */
-//
-//					token = strtok(NULL, " ");
-//					anum[i] = atoi(token);
-//
-//					token = strtok(NULL, " ");
-//					xyz[3*i+0] = atof(token);
-//
-//					token = strtok(NULL, " ");
-//					xyz[3*i+1] = atof(token);
-//
-//					token = strtok(NULL, " ");
-//					xyz[3*i+2] = atof(token);
-//
-//					/* Get rid of the line. */
-//					free(line_store[i]);
-//
-//				}
-//
-//				/* Free the stored line pointers. */
-//				free(line_store);
-//
-//				/* Add symbols to the dictionary */
-//				key = PyString_FromString("symbols");
-//				PyDict_SetItem(py_result, key, py_syms);
-//				Py_DECREF(key);
-//				Py_DECREF(py_syms);
-//
-//				/* Add coordinates to the dictionary */
-//				dims[0] = nat;
-//				dims[1] = 3;
-//				py_geom = PyArray_SimpleNewFromData(2, dims, NPY_FLOAT, (float*) xyz);
-//				key = PyString_FromString("coordinates");
-//				PyDict_SetItem(py_result, key, py_geom);
-//				Py_DECREF(key);
-//				Py_DECREF(py_geom);
-//
-//				/* Add atomic numbers to the dictionary */
-//				py_anum = PyArray_SimpleNewFromData(1, dims, NPY_INT, (int*) anum);
-//				key = PyString_FromString("atomic_numbers");
-//				PyDict_SetItem(py_result, key, py_anum);
-//				Py_DECREF(key);
-//				Py_DECREF(py_anum);
-//
-//				/* This is to avoid reading the next line! */
-//				continue;
-//			}
-//
-//		}
-//
-//		line = readline(fd);
-//
-//	}
-//
-//	return py_result;
-	return NULL;
+
+PyObject *read_frame_from_molden_geometries(Trajectory *self) {
+
+	char *line;
+	PyObject *py_result, *key, *val;
+
+	fseek(self->fd, self->filePosition1, SEEK_SET);
+	py_result = read_frame_from_xyz(self);
+	if (py_result == Py_None) {
+		Py_RETURN_NONE;
+	}
+	self->filePosition1 = ftell(self->fd);
+
+	/* If filePosition2 == -1, the GEOCONV section was not found */
+	if (self->filePosition2 >= 0) {
+		fseek(self->fd, self->filePosition2, SEEK_SET);
+		line = readline(self->fd);
+		stripline(line);
+		key = PyString_FromString("energy");
+		val = Py_BuildValue("d", atof(line));
+		PyDict_SetItem(py_result, key, val);
+		Py_DECREF(key);
+		Py_DECREF(val);
+		free(line);
+		self->filePosition2 = ftell(self->fd);
+	}
+
+	return py_result;
 
 }
 
@@ -936,6 +969,13 @@ PyObject *read_frame_from_gro(Trajectory *self) {
 	if((buffer = readline(self->fd)) == NULL) {
 		PyErr_SetFromErrno(PyExc_IOError);
 		return NULL; }
+
+	if (buffer[0] == '\0') {
+		/* EOF reached */
+		free(buffer);
+		Py_RETURN_NONE;
+	}
+	
 	buffer[strlen(buffer)-1] = '\0';
 	stripline(buffer);
 
@@ -953,6 +993,7 @@ PyObject *read_frame_from_gro(Trajectory *self) {
 	if( sscanf(buffer, "%d", &nat) != 1 || nat != self->nofatoms) {
 		PyErr_SetString(PyExc_IOError, "Incorrect atom number");
 		return NULL; }
+	free(buffer);
 
 
 	/* Set-up the raw arrays for coordinates and charges */
@@ -1013,6 +1054,7 @@ PyObject *read_frame_from_gro(Trajectory *self) {
 	else                     box[3*2 + 0] = 0.0;
 	if (strlen(buffer) > 81) box[3*2 + 1] = strPartFloat(buffer, 80, 10) * 10.0;
 	else                     box[3*2 + 1] = 0.0;
+	free(buffer);
 
 	/* Add coordinates to the dictionary */
 	dims[0] = self->nofatoms;
@@ -1050,16 +1092,12 @@ PyObject *read_frame_from_gro(Trajectory *self) {
 	Py_DECREF(key);
 	Py_DECREF(py_box);
 
-	self->filePosition1 = ftell(self->fd);
-	self->filePosition1 = self->filePosition2;
-	self->lastFrame += 1;
-
 	return py_result;
 
 }
 
 
 PyObject *read_frame_from_xtc(Trajectory *self) {
-	return NULL;
+	Py_RETURN_NONE;
 }
 
