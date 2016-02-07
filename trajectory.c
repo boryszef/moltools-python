@@ -22,369 +22,12 @@
 
 
 #include "moltools.h"
+#include "trajectory.h"
 
 
 
 
-static void Trajectory_dealloc(Trajectory* self)
-{
-	Py_XDECREF(self->symbols);
-	Py_XDECREF(self->resids);
-	Py_XDECREF(self->resnames);
-	Py_XDECREF(self->atomicnumbers);
-	self->ob_type->tp_free((PyObject*)self);
-	free(self->filename);
-	switch(self->type) {
-		case XYZ:
-		case MOLDEN:
-		case GRO:
-			if (self->fd != NULL) fclose(self->fd);
-			break;
-#ifdef HAVE_GROMACS
-		case XTC:
-			if (self->xd != NULL) close_xtc(self->xd);
-#endif
-	}
-#ifdef HAVE_GROMACS
-	sfree(self->xtcCoord);
-#endif
-}
-
-
-
-
-static PyObject *Trajectory_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
-{
-	Trajectory *self;
-
-	self = (Trajectory *)type->tp_alloc(type, 0);
-	if (self != NULL) {
-
-	    self->filename = NULL;
-		self->fd = NULL;
-		self->xd = NULL;
-		self->mode = 'r';
-		self->type = GUESS;
-		self->nofatoms = 0;
-		self->nofframes = 0;
-		self->xtcCoord = NULL;
-		self->units = ANGS;
-		self->lastFrame = -1;
-		self->filePosition1 = -1;
-		self->filePosition2 = -1;
-
-		Py_INCREF(Py_None);
-	    self->symbols = Py_None;
-		
-		Py_INCREF(Py_None);
-	    self->atomicnumbers = Py_None;
-		
-		Py_INCREF(Py_None);
-	    self->resids = Py_None;
-		
-		Py_INCREF(Py_None);
-	    self->resnames = Py_None;
-    }
-
-    return (PyObject *)self;
-}
-
-
-
-
-/* This method should just guess the type, open the file and collect     *
- * general data like number of atoms and list of symbols. Actual reading *
- * of coordinates should go into read method                             */
-
-static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
-
-	const char *filename;
-	FILE *test;
-	char *str_type = NULL;
-	char ext[5];
-	char *line;
-	char *mode = NULL;
-	char *units = NULL;
-#ifdef HAVE_GROMACS
-	int step;
-	real time, prec;
-	matrix box;
-	gmx_bool bOK;
-#endif
-
-	static char *kwlist[] = {
-		"filename", "format", "mode", "units", NULL };
-
-	if(!PyArg_ParseTupleAndKeywords(args, kwds, "s|sss", kwlist, &filename, &str_type, &mode, &units))
-		return -1;
-
-	self->filename = (char*) malloc(strlen(filename) * sizeof(char));
-	strcpy(self->filename, filename);
-	if (mode == NULL)
-		self->mode = 'r';
-	else
-		self->mode = mode[0];
-
-	/* Set the enum symbol of the file format */
-	if ( str_type != NULL ) {
-		if      ( !strcmp(str_type,    "XYZ") ) self->type = XYZ;
-		else if ( !strcmp(str_type, "MOLDEN") ) self->type = MOLDEN;
-		else if ( !strcmp(str_type,    "GRO") ) self->type = GRO;
-		else if ( !strcmp(str_type,    "XTC") ) self->type = XTC;
-	}
-
-	/* Guess the file format, if not given explicitly */
-	if ( self->type == GUESS ) {
-		strcpy(ext, filename + strlen(filename) - 4);
-		if      ( !strcmp(ext, ".xyz") ) self->type = XYZ;
-		else if ( !strcmp(ext, ".gro") ) self->type = GRO;
-		else if ( !strcmp(ext, ".xtc") ) self->type = XTC;
-		else {
-			/* Extract the first line */
-			if ( (test = fopen(filename, "r")) == NULL ) {
-				PyErr_SetFromErrno(PyExc_IOError);
-				return -1; }
-			if ( (line = readline(test)) == NULL ) {
-				return -1; }
-			make_lowercase(line);
-			stripline(line);
-			fclose(test);
-
-			/* Perhaps it's Molden format? */
-			if ( !strcmp(line, "[molden format]") ) self->type = MOLDEN;
-
-			free(line);
-		}
-	}
-
-	if (units == NULL) {
-		switch(self->type) {
-			case XYZ:
-			case MOLDEN:
-				self->units = ANGS;
-				break;
-			case GRO:
-			case XTC:
-				self->units = NM;
-				break;
-		}
-	} else {
-		if      (!strcmp(units, "angs")) self->units = ANGS;
-		else if (!strcmp(units, "bohr")) self->units = BOHR;
-		else if (!strcmp(units,   "nm")) self->units = NM;
-	}
-
-	/* Open the coordinate file */
-	switch(self->type) {
-		case XYZ:
-		case GRO:
-		case MOLDEN:
-			if ( (self->fd = fopen(filename, "r")) == NULL ) {
-				PyErr_SetFromErrno(PyExc_IOError);
-				return -1; }
-			break;
-		case XTC:
-#ifdef HAVE_GROMACS
-			if( (self->xd = open_xtc(filename, "r")) == NULL) {
-				PyErr_SetString(PyExc_IOError, "Error opening XTC file");
-				return -1; }
-#else
-			PyErr_SetString(PyExc_SystemError, "The module has to be compiled with gromacs support to handle XTC files");
-			return -1;
-#endif
-			break;
-	}
-
-	/* Router */
-	switch(self->type) {
-		case XYZ:
-			if (read_topo_from_xyz(self) == -1) return -1;
-			rewind(self->fd);
-			self->filePosition1 = ftell(self->fd);
-			self->filePosition2 = self->filePosition1;
-			break;
-		case MOLDEN:
-			if (read_topo_from_molden(self) == -1) return -1;
-			rewind(self->fd);
-			/* read_topo_from_molden sets file position accordingly */
-			//self->filePosition1 = ftell(self->fd);
-			//self->filePosition2 = self->filePosition1;
-			break;
-		case GRO:
-			if (read_topo_from_gro(self) == -1) return -1;
-			rewind(self->fd);
-			self->filePosition1 = ftell(self->fd);
-			self->filePosition2 = self->filePosition1;
-			break;
-		case XTC:
-#ifdef HAVE_GROMACS
-			if (!read_first_xtc(self->xd, &(self->nofatoms), &step, &time,
-                                box, &(self->xtcCoord), &prec, &bOK) && bOK) {
-				PyErr_SetString(PyExc_IOError, "Error reading first frame");
-				return -1; }
-#endif
-			break;
-		/* If the file format is GUESS or different,
-		   it means we've failed to guess :-(        */
-		case GUESS:
-		default:
-			PyErr_SetString(PyExc_ValueError, "Unsupported file format");
-			return -1;
-	}
-
-	return 0;
-}
-
-
-
-static PyObject *Trajectory_read(Trajectory *self) {
-
-	PyObject *py_result = NULL;
-
-	switch(self->type) {
-
-		case XYZ:
-			py_result = read_frame_from_xyz(self);
-			if (py_result == Py_None) Py_RETURN_NONE;
-			self->filePosition1 = ftell(self->fd);
-			self->filePosition1 = self->filePosition2;
-			self->lastFrame += 1;
-			break;
-
-		case GRO:
-			py_result = read_frame_from_gro(self);
-			if (py_result == Py_None) Py_RETURN_NONE;
-			self->filePosition1 = ftell(self->fd);
-			self->filePosition1 = self->filePosition2;
-			self->lastFrame += 1;
-			break;
-
-		case MOLDEN:
-			if (self->moldenStyle == MLATOMS)
-				py_result = read_frame_from_molden_atoms(self);
-			else
-				py_result = read_frame_from_molden_geometries(self);
-			if (py_result == Py_None) Py_RETURN_NONE;
-			self->lastFrame += 1;
-			break;
-
-		case XTC:
-			py_result = read_frame_from_xtc(self);
-			break;
-
-		default:
-			break;
-	}
-
-	return py_result;
-
-}
-
-
-static PyObject* Trajectory_repr(Trajectory *self) {
-	PyObject* str;
-	char format[10];
-	int len;
-
-	switch(self->type) {
-		case XYZ:
-			strcpy(format,    "XYZ"); break;
-		case MOLDEN:
-			strcpy(format, "MOLDEN"); break;
-		case GRO:
-			strcpy(format,    "GRO"); break;
-		case XTC:
-			strcpy(format,    "XTC"); break;
-		default:
-			strcpy(format,       ""); break;
-	}
-	len = strlen(self->filename) + 50;
-	str = PyString_FromFormat("Trajectory('%s', format='%s', mode='%c')",
-								self->filename, format, self->mode);
-	return str;
-}
-
-
-
-static PyMemberDef Trajectory_members[] = {
-    {"symbols", T_OBJECT_EX, offsetof(Trajectory, symbols), 0,
-     "Symbols of atoms"},
-    {"atomicnumbers", T_OBJECT_EX, offsetof(Trajectory, atomicnumbers), 0,
-     "Atomic numbers"},
-    {"nofatoms", T_INT, offsetof(Trajectory, nofatoms), 0,
-     "Number of atoms"},
-    {"nofframes", T_INT, offsetof(Trajectory, nofframes), 0,
-     "Number of frames"},
-    {NULL}  /* Sentinel */
-};
-
-
-static PyMethodDef Trajectory_methods[] = {
-    {"read", (PyCFunction)Trajectory_read, METH_VARARGS | METH_KEYWORDS,
-		"\n"
-		"Trajectory.read()\n"
-		"\n"
-		"Read next frame from trajectory. Returns a dictionary:\n"
-		"\n"
-		"coordinates (ndarray)\n"
-		"step (int)\n"
-		"time (float)\n"
-		"box (ndarray) [a, b, c, alpha, beta, gamma]\n"
-		"\n" },
-	{NULL}  /* Sentinel */
-};
-
-
-PyTypeObject TrajectoryType = {
-	PyObject_HEAD_INIT(NULL)
-	0,                         /*ob_size*/
-	"moltools.Trajectory",       /*tp_name*/
-	sizeof(Trajectory),          /*tp_basicsize*/
-	0,                         /*tp_itemsize*/
-	(destructor)Trajectory_dealloc, /*tp_dealloc*/
-	0,                         /*tp_print*/
-	0,                         /*tp_getattr*/
-	0,                         /*tp_setattr*/
-	0,                         /*tp_compare*/
-	(reprfunc)Trajectory_repr, /*tp_repr*/
-	0,                         /*tp_as_number*/
-	0,                         /*tp_as_sequence*/
-	0,                         /*tp_as_mapping*/
-	0,                         /*tp_hash */
-	0,                         /*tp_call*/
-	0,                         /*tp_str*/
-	0,                         /*tp_getattro*/
-	0,                         /*tp_setattro*/
-	0,                         /*tp_as_buffer*/
-	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,        /*tp_flags*/
-	"Trajectory class. Implements reading of trajectories from various "
-	"file formats. Coordinates are stored in numpy array. "
-	"Creating an instance:\n"
-	"traj = Trajectory(filename, format='GUESS', mode='r', units='angs')\n"
-	"Available formats include: XYZ, GRO, MOLDEN, XTC - guessed if not specified.\n"
-	"Mode: 'r' (default), 'w', 'a'.\n"
-	"Units: 'angs' (default), 'bohr', 'nm'.\n",           /* tp_doc */
-	0,		               /* tp_traverse */
-	0,		               /* tp_clear */
-	0,		               /* tp_richcompare */
-	0,		               /* tp_weaklistoffset */
-	0,		               /* tp_iter */
-	0,		               /* tp_iternext */
-	Trajectory_methods,             /* tp_methods */
-	Trajectory_members,             /* tp_members */
-	0,                         /* tp_getset */
-	0,                         /* tp_base */
-	0,                         /* tp_dict */
-	0,                         /* tp_descr_get */
-	0,                         /* tp_descr_set */
-	0,                         /* tp_dictoffset */
-	(initproc)Trajectory_init,      /* tp_init */
-	0,                         /* tp_alloc */
-	Trajectory_new,                 /* tp_new */
-};
-
-
-
+/* Local helper functions */
 
 int read_topo_from_xyz(Trajectory *self) {
 
@@ -453,18 +96,18 @@ int read_topo_from_xyz(Trajectory *self) {
 
 
 
-/* Read molden file */
+
 int read_topo_from_molden(Trajectory *self) {
 
 	char *line = NULL;
 	char *buffpos, *token;
 	char **line_store;
-	int n_geo, i, nat;
+	int i, nat;
 	int *anum;
 	unsigned short int section_present = 0;
 
 	npy_intp dims[2];
-	PyObject *val, *py_anum;
+	PyObject *val;
 
 	/* Loop over the lines */
 
@@ -511,11 +154,6 @@ int read_topo_from_molden(Trajectory *self) {
 					return -1;
 				}
 
-				anum = (int*) malloc(nat * sizeof(int));
-				if(anum == NULL) {
-					PyErr_SetFromErrno(PyExc_MemoryError);
-					return -1; }
-
 				/*if (section_present) {
 					PyErr_SetString(PyExc_RuntimeError, "Multiple geometry/atom sections");
 					return -1; }*/
@@ -546,6 +184,11 @@ int read_topo_from_molden(Trajectory *self) {
 				/* Get rid of Py_None in self->symbols */
 				Py_DECREF(Py_None);
 				self->symbols = PyList_New(nat);
+
+				anum = (int*) malloc(nat * sizeof(int));
+				if(anum == NULL) {
+					PyErr_SetFromErrno(PyExc_MemoryError);
+					return -1; }
 
 				/* Loop over atoms */
 				for ( i = 0; i < nat; i++ ) {
@@ -695,6 +338,7 @@ int read_topo_from_gro(Trajectory *self) {
 
 
 
+
 /* This function is used by other readers, like    *
  * read_frame_from_molden_geometries for instance, *
  * so be careful with implementation.              */
@@ -841,6 +485,8 @@ PyObject *read_frame_from_xyz(Trajectory *self) {
 }
 
 
+
+
 PyObject *read_frame_from_molden_atoms(Trajectory *self) {
 
 	char *line;
@@ -848,7 +494,7 @@ PyObject *read_frame_from_molden_atoms(Trajectory *self) {
 	int i;
 	float *xyz;
 	npy_intp dims[2];
-	PyObject *py_result, *key, *val, *py_geom;
+	PyObject *py_result, *key, *py_geom;
 
 	/* Prepare dictionary */
 
@@ -948,6 +594,8 @@ PyObject *read_frame_from_molden_geometries(Trajectory *self) {
 	return py_result;
 
 }
+
+
 
 
 PyObject *read_frame_from_gro(Trajectory *self) {
@@ -1097,7 +745,434 @@ PyObject *read_frame_from_gro(Trajectory *self) {
 }
 
 
+
+
 PyObject *read_frame_from_xtc(Trajectory *self) {
 	Py_RETURN_NONE;
 }
 
+/* End of helper functions */
+
+
+
+
+/* Method definitions */
+
+static void Trajectory_dealloc(Trajectory* self)
+{
+	Py_XDECREF(self->symbols);
+	Py_XDECREF(self->resids);
+	Py_XDECREF(self->resnames);
+	Py_XDECREF(self->atomicnumbers);
+	free(self->filename);
+	switch(self->type) {
+		case XYZ:
+		case MOLDEN:
+		case GRO:
+			if (self->fd != NULL) fclose(self->fd);
+			break;
+#ifdef HAVE_GROMACS
+		case XTC:
+			if (self->xd != NULL) close_xtc(self->xd);
+			break;
+#endif
+		case GUESS:
+		default:
+			break;
+	}
+#ifdef HAVE_GROMACS
+	sfree(self->xtcCoord);
+#endif
+	self->ob_type->tp_free((PyObject*)self);
+}
+
+
+
+
+static PyObject *Trajectory_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+	Trajectory *self;
+
+	self = (Trajectory *)type->tp_alloc(type, 0);
+	if (self != NULL) {
+
+		self->type = GUESS;
+		self->units = ANGS;
+		self->mode = 'r';
+	    self->filename = NULL;
+		self->fd = NULL;
+#ifdef HAVE_GROMACS
+		self->xd = NULL;
+		self->xtcCoord = NULL;
+#endif
+		self->filePosition1 = -1;
+		self->filePosition2 = -1;
+		self->moldenStyle = MLUNKNOWN;
+		self->nofatoms = 0;
+		self->nofframes = 0;
+		self->lastFrame = -1;
+
+		Py_INCREF(Py_None);
+	    self->symbols = Py_None;
+		
+		Py_INCREF(Py_None);
+	    self->atomicnumbers = Py_None;
+		
+		Py_INCREF(Py_None);
+	    self->resids = Py_None;
+		
+		Py_INCREF(Py_None);
+	    self->resnames = Py_None;
+    }
+
+    return (PyObject *)self;
+}
+
+
+
+
+/* This method should just guess the type, open the file and collect     *
+ * general data like number of atoms and list of symbols. Actual reading *
+ * of coordinates should go into read method                             */
+
+static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
+
+	const char *filename;
+	FILE *test;
+	char *str_type = NULL;
+	char ext[5];
+	char *line;
+	char *mode = NULL;
+	char *units = NULL;
+#ifdef HAVE_GROMACS
+	int step;
+	real time, prec;
+	matrix box;
+	gmx_bool bOK;
+#endif
+
+	static char *kwlist[] = {
+		"filename", "format", "mode", "units", NULL };
+
+	if(!PyArg_ParseTupleAndKeywords(args, kwds, "s|sss", kwlist, &filename, &str_type, &mode, &units))
+		return -1;
+
+	self->filename = (char*) malloc(strlen(filename) * sizeof(char));
+	strcpy(self->filename, filename);
+	if (mode == NULL)
+		self->mode = 'r';
+	else
+		self->mode = mode[0];
+
+	/* Set the enum symbol of the file format */
+	if ( str_type != NULL ) {
+		if      ( !strcmp(str_type,    "XYZ") ) self->type = XYZ;
+		else if ( !strcmp(str_type, "MOLDEN") ) self->type = MOLDEN;
+		else if ( !strcmp(str_type,    "GRO") ) self->type = GRO;
+		else if ( !strcmp(str_type,    "XTC") ) self->type = XTC;
+	}
+
+	/* Guess the file format, if not given explicitly */
+	if ( self->type == GUESS ) {
+		strcpy(ext, filename + strlen(filename) - 4);
+		if      ( !strcmp(ext, ".xyz") ) self->type = XYZ;
+		else if ( !strcmp(ext, ".gro") ) self->type = GRO;
+		else if ( !strcmp(ext, ".xtc") ) self->type = XTC;
+		else {
+			/* Extract the first line */
+			if ( (test = fopen(filename, "r")) == NULL ) {
+				PyErr_SetFromErrno(PyExc_IOError);
+				return -1; }
+			if ( (line = readline(test)) == NULL ) {
+				return -1; }
+			make_lowercase(line);
+			stripline(line);
+			fclose(test);
+
+			/* Perhaps it's Molden format? */
+			if ( !strcmp(line, "[molden format]") ) self->type = MOLDEN;
+
+			free(line);
+		}
+	}
+
+	if (units == NULL) {
+		switch(self->type) {
+			case XYZ:
+			case MOLDEN:
+				self->units = ANGS;
+				break;
+			case GRO:
+			case XTC:
+				self->units = NM;
+				break;
+			case GUESS:
+			default:
+				PyErr_SetString(PyExc_ValueError, "Unsupported file format");
+				return -1;
+				break;
+		}
+	} else {
+		if      (!strcmp(units, "angs")) self->units = ANGS;
+		else if (!strcmp(units, "bohr")) self->units = BOHR;
+		else if (!strcmp(units,   "nm")) self->units = NM;
+	}
+
+	/* Open the coordinate file */
+	switch(self->type) {
+		case XYZ:
+		case GRO:
+		case MOLDEN:
+			if ( (self->fd = fopen(filename, "r")) == NULL ) {
+				PyErr_SetFromErrno(PyExc_IOError);
+				return -1; }
+			break;
+		case XTC:
+#ifdef HAVE_GROMACS
+			if( (self->xd = open_xtc(filename, "r")) == NULL) {
+				PyErr_SetString(PyExc_IOError, "Error opening XTC file");
+				return -1; }
+#else
+			PyErr_SetString(PyExc_SystemError, "The module has to be compiled with gromacs support to handle XTC files");
+			return -1;
+#endif
+			break;
+		case GUESS:
+		default:
+			PyErr_SetString(PyExc_ValueError, "Unsupported file format");
+			return -1;
+			break;
+	}
+
+	/* Router */
+	switch(self->type) {
+		case XYZ:
+			if (read_topo_from_xyz(self) == -1) return -1;
+			rewind(self->fd);
+			self->filePosition1 = ftell(self->fd);
+			self->filePosition2 = self->filePosition1;
+			break;
+		case MOLDEN:
+			if (read_topo_from_molden(self) == -1) return -1;
+			rewind(self->fd);
+			/* read_topo_from_molden sets file position accordingly */
+			//self->filePosition1 = ftell(self->fd);
+			//self->filePosition2 = self->filePosition1;
+			break;
+		case GRO:
+			if (read_topo_from_gro(self) == -1) return -1;
+			rewind(self->fd);
+			self->filePosition1 = ftell(self->fd);
+			self->filePosition2 = self->filePosition1;
+			break;
+		case XTC:
+#ifdef HAVE_GROMACS
+			if (!read_first_xtc(self->xd, &(self->nofatoms), &step, &time,
+                                box, &(self->xtcCoord), &prec, &bOK) && bOK) {
+				PyErr_SetString(PyExc_IOError, "Error reading first frame");
+				return -1; }
+#endif
+			break;
+		/* If the file format is GUESS or different,
+		   it means we've failed to guess :-(        */
+		case GUESS:
+		default:
+			PyErr_SetString(PyExc_ValueError, "Unsupported file format");
+			return -1;
+	}
+
+	return 0;
+}
+
+
+
+static PyObject *Trajectory_read(Trajectory *self) {
+
+	PyObject *py_result = NULL;
+
+	switch(self->type) {
+
+		case XYZ:
+			py_result = read_frame_from_xyz(self);
+			if (py_result == Py_None) Py_RETURN_NONE;
+			self->filePosition1 = ftell(self->fd);
+			self->filePosition1 = self->filePosition2;
+			self->lastFrame += 1;
+			break;
+
+		case GRO:
+			py_result = read_frame_from_gro(self);
+			if (py_result == Py_None) Py_RETURN_NONE;
+			self->filePosition1 = ftell(self->fd);
+			self->filePosition1 = self->filePosition2;
+			self->lastFrame += 1;
+			break;
+
+		case MOLDEN:
+			if (self->moldenStyle == MLATOMS)
+				py_result = read_frame_from_molden_atoms(self);
+			else
+				py_result = read_frame_from_molden_geometries(self);
+			if (py_result == Py_None) Py_RETURN_NONE;
+			self->lastFrame += 1;
+			break;
+
+		case XTC:
+			py_result = read_frame_from_xtc(self);
+			break;
+
+		default:
+			break;
+	}
+
+	return py_result;
+
+}
+
+
+static PyObject* Trajectory_repr(Trajectory *self) {
+	PyObject* str;
+	char format[10];
+
+	switch(self->type) {
+		case XYZ:
+			strcpy(format,    "XYZ"); break;
+		case MOLDEN:
+			strcpy(format, "MOLDEN"); break;
+		case GRO:
+			strcpy(format,    "GRO"); break;
+		case XTC:
+			strcpy(format,    "XTC"); break;
+		default:
+			strcpy(format,       ""); break;
+	}
+	str = PyString_FromFormat("Trajectory('%s', format='%s', mode='%c')",
+								self->filename, format, self->mode);
+	return str;
+}
+
+/* End of method definitions */
+
+
+
+
+/* Class definition */
+
+static PyMemberDef Trajectory_members[] = {
+    {"symbols", T_OBJECT_EX, offsetof(Trajectory, symbols), 0,
+     "Symbols of atoms"},
+    {"atomicnumbers", T_OBJECT_EX, offsetof(Trajectory, atomicnumbers), 0,
+     "Atomic numbers"},
+    {"nofatoms", T_INT, offsetof(Trajectory, nofatoms), 0,
+     "Number of atoms"},
+    {"nofframes", T_INT, offsetof(Trajectory, nofframes), 0,
+     "Number of frames"},
+    {NULL}  /* Sentinel */
+};
+
+
+
+
+static PyMethodDef Trajectory_methods[] = {
+    {"read", (PyCFunction)Trajectory_read, METH_VARARGS | METH_KEYWORDS,
+		"\n"
+		"Trajectory.read()\n"
+		"\n"
+		"Read next frame from trajectory. Returns a dictionary:\n"
+		"\n"
+		"coordinates (ndarray)\n"
+		"step (int)\n"
+		"time (float)\n"
+		"box (ndarray) [a, b, c, alpha, beta, gamma]\n"
+		"\n" },
+	{NULL}  /* Sentinel */
+};
+
+
+
+
+PyTypeObject TrajectoryType = {
+
+	PyObject_HEAD_INIT(NULL)
+	0,                         /*ob_size*/
+	"moltools.Trajectory",       /*tp_name*/
+	sizeof(Trajectory),          /*tp_basicsize*/
+	0,                         /*tp_itemsize*/
+
+	/* Methods to implement standard operations */
+	(destructor)Trajectory_dealloc, /*tp_dealloc*/
+	0,                         /*tp_print*/
+	0,                         /*tp_getattr*/
+	0,                         /*tp_setattr*/
+	0,                         /*tp_compare*/
+	(reprfunc)Trajectory_repr, /*tp_repr*/
+
+	/* Method suites for standard classes */
+	0,                         /*tp_as_number*/
+	0,                         /*tp_as_sequence*/
+	0,                         /*tp_as_mapping*/
+
+	/* More standard operations (here for binary compatibility) */
+	0,                         /*tp_hash */
+	0,                         /*tp_call*/
+	0,                         /*tp_str*/
+	0,                         /*tp_getattro*/
+	0,                         /*tp_setattro*/
+
+	/* Functions to access object as input/output buffer */
+	0,                         /*tp_as_buffer*/
+
+	/* Flags to define presence of optional/expanded features */
+	Py_TPFLAGS_HAVE_CLASS,
+	//Py_TPFLAGS_DEFAULT,        /*tp_flags*/
+
+	/* Documentation string */
+	"Trajectory class. Implements reading of trajectories from various "
+	"file formats. Coordinates are stored in numpy array. "
+	"Creating an instance:\n"
+	"traj = Trajectory(filename, format='GUESS', mode='r', units='angs')\n"
+	"Available formats include: XYZ, GRO, MOLDEN, XTC - guessed if not specified.\n"
+	"Mode: 'r' (default), 'w', 'a'.\n"
+	"Units: 'angs' (default), 'bohr', 'nm'.\n",           /* tp_doc */
+
+	/* Assigned meaning in release 2.0 */
+    /* call function for all accessible objects */
+	0,		               /* tp_traverse */
+
+	/* delete references to contained objects */
+	0,		               /* tp_clear */
+
+	/* Assigned meaning in release 2.1 */
+    /* rich comparisons */
+	0,		               /* tp_richcompare */
+
+	/* weak reference enabler */
+	0,		               /* tp_weaklistoffset */
+
+	/* Added in release 2.2 */
+    /* Iterators */
+	0,		               /* tp_iter */
+	0,		               /* tp_iternext */
+
+	/* Attribute descriptor and subclassing stuff */
+	Trajectory_methods,             /* tp_methods */
+	Trajectory_members,             /* tp_members */
+	0,                         /* tp_getset */
+	0,                         /* tp_base */
+	0,                         /* tp_dict */
+	0,                         /* tp_descr_get */
+	0,                         /* tp_descr_set */
+	0,                         /* tp_dictoffset */
+	(initproc)Trajectory_init,      /* tp_init */
+	0,                         /* tp_alloc */
+	Trajectory_new,                 /* tp_new */
+	0, /* tp_free; Low-level free-memory routine */
+    0, /* tp_is_gc; For PyObject_IS_GC */
+    0, /* tp_bases; */
+    0, /* tp_mro; method resolution order */
+    0, /* tp_cache; */
+    0, /* tp_subclasses; */
+    0, /* tp_weaklist; */
+};
+
+/* End of class definition */

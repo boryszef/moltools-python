@@ -21,6 +21,8 @@
  ***************************************************************************/
 
 
+#ifndef __MOLTOOLS_H__
+#define __MOLTOOLS_H__
 
 #define PY_ARRAY_UNIQUE_SYMBOL MOLTOOLS
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
@@ -88,49 +90,6 @@ typedef struct {
 } EAMff;
 
 
-
-typedef struct {
-
-	PyObject_HEAD
-
-	enum { GUESS, XYZ, MOLDEN, GRO, XTC } type;
-	enum { ANGS, BOHR, NM } units;
-	char mode;
-	char *filename; /* Used while opening the file and for __repr__ */
-	FILE *fd;
-	/* Used for keeping track of the position in the file while reading     *
-	 * frames. Two variables are needed, because some formats, like Molden, *
-	 * store geometries and energies in different parts of the file.        */
-	long filePosition1;
-	long filePosition2;
-	enum { MLGEOMETRY, MLATOMS } moldenStyle;
-#ifdef HAVE_GROMACS
-	t_fileio *xd;
-	rvec *xtcCoord;
-#endif
-	int nofatoms;
-	int nofframes;
-	int lastFrame;
-	PyObject *symbols; /* list of symbols */
-	PyObject *atomicnumbers; /* atomic numbers */
-	PyObject *resids; /* residue numbers */
-	PyObject *resnames; /* residue names */
-
-} Trajectory;
-
-
-typedef struct {
-
-	PyObject_HEAD
-
-	int step;
-	float time;
-	PyObject *coordinates;
-	PyObject *velocities;
-
-} Frame;
-
-
 	
 void cspline_calculate_drv2(double y2[], int n, double x[], double y[]);
 //double cspline_interpolate_y(double v, int n, double x[], double y[], double y2[]);
@@ -148,18 +107,12 @@ PyObject *distanceMatrix(PyObject *self, PyObject *args, PyObject *kwds);
 PyObject *measureAngleCosine(PyObject *self, PyObject *args, PyObject *kwds);
 PyObject *findHBonds(PyObject *self, PyObject *args, PyObject *kwds);
 
-int read_topo_from_xyz(Trajectory *self);
-int read_topo_from_molden(Trajectory *self);
-int read_topo_from_gro(Trajectory *self);
-PyObject *read_frame_from_xyz(Trajectory *self);
-PyObject *read_frame_from_molden_atoms(Trajectory *self);
-PyObject *read_frame_from_molden_geometries(Trajectory *self);
-PyObject *read_frame_from_gro(Trajectory *self);
-PyObject *read_frame_from_xtc(Trajectory *self);
-
+int getElementIndexBySymbol(const char *symbol);
 double *boxArray2double(double box[], PyArrayObject *arr);
 void wrapCartesian(double point[3], double box[3]);
 void nearestImage(double center[3], double other[3], double half[3]);
 double threePointAngleCosine(double A[3], double B[3], double C[3]);
 double distanceSquare(double p[3], double q[3]);
 double copyPoint(double dst[3], double src[3]);
+
+#endif /* __MOLTOOLS_H__ */

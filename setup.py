@@ -12,7 +12,7 @@ def getPackageFlags(pkg):
     libs = subprocess.check_output(['pkg-config', '--libs', pkg])
     return cflags.strip(), libs.strip()
 
-extraCFlags = [ "-O0 -g" ]
+extraCFlags = [ "-O0 -g" ]# -Wall -Wextra" ]
 extraLFlags = [ "-O0 -g" ]
 
 # Check if gromacs is present
@@ -23,9 +23,9 @@ if extraPackagePresent('libgromacs'):
     extraLFlags.append(libs)
 
 moltools = Extension('moltools',
-	sources = [ 'eam.c', 'periodic_table.c', 'utils.c', 'readers.c',
+	sources = [ 'periodic_table.c', 'utils.c', 'readers.c',
 	            'measure.c', 'constants.c', 'writers.c', 'topology.c',
-	            'trajectory.c', 'moltools.c', ],
+	            'trajectory.c', 'moltools.c', 'moltools.h' ],
 	extra_compile_args=extraCFlags,	extra_link_args=extraLFlags,
 )
 

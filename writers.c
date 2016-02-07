@@ -159,7 +159,6 @@ int write_gro(FILE *fd, PyObject *py_symbols, PyArrayObject *py_coords, char *co
 	long int resid;
 	float x, y, z;
 	char *s, *resnam;
-	PyObject *val;
 
 	if( comment != NULL )
         fprintf(fd, "%s\n", comment);
