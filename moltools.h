@@ -46,6 +46,9 @@
 
 #define BOHRTOANGS 0.529177209
 
+#define ARRAY_REAL double
+#define NPY_ARRAY_REAL NPY_DOUBLE
+
 #define sq(a) ((a) * (a))
 
 typedef const struct element__ {

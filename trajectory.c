@@ -349,7 +349,7 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
 	char *buffer, *buffpos, *token;
 	int pos, nat;
 	float factor;
-	float *xyz, *charges;
+	ARRAY_REAL *xyz, *charges;
 	unsigned short int charges_present;
 	npy_intp dims[2];
 
@@ -392,11 +392,11 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
 	Py_DECREF(val);
 
 	/* Set-up the raw arrays for coordinates and charges */
-	xyz = (float*) malloc(3 * self->nofatoms * sizeof(float));
+	xyz = (ARRAY_REAL*) malloc(3 * self->nofatoms * sizeof(ARRAY_REAL));
 	if(xyz == NULL) {
 		PyErr_SetFromErrno(PyExc_MemoryError);
 		return NULL; }
-	charges = (float*) malloc(self->nofatoms * sizeof(float));
+	charges = (ARRAY_REAL*) malloc(self->nofatoms * sizeof(ARRAY_REAL));
 	if(charges == NULL) {
 		PyErr_SetFromErrno(PyExc_MemoryError);
 		return NULL; }
@@ -458,7 +458,7 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
 	/* Add coordinates to the dictionary */
 	dims[0] = self->nofatoms;
 	dims[1] = 3;
-	py_coord = PyArray_SimpleNewFromData(2, dims, NPY_FLOAT, (float*) xyz);
+	py_coord = PyArray_SimpleNewFromData(2, dims, NPY_ARRAY_REAL, (ARRAY_REAL*) xyz);
 	/***************************************************************
 	 * Do not free the raw array! It will be still used by Python! *
      ***************************************************************/
@@ -471,7 +471,7 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
 
 	/* Add charges, if present */
 	if ( charges_present ) {
-		py_charges = PyArray_SimpleNewFromData(1, dims, NPY_FLOAT, charges);
+		py_charges = PyArray_SimpleNewFromData(1, dims, NPY_ARRAY_REAL, (ARRAY_REAL*) charges);
 		key = PyString_FromString("charges");
 		PyDict_SetItem(py_result, key, py_charges);
 		Py_DECREF(key);
@@ -492,7 +492,7 @@ static PyObject *read_frame_from_molden_atoms(Trajectory *self) {
 	char *line;
 	char *token, *buffpos;
 	int i;
-	float *xyz;
+	ARRAY_REAL *xyz;
 	npy_intp dims[2];
 	PyObject *py_result, *key, *py_geom;
 
@@ -500,7 +500,7 @@ static PyObject *read_frame_from_molden_atoms(Trajectory *self) {
 
 	py_result = PyDict_New();
 
-	xyz = (float*) malloc(3 * self->nofatoms * sizeof(float));
+	xyz = (ARRAY_REAL*) malloc(3 * self->nofatoms * sizeof(ARRAY_REAL));
 	if(xyz == NULL) {
 		PyErr_SetFromErrno(PyExc_MemoryError);
 		return NULL; }
@@ -552,7 +552,7 @@ static PyObject *read_frame_from_molden_atoms(Trajectory *self) {
 	/* Add coordinates to the dictionary */
 	dims[0] = self->nofatoms;
 	dims[1] = 3;
-	py_geom = PyArray_SimpleNewFromData(2, dims, NPY_FLOAT, (float*) xyz);
+	py_geom = PyArray_SimpleNewFromData(2, dims, NPY_ARRAY_REAL, (ARRAY_REAL*) xyz);
 	key = PyString_FromString("coordinates");
 	PyDict_SetItem(py_result, key, py_geom);
 	Py_DECREF(key);
@@ -602,7 +602,7 @@ static PyObject *read_frame_from_gro(Trajectory *self) {
 
 	int nat, pos;
 	char *buffer;
-	float *xyz, *vel, *box;
+	ARRAY_REAL *xyz, *vel, *box;
 	unsigned short int velocities_present = 0;
 
 	npy_intp dims[2];
@@ -645,15 +645,15 @@ static PyObject *read_frame_from_gro(Trajectory *self) {
 
 
 	/* Set-up the raw arrays for coordinates and charges */
-	xyz = (float*) malloc(3 * self->nofatoms * sizeof(float));
+	xyz = (ARRAY_REAL*) malloc(3 * self->nofatoms * sizeof(ARRAY_REAL));
 	if(xyz == NULL) {
 		PyErr_SetFromErrno(PyExc_MemoryError);
 		return NULL; }
-	vel = (float*) malloc(3 * self->nofatoms * sizeof(float));
+	vel = (ARRAY_REAL*) malloc(3 * self->nofatoms * sizeof(ARRAY_REAL));
 	if(vel == NULL) {
 		PyErr_SetFromErrno(PyExc_MemoryError);
 		return NULL; }
-	box = (float*) malloc(9 * sizeof(float));
+	box = (ARRAY_REAL*) malloc(9 * sizeof(ARRAY_REAL));
 	if(box == NULL) {
 		PyErr_SetFromErrno(PyExc_MemoryError);
 		return NULL; }
@@ -707,7 +707,7 @@ static PyObject *read_frame_from_gro(Trajectory *self) {
 	/* Add coordinates to the dictionary */
 	dims[0] = self->nofatoms;
 	dims[1] = 3;
-	py_coord = PyArray_SimpleNewFromData(2, dims, NPY_FLOAT, (float*) xyz);
+	py_coord = PyArray_SimpleNewFromData(2, dims, NPY_ARRAY_REAL, (ARRAY_REAL*) xyz);
 	/***************************************************************
 	 * Do not free the raw array! It will be still used by Python! *
      ***************************************************************/
@@ -720,7 +720,7 @@ static PyObject *read_frame_from_gro(Trajectory *self) {
 
 	/* Add velocities to the dictionary */
 	if(velocities_present) {
-		py_vel = PyArray_SimpleNewFromData(2, dims, NPY_FLOAT, (float*) vel);
+		py_vel = PyArray_SimpleNewFromData(2, dims, NPY_ARRAY_REAL, (ARRAY_REAL*) vel);
 		/***************************************************************
 		 * Do not free the raw array! It will be still used by Python! *
     	 ***************************************************************/
@@ -734,7 +734,7 @@ static PyObject *read_frame_from_gro(Trajectory *self) {
 
 	dims[0] = 3;
 	dims[1] = 3;
-	py_box = PyArray_SimpleNewFromData(2, dims, NPY_FLOAT, (float*) box);
+	py_box = PyArray_SimpleNewFromData(2, dims, NPY_ARRAY_REAL, (ARRAY_REAL*) box);
 	key = PyString_FromString("box");
 	PyDict_SetItem(py_result, key, py_box);
 	Py_DECREF(key);
@@ -1028,38 +1028,59 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 		else if (!strcmp(units,   "nm")) self->units = NM;
 	}
 
-	if ((self->mode == 'r' || self->mode == 'a') && (self->type == MOLDEN || self->type == XTC)) {
-		PyErr_SetString(PyExc_NotImplementedError, "Writing in this format is not implemented");
-		return -1;
-	}
+	if (self->mode == 'w' || self->mode == 'a') {
 
-	/* Open the coordinate file */
-	switch(self->type) {
-		case XYZ:
-		case GRO:
-		case MOLDEN:
-			if ( (self->fd = fopen(filename, mode)) == NULL ) {
-				PyErr_SetFromErrno(PyExc_IOError);
-				return -1; }
-			break;
-		case XTC:
+		if (self->symbols == Py_None) {
+			PyErr_SetString(PyExc_ValueError, "Need atomic symbols");
+			return -1; }
+
+		self->nofatoms = PyList_Size(self->symbols);
+
+		/* Open the coordinate file */
+		switch(self->type) {
+			case XYZ:
+			case GRO:
+				if ( (self->fd = fopen(filename, mode)) == NULL ) {
+					PyErr_SetFromErrno(PyExc_IOError);
+					return -1; }
+				break;
+			case MOLDEN:
+			case XTC:
+			default:
+				PyErr_SetString(PyExc_NotImplementedError,
+				                "Writing in this format is not implemented");
+				return -1;
+				break;
+		}
+
+	} else {
+
+		/* Open the coordinate file */
+		switch(self->type) {
+			case XYZ:
+			case GRO:
+			case MOLDEN:
+				if ( (self->fd = fopen(filename, "r")) == NULL ) {
+					PyErr_SetFromErrno(PyExc_IOError);
+					return -1; }
+				break;
+			case XTC:
 #ifdef HAVE_GROMACS
-			if( (self->xd = open_xtc(filename, mode)) == NULL) {
-				PyErr_SetString(PyExc_IOError, "Error opening XTC file");
-				return -1; }
+				if( (self->xd = open_xtc(filename, "r")) == NULL) {
+					PyErr_SetString(PyExc_IOError, "Error opening XTC file");
+					return -1; }
 #else
-			PyErr_SetString(PyExc_SystemError, "The module has to be compiled with gromacs support to handle XTC files");
-			return -1;
+				PyErr_SetString(PyExc_SystemError,
+				    "The module has to be compiled with gromacs support to handle XTC files");
+				return -1;
 #endif
-			break;
-		case GUESS:
-		default:
-			PyErr_SetString(PyExc_ValueError, "Unsupported file format");
-			return -1;
-			break;
-	}
-
-	if (self->mode == 'r') {
+				break;
+			case GUESS:
+			default:
+				PyErr_SetString(PyExc_ValueError, "Unsupported file format");
+				return -1;
+				break;
+		}
 
 		/* Router */
 		switch(self->type) {
@@ -1099,12 +1120,6 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 				PyErr_SetString(PyExc_ValueError, "Unsupported file format");
 				return -1;
 		}
-	} else if (self->mode == 'w' || self->mode == 'a') {
-		if (self->symbols == Py_None) {
-			PyErr_SetString(PyExc_ValueError, "Need atomic symbols");
-			return -1;
-		}
-		self->nofatoms = PyList_Size(self->symbols);
 	}
 
 	return 0;
@@ -1235,7 +1250,8 @@ static PyObject *Trajectory_write(Trajectory *self, PyObject *args, PyObject *kw
 	PyArrayObject *py_box = NULL;
 	char *comment = NULL;;
 	int nat, i, type;
-	double x, y, z;
+	double dx, dy, dz;
+	float x, y, z;
 	char *s;
 
 	static char *kwlist[] = {
@@ -1248,8 +1264,8 @@ static PyObject *Trajectory_write(Trajectory *self, PyObject *args, PyObject *kw
 			&comment))
 		return NULL;
 
-	if (self->mode != 'r') {
-		PyErr_SetString(PyExc_RuntimeError, "Trying to read in write mode");
+	if (self->mode != 'a' && self->mode != 'w') {
+		PyErr_SetString(PyExc_RuntimeError, "Trying to write in read mode");
 		return NULL; }
 
 	switch(self->type) {
@@ -1263,23 +1279,24 @@ static PyObject *Trajectory_write(Trajectory *self, PyObject *args, PyObject *kw
 
 			type = PyArray_TYPE(py_coords);
 		    for (i = 0; i < self->nofatoms; i++) {
+		        s = PyString_AsString(PyList_GetItem(self->symbols, i));
 				switch(type) {
 					case NPY_FLOAT:
 				        x = *( (float*) PyArray_GETPTR2(py_coords, i, 0) );
     				    y = *( (float*) PyArray_GETPTR2(py_coords, i, 1) );
         				z = *( (float*) PyArray_GETPTR2(py_coords, i, 2) );
+		        		fprintf(self->fd, "%-3s  %12.6f  %12.6f  %12.6f\n", s, x, y, z);
 						break;
 					case NPY_DOUBLE:
-				        x = *( (double*) PyArray_GETPTR2(py_coords, i, 0) );
-    				    y = *( (double*) PyArray_GETPTR2(py_coords, i, 1) );
-        				z = *( (double*) PyArray_GETPTR2(py_coords, i, 2) );
+				        dx = *( (double*) PyArray_GETPTR2(py_coords, i, 0) );
+    				    dy = *( (double*) PyArray_GETPTR2(py_coords, i, 1) );
+        				dz = *( (double*) PyArray_GETPTR2(py_coords, i, 2) );
+		        		fprintf(self->fd, "%-3s  %12.8lf  %12.8lf  %12.8lf\n", s, dx, dy, dz);
 						break;
 					default:
 						PyErr_SetString(PyExc_ValueError, "Incorrect type in box vector");
 						return NULL;
 				}
-		        s = PyString_AsString(PyList_GetItem(self->symbols, i));
-		        fprintf(self->fd, "%-3s  %12.8lf  %12.8lf  %12.8lf\n", s, x, y, z);
 		    }
 			break;
 
