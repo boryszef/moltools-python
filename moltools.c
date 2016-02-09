@@ -280,6 +280,7 @@ PyMODINIT_FUNC initmoltools(void)
 	PyObject *exposed_covalentradii;
 	//extern PyTypeObject EAMffType;
 	extern PyTypeObject TrajectoryType;
+	//extern PyTypeObject FrameType;
 
 	/* Use system-wide locale, but make sure that decimal point is a point! */
 	setlocale(LC_ALL, "");
@@ -289,6 +290,8 @@ PyMODINIT_FUNC initmoltools(void)
 	//	return;
 	if (PyType_Ready(&TrajectoryType) < 0)
 		return;
+	//if (PyType_Ready(&FrameType) < 0)
+	//	return;
 
     md = Py_InitModule3("moltools", moltoolsMethods,
 	     "The moltools module provides some classes and functions related to molecular "
@@ -315,5 +318,8 @@ PyMODINIT_FUNC initmoltools(void)
 
 	Py_INCREF(&TrajectoryType);
 	PyModule_AddObject(md, "Trajectory", (PyObject *)&TrajectoryType);
+
+	//Py_INCREF(&FrameType);
+	//PyModule_AddObject(md, "Frame", (PyObject *)&FrameType);
 }
 

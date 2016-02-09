@@ -54,16 +54,4 @@ typedef struct {
 } Trajectory;
 
 
-typedef struct {
-
-	PyObject_HEAD
-
-	int step;
-	float time;
-	PyObject *coordinates;
-	PyObject *velocities;
-
-} Frame;
-
-
 #endif /* __TRAJECTORY_H__ */

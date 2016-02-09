@@ -23,7 +23,7 @@
 
 #include "moltools.h"
 #include "trajectory.h"
-
+//#include "frame.h"
 
 
 
@@ -844,10 +844,24 @@ static PyObject *read_frame_from_xtc(Trajectory *self) {
 
 static void Trajectory_dealloc(Trajectory* self)
 {
-	Py_XDECREF(self->symbols);
-	Py_XDECREF(self->resids);
-	Py_XDECREF(self->resnames);
-	Py_XDECREF(self->atomicnumbers);
+	PyObject *tmp;
+
+	tmp = self->symbols;
+	self->symbols = NULL;
+	Py_XDECREF(tmp);
+
+	tmp = self->resids;
+	self->resids = NULL;
+	Py_XDECREF(tmp);
+
+	tmp = self->resnames;
+	self->resnames = NULL;
+	Py_XDECREF(tmp);
+
+	tmp = self->atomicnumbers;
+	self->atomicnumbers = NULL;
+	Py_XDECREF(tmp);
+
 	free(self->filename);
 	switch(self->type) {
 		case XYZ:
@@ -936,17 +950,25 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 #endif
 
 	static char *kwlist[] = {
-		"filename", "format", "mode", "units", NULL };
+		"filename", "format", "mode", "units", "symbols", NULL };
 
-	if(!PyArg_ParseTupleAndKeywords(args, kwds, "s|sss", kwlist, &filename, &str_type, &mode, &units))
+	if(!PyArg_ParseTupleAndKeywords(args, kwds, "s|sssO!", kwlist,
+		    &filename, &str_type, &mode, &units,
+			&PyList_Type, &(self->symbols)))
 		return -1;
 
 	self->filename = (char*) malloc(strlen(filename) * sizeof(char));
 	strcpy(self->filename, filename);
-	if (mode == NULL)
+	if (mode == NULL || mode[0] == 'r')
 		self->mode = 'r';
-	else
-		self->mode = mode[0];
+	else if (mode[0] == 'w')
+		self->mode = 'w';
+	else if (mode[0] == 'a')
+		self->mode = 'a';
+	else {
+		PyErr_SetString(PyExc_ValueError, "Incorrect mode");
+		return -1;
+	}
 
 	/* Set the enum symbol of the file format */
 	if ( str_type != NULL ) {
@@ -962,7 +984,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 		if      ( !strcmp(ext, ".xyz") ) self->type = XYZ;
 		else if ( !strcmp(ext, ".gro") ) self->type = GRO;
 		else if ( !strcmp(ext, ".xtc") ) self->type = XTC;
-		else {
+		else if (self->mode == 'r' || self->mode == 'a') {
 			/* Extract the first line */
 			if ( (test = fopen(filename, "r")) == NULL ) {
 				PyErr_SetFromErrno(PyExc_IOError);
@@ -977,9 +999,13 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 			if ( !strcmp(line, "[molden format]") ) self->type = MOLDEN;
 
 			free(line);
+		} else {
+			PyErr_SetString(PyExc_ValueError, "Could not guess file format");
+			return -1;
 		}
 	}
 
+	/* Set correct units */
 	if (units == NULL) {
 		switch(self->type) {
 			case XYZ:
@@ -1002,18 +1028,23 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 		else if (!strcmp(units,   "nm")) self->units = NM;
 	}
 
+	if ((self->mode == 'r' || self->mode == 'a') && (self->type == MOLDEN || self->type == XTC)) {
+		PyErr_SetString(PyExc_NotImplementedError, "Writing in this format is not implemented");
+		return -1;
+	}
+
 	/* Open the coordinate file */
 	switch(self->type) {
 		case XYZ:
 		case GRO:
 		case MOLDEN:
-			if ( (self->fd = fopen(filename, "r")) == NULL ) {
+			if ( (self->fd = fopen(filename, mode)) == NULL ) {
 				PyErr_SetFromErrno(PyExc_IOError);
 				return -1; }
 			break;
 		case XTC:
 #ifdef HAVE_GROMACS
-			if( (self->xd = open_xtc(filename, "r")) == NULL) {
+			if( (self->xd = open_xtc(filename, mode)) == NULL) {
 				PyErr_SetString(PyExc_IOError, "Error opening XTC file");
 				return -1; }
 #else
@@ -1028,43 +1059,52 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 			break;
 	}
 
-	/* Router */
-	switch(self->type) {
-		case XYZ:
-			if (read_topo_from_xyz(self) == -1) return -1;
-			rewind(self->fd);
-			self->filePosition1 = ftell(self->fd);
-			self->filePosition2 = self->filePosition1;
-			break;
-		case MOLDEN:
-			if (read_topo_from_molden(self) == -1) return -1;
-			rewind(self->fd);
-			/* read_topo_from_molden sets file position accordingly */
-			//self->filePosition1 = ftell(self->fd);
-			//self->filePosition2 = self->filePosition1;
-			break;
-		case GRO:
-			if (read_topo_from_gro(self) == -1) return -1;
-			rewind(self->fd);
-			self->filePosition1 = ftell(self->fd);
-			self->filePosition2 = self->filePosition1;
-			break;
-		case XTC:
+	if (self->mode == 'r') {
+
+		/* Router */
+		switch(self->type) {
+			case XYZ:
+				if (read_topo_from_xyz(self) == -1) return -1;
+				rewind(self->fd);
+				self->filePosition1 = ftell(self->fd);
+				self->filePosition2 = self->filePosition1;
+				break;
+			case MOLDEN:
+				if (read_topo_from_molden(self) == -1) return -1;
+				rewind(self->fd);
+				/* read_topo_from_molden sets file position accordingly */
+				//self->filePosition1 = ftell(self->fd);
+				//self->filePosition2 = self->filePosition1;
+				break;
+			case GRO:
+				if (read_topo_from_gro(self) == -1) return -1;
+				rewind(self->fd);
+				self->filePosition1 = ftell(self->fd);
+				self->filePosition2 = self->filePosition1;
+				break;
+			case XTC:
 #ifdef HAVE_GROMACS
-			if (!read_first_xtc(self->xd, &(self->nofatoms), &step, &time,
-                                box, &(self->xtcCoord), &prec, &bOK) && bOK) {
-				PyErr_SetString(PyExc_IOError, "Error reading first frame");
-				return -1; }
-			close_xtc(self->xd);
-			self->xd = open_xtc(filename, "r");
+				if (!read_first_xtc(self->xd, &(self->nofatoms), &step, &time,
+    	                            box, &(self->xtcCoord), &prec, &bOK) && bOK) {
+					PyErr_SetString(PyExc_IOError, "Error reading first frame");
+					return -1; }
+				close_xtc(self->xd);
+				self->xd = open_xtc(filename, "r");
 #endif
-			break;
-		/* If the file format is GUESS or different,
-		   it means we've failed to guess :-(        */
-		case GUESS:
-		default:
-			PyErr_SetString(PyExc_ValueError, "Unsupported file format");
+				break;
+			/* If the file format is GUESS or different,
+			   it means we've failed to guess :-(        */
+			case GUESS:
+			default:
+				PyErr_SetString(PyExc_ValueError, "Unsupported file format");
+				return -1;
+		}
+	} else if (self->mode == 'w' || self->mode == 'a') {
+		if (self->symbols == Py_None) {
+			PyErr_SetString(PyExc_ValueError, "Need atomic symbols");
 			return -1;
+		}
+		self->nofatoms = PyList_Size(self->symbols);
 	}
 
 	return 0;
@@ -1075,6 +1115,10 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 static PyObject *Trajectory_read(Trajectory *self) {
 
 	PyObject *py_result = NULL;
+
+	if (self->mode != 'r') {
+		PyErr_SetString(PyExc_RuntimeError, "Trying to read in write mode");
+		return NULL; }
 
 	switch(self->type) {
 
@@ -1110,6 +1154,148 @@ static PyObject *Trajectory_read(Trajectory *self) {
 
 	self->lastFrame += 1;
 	return py_result;
+
+}
+
+
+
+
+int traj_write_gro(Trajectory *self, PyArrayObject *py_coords, PyArrayObject *py_vel,
+				PyArrayObject *py_box, char *comment) {
+
+	int nat, i, type;
+	long int resid;
+	float x, y, z;
+	char *s, *resnam;
+	char empty[1] = "";
+	npy_intp *dims;
+
+	if( comment != NULL )
+        fprintf(self->fd, "%s\n", comment);
+    else
+        fprintf(self->fd, "\n");
+    fprintf(self->fd, "%5d\n", self->nofatoms);
+
+    for (i = 0; i < self->nofatoms; i++) {
+		if (self->resids != Py_None)
+			resid = PyInt_AsLong(PyList_GetItem(self->resids, i));
+		else
+			resid = 1;
+		if (self->resnames != Py_None)
+			resnam = PyString_AsString(PyList_GetItem(self->resnames, i));
+		else
+			resnam = empty;
+        x = *( (float*) PyArray_GETPTR2(py_coords, i, 0) ) / 10.0;
+        y = *( (float*) PyArray_GETPTR2(py_coords, i, 1) ) / 10.0;
+        z = *( (float*) PyArray_GETPTR2(py_coords, i, 2) ) / 10.0;
+        s = PyString_AsString(PyList_GetItem(self->symbols, i));
+        fprintf(self->fd, "%5d%-5s%5s%5ld%8.3f%8.3f%8.3f\n", i+1, resnam, s, resid, x, y, z);
+    }
+
+	/* Do some testing on the array */
+	if ( PyArray_NDIM(py_box) != 2 ) {
+		PyErr_SetString(PyExc_ValueError, "Incorrect box shape");
+		return -1; }
+	else {
+		dims = PyArray_DIMS(py_box);
+		if (dims[0] != 3 || dims[1] != 3) {
+			PyErr_SetString(PyExc_ValueError, "Incorrect box shape");
+			return -1; }
+		type = PyArray_TYPE(py_box);
+		switch(type) {
+			case NPY_FLOAT:
+				x = *( (float*) PyArray_GETPTR1(py_box, 0) );
+				y = *( (float*) PyArray_GETPTR1(py_box, 1) );
+				z = *( (float*) PyArray_GETPTR1(py_box, 2) );
+				break;
+			case NPY_DOUBLE:
+				x = *( (double*) PyArray_GETPTR1(py_box, 0) );
+				y = *( (double*) PyArray_GETPTR1(py_box, 1) );
+				z = *( (double*) PyArray_GETPTR1(py_box, 2) );
+				break;
+			default:
+				PyErr_SetString(PyExc_ValueError, "Incorrect type in box vector");
+				return -1;
+		}
+		x /= 10.0;
+		y /= 10.0;
+		z /= 10.0;
+		fprintf(self->fd, "%10.5f%10.5f%10.5f\n", x, y, z);
+	}
+
+	return 0;
+}
+
+
+
+static PyObject *Trajectory_write(Trajectory *self, PyObject *args, PyObject *kwds) {
+
+	PyArrayObject *py_coords = NULL;
+	PyArrayObject *py_vel = NULL;
+	PyArrayObject *py_box = NULL;
+	char *comment = NULL;;
+	int nat, i, type;
+	double x, y, z;
+	char *s;
+
+	static char *kwlist[] = {
+		"coordinates", "velocities", "box", "comment", NULL };
+
+	if(!PyArg_ParseTupleAndKeywords(args, kwds, "O!|O!O!s", kwlist,
+			&PyArray_Type, &py_coords,
+			&PyArray_Type, &py_vel,
+			&PyArray_Type, &py_box,
+			&comment))
+		return NULL;
+
+	if (self->mode != 'r') {
+		PyErr_SetString(PyExc_RuntimeError, "Trying to read in write mode");
+		return NULL; }
+
+	switch(self->type) {
+
+		case XYZ:
+		    fprintf(self->fd, "%d\n", self->nofatoms);
+			if( comment != NULL )
+	    	    fprintf(self->fd, "%s\n", comment);
+		    else
+		        fprintf(self->fd, "\n");
+
+			type = PyArray_TYPE(py_coords);
+		    for (i = 0; i < self->nofatoms; i++) {
+				switch(type) {
+					case NPY_FLOAT:
+				        x = *( (float*) PyArray_GETPTR2(py_coords, i, 0) );
+    				    y = *( (float*) PyArray_GETPTR2(py_coords, i, 1) );
+        				z = *( (float*) PyArray_GETPTR2(py_coords, i, 2) );
+						break;
+					case NPY_DOUBLE:
+				        x = *( (double*) PyArray_GETPTR2(py_coords, i, 0) );
+    				    y = *( (double*) PyArray_GETPTR2(py_coords, i, 1) );
+        				z = *( (double*) PyArray_GETPTR2(py_coords, i, 2) );
+						break;
+					default:
+						PyErr_SetString(PyExc_ValueError, "Incorrect type in box vector");
+						return NULL;
+				}
+		        s = PyString_AsString(PyList_GetItem(self->symbols, i));
+		        fprintf(self->fd, "%-3s  %12.8lf  %12.8lf  %12.8lf\n", s, x, y, z);
+		    }
+			break;
+
+		case GRO:
+			if (!traj_write_gro(self, py_coords, py_vel, py_box, comment)) {
+				PyErr_SetString(PyExc_RuntimeError, "Could not write");
+				return NULL;
+			}
+			break;
+
+		default:
+			break;
+	}
+
+	self->lastFrame += 1;
+	Py_RETURN_NONE;
 
 }
 
@@ -1158,6 +1344,7 @@ static PyMemberDef Trajectory_members[] = {
 
 
 static PyMethodDef Trajectory_methods[] = {
+
     {"read", (PyCFunction)Trajectory_read, METH_VARARGS | METH_KEYWORDS,
 		"\n"
 		"Trajectory.read()\n"
@@ -1169,6 +1356,16 @@ static PyMethodDef Trajectory_methods[] = {
 		"time (float)\n"
 		"box (ndarray) [ 3x3 ]\n"
 		"\n" },
+
+	{"write", (PyCFunction)Trajectory_write, METH_VARARGS | METH_KEYWORDS,
+		"\n"
+		"Trajectory.write(coordinates, [ velocities, box ])\n"
+		"\n"
+		"coordinates (ndarray)\n"
+		"velocities (ndarray)\n"
+		"box (ndarray)\n"
+		"\n" },
+
 	{NULL}  /* Sentinel */
 };
 
@@ -1207,8 +1404,7 @@ PyTypeObject TrajectoryType = {
 	0,                         /*tp_as_buffer*/
 
 	/* Flags to define presence of optional/expanded features */
-	Py_TPFLAGS_HAVE_CLASS,
-	//Py_TPFLAGS_DEFAULT,        /*tp_flags*/
+	Py_TPFLAGS_DEFAULT,        /*tp_flags*/
 
 	/* Documentation string */
 	"Trajectory class. Implements reading of trajectories from various "
