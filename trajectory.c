@@ -1180,9 +1180,10 @@ int traj_write_gro(Trajectory *self, PyArrayObject *py_coords, PyArrayObject *py
 
 	int nat, i, type;
 	long int resid;
-	float x, y, z;
+	double x, y, z;
 	char *s, *resnam;
 	char empty[1] = "";
+	int box_order[] = { 0, 4, 8, 1, 2, 3, 5, 6, 7 };
 	npy_intp *dims;
 
 	if( comment != NULL )
@@ -1200,43 +1201,43 @@ int traj_write_gro(Trajectory *self, PyArrayObject *py_coords, PyArrayObject *py
 			resnam = PyString_AsString(PyList_GetItem(self->resnames, i));
 		else
 			resnam = empty;
-        x = *( (float*) PyArray_GETPTR2(py_coords, i, 0) ) / 10.0;
-        y = *( (float*) PyArray_GETPTR2(py_coords, i, 1) ) / 10.0;
-        z = *( (float*) PyArray_GETPTR2(py_coords, i, 2) ) / 10.0;
+        x = *( (double*) PyArray_GETPTR2(py_coords, i, 0) ) / 10.0;
+        y = *( (double*) PyArray_GETPTR2(py_coords, i, 1) ) / 10.0;
+        z = *( (double*) PyArray_GETPTR2(py_coords, i, 2) ) / 10.0;
         s = PyString_AsString(PyList_GetItem(self->symbols, i));
-        fprintf(self->fd, "%5d%-5s%5s%5ld%8.3f%8.3f%8.3f\n", i+1, resnam, s, resid, x, y, z);
+        fprintf(self->fd, "%5d%-5s%5s%5ld%8.3lf%8.3lf%8.3lf\n", i+1, resnam, s, resid, x, y, z);
     }
 
 	/* Do some testing on the array */
-	if ( PyArray_NDIM(py_box) != 2 ) {
-		PyErr_SetString(PyExc_ValueError, "Incorrect box shape");
-		return -1; }
-	else {
-		dims = PyArray_DIMS(py_box);
-		if (dims[0] != 3 || dims[1] != 3) {
+	if (py_box != NULL) {
+		if ( PyArray_NDIM(py_box) != 2 ) {
 			PyErr_SetString(PyExc_ValueError, "Incorrect box shape");
 			return -1; }
-		type = PyArray_TYPE(py_box);
-		switch(type) {
-			case NPY_FLOAT:
-				x = *( (float*) PyArray_GETPTR1(py_box, 0) );
-				y = *( (float*) PyArray_GETPTR1(py_box, 1) );
-				z = *( (float*) PyArray_GETPTR1(py_box, 2) );
-				break;
-			case NPY_DOUBLE:
-				x = *( (double*) PyArray_GETPTR1(py_box, 0) );
-				y = *( (double*) PyArray_GETPTR1(py_box, 1) );
-				z = *( (double*) PyArray_GETPTR1(py_box, 2) );
-				break;
-			default:
-				PyErr_SetString(PyExc_ValueError, "Incorrect type in box vector");
-				return -1;
+		else {
+			dims = PyArray_DIMS(py_box);
+			if (dims[0] != 3 || dims[1] != 3) {
+				PyErr_SetString(PyExc_ValueError, "Incorrect box shape");
+				return -1; }
+			type = PyArray_TYPE(py_box);
+			for (i = 0; i < 9; i++) {
+				switch(type) {
+					case NPY_FLOAT:
+						x = *( (float*) PyArray_GETPTR1(py_box, box_order[i]) );
+						break;
+					case NPY_DOUBLE:
+						x = *( (double*) PyArray_GETPTR1(py_box, box_order[i]) );
+						break;
+					default:
+						PyErr_SetString(PyExc_ValueError, "Incorrect type in box vector");
+						return -1;
+				}
+				x /= 10.0;
+				fprintf(self->fd, "%10.5f\n", x);
+			}
+			fprintf(self->fd, "\n");
 		}
-		x /= 10.0;
-		y /= 10.0;
-		z /= 10.0;
-		fprintf(self->fd, "%10.5f%10.5f%10.5f\n", x, y, z);
-	}
+	} else
+		fprintf(self->fd, "%10.5f%10.5f%10.5f\n", 0.0, 0.0, 0.0);
 
 	return 0;
 }
@@ -1301,7 +1302,7 @@ static PyObject *Trajectory_write(Trajectory *self, PyObject *args, PyObject *kw
 			break;
 
 		case GRO:
-			if (!traj_write_gro(self, py_coords, py_vel, py_box, comment)) {
+			if (traj_write_gro(self, py_coords, py_vel, py_box, comment)) {
 				PyErr_SetString(PyExc_RuntimeError, "Could not write");
 				return NULL;
 			}
