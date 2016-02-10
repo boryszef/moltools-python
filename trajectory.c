@@ -51,7 +51,7 @@ static int read_topo_from_xyz(Trajectory *self) {
 		return -1; }
 
 	/* Get rid of Py_None in self->symbols */
-	Py_DECREF(Py_None);
+	Py_DECREF(self->symbols);
 	self->symbols = PyList_New(nofatoms);
 
 	anum = (int*) malloc(nofatoms * sizeof(int));
@@ -229,7 +229,7 @@ static int read_topo_from_molden(Trajectory *self) {
 		self->nofatoms = nat;
 
 		/* Get rid of Py_None in self->symbols */
-		Py_DECREF(Py_None);
+		Py_DECREF(self->symbols);
 		self->symbols = PyList_New(nat);
 
 		anum = (int*) malloc(nat * sizeof(int));
@@ -307,7 +307,7 @@ static int read_topo_from_gro(Trajectory *self) {
 	char *buffer;
 	char symbuf[100];
 	int *resid;
-
+	npy_intp dims[2];
 	PyObject *val;
 
 	/* Read the comment line */
@@ -324,11 +324,9 @@ static int read_topo_from_gro(Trajectory *self) {
 		return -1; }
 
 	/* Get rid of Py_None in self->symbols etc. */
-	Py_DECREF(Py_None);
+	Py_DECREF(self->symbols);
 	self->symbols = PyList_New(nofatoms);
-	Py_DECREF(Py_None);
-	self->resids = PyList_New(nofatoms);
-	Py_DECREF(Py_None);
+	Py_DECREF(self->resnames);
 	self->resnames = PyList_New(nofatoms);
 
 	resid = (int*) malloc(nofatoms * sizeof(int));
@@ -368,6 +366,16 @@ static int read_topo_from_gro(Trajectory *self) {
 	}
 
 	self->nofatoms = nofatoms;
+
+	/* Add residue IDs to the dictionary */
+	dims[0] = nofatoms;
+	dims[1] = 1;
+	Py_DECREF(self->resids);
+	self->resids = PyArray_SimpleNewFromData(1, dims, NPY_INT, (int*) resid);
+	/***************************************************************
+	 * Do not free the raw array! It will be still used by Python! *
+     ***************************************************************/
+
 	return 0;
 }
 
@@ -1394,6 +1402,10 @@ static PyMemberDef Trajectory_members[] = {
      "Symbols of atoms"},
     {"atomicnumbers", T_OBJECT_EX, offsetof(Trajectory, atomicnumbers), 0,
      "Atomic numbers"},
+    {"resids", T_OBJECT_EX, offsetof(Trajectory, resids), 0,
+     "Residue numbers"},
+    {"resnames", T_OBJECT_EX, offsetof(Trajectory, resnames), 0,
+     "Residue names"},
     {"nofatoms", T_INT, offsetof(Trajectory, nofatoms), 0,
      "Number of atoms"},
     {"nofframes", T_INT, offsetof(Trajectory, nofframes), 0,
