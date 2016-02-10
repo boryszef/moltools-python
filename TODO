@@ -10,3 +10,5 @@ Things that need to be done:
 * Code refactoring.
 
 * Parallelize.
+
+* In read_topo_from_xyz, capitalize symbols before getting atomic number

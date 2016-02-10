@@ -51,6 +51,8 @@ typedef struct {
 	PyObject *resids; /* residue numbers */
 	PyObject *resnames; /* residue names */
 
+	PyObject *moldenSections; /* Sections in Molden file and offsets */
+
 } Trajectory;
 
 
