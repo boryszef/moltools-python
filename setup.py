@@ -23,9 +23,13 @@ if extraPackagePresent('libgromacs'):
     extraLFlags.append(libs)
 
 moltools = Extension('moltools',
-	sources = [ 'periodic_table.c', 'utils.c', 'readers.c',
-	            'measure.c', 'constants.c', 'writers.c', 'topology.c',
-	            'trajectory.c', 'moltools.c', 'moltools.h' ],
+	sources = [ 'periodic_table.c', 'periodic_table.h',
+                    'utils.c', 'utils.h',
+	            'measure.c', 'measure.h',
+                    'constants.c', 'constants.h',
+                    'topology.c', 'topology.h',
+	            'trajectory.c', 'trajectory.h',
+                    'moltools.c', 'moltools.h' ],
 	extra_compile_args=extraCFlags,	extra_link_args=extraLFlags,
 )
 
