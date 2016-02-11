@@ -1515,13 +1515,28 @@ PyTypeObject TrajectoryType = {
 	Py_TPFLAGS_DEFAULT,        /*tp_flags*/
 
 	/* Documentation string */
-	"Trajectory class. Implements reading of trajectories from various "
-	"file formats. Coordinates are stored in numpy array. "
-	"Creating an instance:\n"
-	"traj = Trajectory(filename, format='GUESS', mode='r', units='angs')\n"
+	"Trajectory class. Implements reading of trajectories from XYZ. Molden, GRO\n"
+	"and XTC. Writing is implemented for XYZ and GRO. The process is two-step;\n"
+	"first, the object must be created, by specifying filename (reading) or\n"
+	"topology information. Second, frames can be read/saved repeteadly. Reading\n"
+	"examples:\n"
+	"  traj = Trajectory('my.xyz')\n"
+	"  frame1 = traj.read()\n"
+	"  frame2 = traj.read()\n"
+	"Writing example:\n"
+	"  traj = Trajectory(symbols_list)\n"
+	"  traj.write(coordinates1)\n"
+	"  traj.write(coordinates2)\n"
+	"Creating an instance for reading:\n"
+	"  traj = Trajectory(filename, format='GUESS', mode='r', units='angs')\n"
 	"Available formats include: XYZ, GRO, MOLDEN, XTC - guessed if not specified.\n"
 	"Mode: 'r' (default), 'w', 'a'.\n"
-	"Units: 'angs' (default), 'bohr', 'nm'.\n",           /* tp_doc */
+	"Units: 'angs' (default), 'bohr', 'nm'.\n"
+	"Creating an instance for writing:\n"
+	"  traj = Trajectory(filename, format='GUESS', mode='w', symbols=, resids=,\n"
+	"                    resnames=)\n"
+	"symbols and resnames are lists, while resids, coodinates and velocities are\n"
+	"ndarrays.\n",           /* tp_doc */
 
 	/* Assigned meaning in release 2.0 */
     /* call function for all accessible objects */

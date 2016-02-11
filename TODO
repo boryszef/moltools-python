@@ -1,8 +1,5 @@
 Things that need to be done:
 
-* Split opening files and reading single frame into separate functions.
-  Reading a huge trajectory at one takes too much time.
-
 * Rewrite readline() using realloc
 
 * Port the code into Python3.
