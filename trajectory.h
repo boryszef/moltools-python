@@ -23,6 +23,10 @@
 #ifndef __TRAJECTORY_H__
 #define __TRAJECTORY_H__
 
+#ifdef HAVE_GROMACS
+	#include <gromacs/utility/smalloc.h>
+	#include <gromacs/fileio/xtcio.h>
+#endif
 
 typedef struct {
 

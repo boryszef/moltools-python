@@ -21,7 +21,18 @@
  ***************************************************************************/
 
 
+#define PY_ARRAY_UNIQUE_SYMBOL MOLTOOLS
+#define NO_IMPORT_ARRAY
+#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+#include <numpy/arrayobject.h>
+
 #include "moltools.h"
+#include "utils.h"
+#include "readers.h"
+#ifdef HAVE_GROMACS
+	#include <gromacs/utility/smalloc.h>
+	#include <gromacs/fileio/xtcio.h>
+#endif
 
 
 PyObject *exposed_read(PyObject *self, PyObject *args, PyObject *kwds) {
@@ -678,7 +689,7 @@ PyObject *read_gro(FILE *fd) {
 
 	npy_intp dims[2];
 
-	PyObject *key, *val, *py_result, *py_coord, *py_vel, *py_syms, *py_resn, *py_resid;
+	PyObject *key, *val, *py_result, *py_coord, *py_vel, *py_syms, *py_resn;
 
 
 	/* Create the dictionary that will be returned */

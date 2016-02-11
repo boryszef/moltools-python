@@ -21,26 +21,23 @@
  ***************************************************************************/
 
 
-#ifndef __MOLTOOLS_H__
-#define __MOLTOOLS_H__
-
+#ifndef __UTILS_H__
+#define __UTILS_H__
 
 #include <Python.h>
-#include "structmember.h"
-//#include <stdio.h>
-//#include <stdlib.h>
-//#include <string.h>
-//#include <errno.h>
-#include <locale.h>
-//#include <math.h>
-//#include <sys/types.h>
-//#include <sys/stat.h>
-//#include <unistd.h>
 
-#define BOHRTOANGS 0.529177209
+#define sq(a) ((a) * (a))
 
-#define ARRAY_REAL double
-#define NPY_ARRAY_REAL NPY_DOUBLE
-
+char *readline(FILE *);
+int make_lowercase(char *);
+int stripline(char *);
+float strPartFloat(char *buf, int pos, int len);
+int getElementIndexBySymbol(const char *symbol);
+double *vectorToDouble(double dvec[], PyArrayObject *arr);
+void wrapCartesian(double point[3], double box[3]);
+void nearestImage(double center[3], double other[3], double half[3]);
+double threePointAngleCosine(double A[3], double B[3], double C[3]);
+double distanceSquare(double p[3], double q[3]);
+void copyPoint(double dst[3], double src[3]);
 
 #endif /* __MOLTOOLS_H__ */

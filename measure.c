@@ -1,4 +1,10 @@
-#include "moltools.h"
+#define PY_ARRAY_UNIQUE_SYMBOL MOLTOOLS
+#define NO_IMPORT_ARRAY
+#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+#include <numpy/arrayobject.h>
+
+//#include "moltools.h"
+#include "utils.h"
 
 
 int lookupStringInList(char *needle, char **stack, int len) {
@@ -158,7 +164,7 @@ PyObject *findHBonds(PyObject *self, PyObject *args, PyObject *kwds) {
 
 				if (d2ij > cutoff) continue;
 
-				if (!strcmp(atomSymbol1, "C") || !strcmp(atomSymbol2, "C") && d2ij > carbon_cutoff) continue;
+				if ((!strcmp(atomSymbol1, "C") || !strcmp(atomSymbol2, "C")) && d2ij > carbon_cutoff) continue;
 
 				A = H;
 				if (d2hi < d2hj) {
@@ -194,12 +200,12 @@ PyObject *findHBonds(PyObject *self, PyObject *args, PyObject *kwds) {
 
 PyObject *measureAngleCosine(PyObject *self, PyObject *args, PyObject *kwds) {
 	PyArrayObject *py_atom1, *py_atom2, *py_atom3, *py_box = NULL;
-	PyObject *out;
+	//PyObject *out;
 	double box[3], half[3];
-	double A[3], B[3], C[3], p[3], q[3];
-	double lp, lq, cos;
-	int use_pbc, type;
-	npy_intp *numpyint;
+	double A[3], B[3], C[3];
+	double cos;
+	int use_pbc;
+	//npy_intp *numpyint;
 
 	static char *kwlist[] = {
 		"atom1", "atom2", "atom3", "box", NULL };
@@ -402,7 +408,7 @@ PyObject *inertia(PyObject *self, PyObject *args, PyObject *kwds) {
 	PyArrayObject *py_coords, *py_masses;
 	PyObject *py_inertia;
 	npy_intp *dim1, *dim2, dims[2];
-	int nat, i, j, type;
+	int nat, i, type;
 	double *I;
 	double mass;
 	float x, y, z;
@@ -476,7 +482,7 @@ PyObject *mep_distance(PyObject *self, PyObject *args, PyObject *kwds) {
 
 	PyArrayObject *py_coords1, *py_coords2;
 	PyArrayObject *py_masses = NULL;
-	PyObject *py_result;
+	//PyObject *py_result;
 	npy_intp *dim1, *dim2, *dim3;
 	int nat, i, type1, type2;
 	double mass;

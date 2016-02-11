@@ -1,4 +1,6 @@
-#include "moltools.h"
+#include <Python.h>
+#include "periodic_table.h"
+//#include "moltools.h"
 
 
 int build_tables(PyObject **list_symbols, PyObject **list_names,

@@ -21,26 +21,17 @@
  ***************************************************************************/
 
 
-#ifndef __MOLTOOLS_H__
-#define __MOLTOOLS_H__
+#ifndef __READERS_H__
+#define __READERS_H__
 
+PyObject *read_xyz(FILE *fd, float factor);
+PyObject *read_molden(FILE *fd);
+PyObject *read_fractional(FILE *fd);
+PyObject *read_gro(FILE *fd);
+#ifdef HAVE_GROMACS
+PyObject *read_xtc(const char *filename);
+#endif
 
-#include <Python.h>
-#include "structmember.h"
-//#include <stdio.h>
-//#include <stdlib.h>
-//#include <string.h>
-//#include <errno.h>
-#include <locale.h>
-//#include <math.h>
-//#include <sys/types.h>
-//#include <sys/stat.h>
-//#include <unistd.h>
+PyObject *exposed_read(PyObject *, PyObject *, PyObject *);
 
-#define BOHRTOANGS 0.529177209
-
-#define ARRAY_REAL double
-#define NPY_ARRAY_REAL NPY_DOUBLE
-
-
-#endif /* __MOLTOOLS_H__ */
+#endif /* __READERS_H__ */

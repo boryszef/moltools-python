@@ -21,26 +21,25 @@
  ***************************************************************************/
 
 
-#ifndef __MOLTOOLS_H__
-#define __MOLTOOLS_H__
+#ifndef __EAM_H__
+#define __EAM_H__
 
 
-#include <Python.h>
-#include "structmember.h"
-//#include <stdio.h>
-//#include <stdlib.h>
-//#include <string.h>
-//#include <errno.h>
-#include <locale.h>
-//#include <math.h>
-//#include <sys/types.h>
-//#include <sys/stat.h>
-//#include <unistd.h>
+typedef struct {
+	PyObject_HEAD
+	PyObject *rscale; /* values of r used by RHO and Z */
+	PyObject *rhoscale; /* values of rho used by F */
+	PyObject *rho; /* values of rho */
+	PyObject *rho2; /* values of the second derivative of rho */
+	PyObject *Z; /* values of Z */
+	PyObject *Z2; /* values of the second derivative of Z */
+	PyObject *F; /* values of F */
+	PyObject *F2; /* values of the second derivative of F */
+} EAMff;
+	
+void cspline_calculate_drv2(double y2[], int n, double x[], double y[]);
+//double cspline_interpolate_y(double v, int n, double x[], double y[], double y2[]);
+double cspline_interpolate_y(double v, PyObject *, PyObject *, PyObject *);
+double cspline_interpolate_drv(double v, PyObject *, PyObject *, PyObject *);
 
-#define BOHRTOANGS 0.529177209
-
-#define ARRAY_REAL double
-#define NPY_ARRAY_REAL NPY_DOUBLE
-
-
-#endif /* __MOLTOOLS_H__ */
+#endif /* __EAM_H__ */

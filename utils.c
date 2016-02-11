@@ -23,7 +23,13 @@
 
 
 
-#include "moltools.h"
+#define PY_ARRAY_UNIQUE_SYMBOL MOLTOOLS
+#define NO_IMPORT_ARRAY
+#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+#include <numpy/arrayobject.h>
+
+#include "periodic_table.h"
+#include "utils.h"
 
 
 /*****************************************************************************
@@ -233,7 +239,7 @@ double distanceSquare(double p[3], double q[3]) {
 }
 
 
-double copyPoint(double dst[3], double src[3]) {
+void copyPoint(double dst[3], double src[3]) {
 	dst[0] = src[0];
 	dst[1] = src[1];
 	dst[2] = src[2];

@@ -21,70 +21,18 @@
  ***************************************************************************/
 
 
+#define PY_ARRAY_UNIQUE_SYMBOL MOLTOOLS
+#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+#include <numpy/arrayobject.h>
+
 #include "moltools.h"
+#include "periodic_table.h"
+#include "writers.h"
+#include "readers.h"
+#include "measure.h"
+#include "constants.h"
+#include "topology.h"
 
-//#include "periodic_table.c"
-
-
-
-
-/*static PyObject *exposed_energy(PyObject *self, PyObject *args, PyObject *kwds) {
-	FFType ff = FF_NONE;
-	char *ff_type;
-	float box[3] = { 0.0, 0.0, 0.0 };
-	unsigned short int pbc = 0;
-	double energy;
-	int i, type;
-	const char *ff_type_map[] = { "12-6", NULL };
-
-	static char *kwlist[] = {
-		"coordinates", "types", "ff_type", "ff", "box", NULL };
-
-	PyObject *py_types, *py_ff;
-	PyArrayObject *py_coords, *py_box = NULL;
-	PyObject *py_result = NULL;
-
-	if(!PyArg_ParseTupleAndKeywords(args, kwds, "O!O!|sO!O!", kwlist,
-			&PyArray_Type, &py_coords,
-			&PyList_Type, &py_types,
-			&ff_type,
-			&PyList_Type, &py_ff,
-			&PyArray_Type, &py_box))
-		return NULL;
-
-	if ( py_box != NULL ) {
-		type = PyArray_TYPE(py_box);
-		switch(type) {
-			case NPY_FLOAT:
-				box[0] = *( (float*) PyArray_GETPTR1(py_box, 0) );
-				box[1] = *( (float*) PyArray_GETPTR1(py_box, 1) );
-				box[2] = *( (float*) PyArray_GETPTR1(py_box, 2) );
-				break;
-			case NPY_DOUBLE:
-				box[0] = *( (double*) PyArray_GETPTR1(py_box, 0) );
-				box[1] = *( (double*) PyArray_GETPTR1(py_box, 1) );
-				box[2] = *( (double*) PyArray_GETPTR1(py_box, 2) );
-				break;
-			default:
-				PyErr_SetString(PyExc_ValueError, "Incorrect type in box vector");
-				return NULL;
-		}
-		pbc = 1;
-	}
-
-	i = 0;
-	while ( ff_type_map[i] != NULL ) {
-		if (!strcmp(ff_type_map[i], ff_type)) ff = i;
-		i += 1;
-	}
-	if (ff == FF_NONE) {
-		PyErr_SetString(PyExc_ValueError, "Force field not implemented");
-		return NULL; }
-
-	energy = evaluate_energy(py_coords, py_types, ff, py_ff, box);
-	py_result = PyFloat_FromDouble(energy);
-	return py_result;
-}*/
 
 
 static PyObject *mass_list(PyObject *self, PyObject *args) {
@@ -121,9 +69,9 @@ static PyObject *mass_list(PyObject *self, PyObject *args) {
 }
 
 
-static PyObject *rot_inertia(PyObject *self, PyObject *args, PyObject *kwds) {
+/*static PyObject *rot_inertia(PyObject *self, PyObject *args, PyObject *kwds) {
 	return NULL;
-}
+}*/
 
 
 static PyMethodDef moltoolsMethods[] = {
@@ -201,14 +149,6 @@ static PyMethodDef moltoolsMethods[] = {
 		"Given a list of bonds as tuples, find sets of topologically\n"
 		"connected atoms (molecules).\n"
 		"\n" },
-    /*{"energy", (PyCFunction)exposed_energy, METH_VARARGS | METH_KEYWORDS,
-		"\n"
-		"energy(coordinates, types, ff_type, ff, box=None)\n"
-		"\n"
-		"Evaluate the energy of the configuration <coordinates>. <types> are assigned\n"
-		"from <ff> and the energy is calculated according to <ff_type>, using PBC only\n"
-		"if <box> dimensions are specified.\n"
-		"\n" },*/
 	{"mass_list", (PyCFunction)mass_list, METH_VARARGS,
 		"\n"
 		"mass_list(symbols)\n"
@@ -260,13 +200,13 @@ static PyMethodDef moltoolsMethods[] = {
 		"\n"
 		"Computes the moments of inertia tensor of a molecule.\n"
 		"\n" },
-	{"rot_inertia", (PyCFunction)rot_inertia, METH_VARARGS | METH_KEYWORDS,
+	/*{"rot_inertia", (PyCFunction)rot_inertia, METH_VARARGS | METH_KEYWORDS,
 		"\n"
 		"coordinates_rot, principal_moments = rot_inertia(coordinates, inertia_tensor)\n"
 		"\n"
 		"Rotates the coordinates so that the principal moments of inertia\n"
 		"are aligned with axes of the coordinate system.\n"
-		"\n" },
+		"\n" },*/
 
     {NULL, NULL, 0, NULL}        /* Sentinel */
 };

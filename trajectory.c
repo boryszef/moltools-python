@@ -21,9 +21,15 @@
  ***************************************************************************/
 
 
+#define PY_ARRAY_UNIQUE_SYMBOL MOLTOOLS
+#define NO_IMPORT_ARRAY
+#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+#include <numpy/arrayobject.h>
+
 #include "moltools.h"
 #include "trajectory.h"
-//#include "frame.h"
+#include "utils.h"
+#include "periodic_table.h"
 
 
 
@@ -105,7 +111,7 @@ PyObject* read_molden_sections(FILE *fd) {
 	long filepos;
 	char *strptr, *line;
 	char buffer[256];
-	int len, nsect = 0;
+	int len;
 	PyObject *dict, *key, *val;
 
 	dict = PyDict_New();
@@ -160,11 +166,10 @@ static int read_topo_from_molden(Trajectory *self) {
 	char **line_store;
 	int i, nat;
 	int *anum;
-	unsigned short int section_present = 0;
 	long filepos;
 
 	npy_intp dims[2];
-	PyObject *key, *val;
+	PyObject *val;
 	PyObject *keyGeo, *keyAtom, *keyN, *keyConv;
 
 	keyGeo = PyString_FromString("geometries");
@@ -303,7 +308,8 @@ static int read_topo_from_molden(Trajectory *self) {
 
 static int read_topo_from_gro(Trajectory *self) {
 
-	int nofatoms, pos;
+	Py_ssize_t pos;
+	int nofatoms;
 	char *buffer;
 	char symbuf[100];
 	int *resid;
@@ -322,6 +328,8 @@ static int read_topo_from_gro(Trajectory *self) {
 	if( sscanf(buffer, "%d", &nofatoms) != 1 ) {
 		PyErr_SetString(PyExc_IOError, "Incorrect atom number");
 		return -1; }
+
+	self->nofatoms = nofatoms;
 
 	/* Get rid of Py_None in self->symbols etc. */
 	Py_DECREF(self->symbols);
@@ -364,8 +372,6 @@ static int read_topo_from_gro(Trajectory *self) {
 		/* Free the line buffer */
 		free(buffer);
 	}
-
-	self->nofatoms = nofatoms;
 
 	/* Add residue IDs to the dictionary */
 	dims[0] = nofatoms;
@@ -999,13 +1005,40 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 	gmx_bool bOK;
 #endif
 
-	static char *kwlist[] = {
-		"filename", "format", "mode", "units", "symbols", NULL };
+	PyObject *py_sym = NULL;
+	PyObject *py_resid = NULL;
+	PyObject *py_resn = NULL;;
 
-	if(!PyArg_ParseTupleAndKeywords(args, kwds, "s|sssO!", kwlist,
-		    &filename, &str_type, &mode, &units,
-			&PyList_Type, &(self->symbols)))
+	static char *kwlist[] = {
+		"filename",
+		"format", "mode", "units",
+		"symbols", "resids", "resnames", NULL };
+
+	if(!PyArg_ParseTupleAndKeywords(args, kwds, "s|sssO!O!O!", kwlist,
+		    &filename,
+			&str_type, &mode, &units,
+			&PyList_Type, &py_sym,
+			&PyArray_Type, &py_resid,
+			&PyList_Type, &py_resn))
 		return -1;
+
+	if (py_sym != NULL) {
+		Py_DECREF(self->symbols);
+		self->symbols = py_sym;
+		Py_INCREF(self->symbols);
+	}
+
+	if (py_resid != NULL) {
+		Py_DECREF(self->resids);
+		self->resids = py_resid;
+		Py_INCREF(self->resids);
+	}
+
+	if (py_resn != NULL) {
+		Py_DECREF(self->resnames);
+		self->resnames = py_resn;
+		Py_INCREF(self->resnames);
+	}
 
 	self->filename = (char*) malloc(strlen(filename) * sizeof(char));
 	strcpy(self->filename, filename);
@@ -1113,6 +1146,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 				if ( (self->fd = fopen(filename, "r")) == NULL ) {
 					PyErr_SetFromErrno(PyExc_IOError);
 					return -1; }
+				Py_DECREF(self->moldenSections);
 				self->moldenSections = read_molden_sections(self->fd);
 				break;
 			case XTC:
@@ -1226,15 +1260,15 @@ static PyObject *Trajectory_read(Trajectory *self) {
 
 
 
-int traj_write_gro(Trajectory *self, PyArrayObject *py_coords, PyArrayObject *py_vel,
-				PyArrayObject *py_box, char *comment) {
+int traj_write_gro(Trajectory *self, PyObject *py_coords, PyObject *py_vel,
+				PyObject *py_box, char *comment) {
 
-	int nat, i, type;
-	long int resid;
+	int i, resid;
 	double x, y, z;
 	char *s, *resnam;
 	char empty[1] = "";
-	int box_order[] = { 0, 4, 8, 1, 2, 3, 5, 6, 7 };
+	int box_order[9][2] = { {0,0}, {1,1}, {2,2}, {0,1}, {0,2}, {1,0}, {1,2}, {2,0}, {2,1} };
+	double box[9];
 	npy_intp *dims;
 
 	if( comment != NULL )
@@ -1245,46 +1279,41 @@ int traj_write_gro(Trajectory *self, PyArrayObject *py_coords, PyArrayObject *py
 
     for (i = 0; i < self->nofatoms; i++) {
 		if (self->resids != Py_None)
-			resid = PyInt_AsLong(PyList_GetItem(self->resids, i));
+			resid = *((int*) PyArray_GETPTR1((PyArrayObject*)self->resids, i));
 		else
 			resid = 1;
 		if (self->resnames != Py_None)
 			resnam = PyString_AsString(PyList_GetItem(self->resnames, i));
 		else
 			resnam = empty;
-        x = *( (double*) PyArray_GETPTR2(py_coords, i, 0) ) / 10.0;
-        y = *( (double*) PyArray_GETPTR2(py_coords, i, 1) ) / 10.0;
-        z = *( (double*) PyArray_GETPTR2(py_coords, i, 2) ) / 10.0;
+        x = *( (double*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 0) ) / 10.0;
+        y = *( (double*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 1) ) / 10.0;
+        z = *( (double*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 2) ) / 10.0;
         s = PyString_AsString(PyList_GetItem(self->symbols, i));
-        fprintf(self->fd, "%5d%-5s%5s%5ld%8.3lf%8.3lf%8.3lf\n", i+1, resnam, s, resid, x, y, z);
+        fprintf(self->fd, "%5d%-5s%5s%5d%8.3lf%8.3lf%8.3lf\n", resid, resnam, s, i+1, x, y, z);
     }
 
 	/* Do some testing on the array */
 	if (py_box != NULL) {
-		if ( PyArray_NDIM(py_box) != 2 ) {
+		if ( PyArray_NDIM((PyArrayObject*)py_box) != 2 ) {
 			PyErr_SetString(PyExc_ValueError, "Incorrect box shape");
 			return -1; }
 		else {
-			dims = PyArray_DIMS(py_box);
+			dims = PyArray_DIMS((PyArrayObject*)py_box);
 			if (dims[0] != 3 || dims[1] != 3) {
 				PyErr_SetString(PyExc_ValueError, "Incorrect box shape");
 				return -1; }
-			type = PyArray_TYPE(py_box);
 			for (i = 0; i < 9; i++) {
-				switch(type) {
-					case NPY_FLOAT:
-						x = *( (float*) PyArray_GETPTR1(py_box, box_order[i]) );
-						break;
-					case NPY_DOUBLE:
-						x = *( (double*) PyArray_GETPTR1(py_box, box_order[i]) );
-						break;
-					default:
-						PyErr_SetString(PyExc_ValueError, "Incorrect type in box vector");
-						return -1;
-				}
+				x = *( (double*) PyArray_GETPTR2((PyArrayObject*)py_box, box_order[i][0], box_order[i][1]) );
 				x /= 10.0;
-				fprintf(self->fd, "%10.5f\n", x);
+				box[i] = x;
 			}
+			for (i = 0; i < 3; i++)
+				fprintf(self->fd, "%10.5f", box[i]);
+			if (fabs(box[3]) > 1e-6 || fabs(box[4]) > 1e-6 || fabs(box[5]) > 1e-6 ||
+			    fabs(box[6]) > 1e-6 || fabs(box[7]) > 1e-6 || fabs(box[8]) > 1e-6)
+				for (i = 3; i < 9; i++)
+					fprintf(self->fd, "%10.5f", box[i]);
 			fprintf(self->fd, "\n");
 		}
 	} else
@@ -1297,11 +1326,11 @@ int traj_write_gro(Trajectory *self, PyArrayObject *py_coords, PyArrayObject *py
 
 static PyObject *Trajectory_write(Trajectory *self, PyObject *args, PyObject *kwds) {
 
-	PyArrayObject *py_coords = NULL;
-	PyArrayObject *py_vel = NULL;
-	PyArrayObject *py_box = NULL;
+	PyObject *py_coords = NULL;
+	PyObject *py_vel = NULL;
+	PyObject *py_box = NULL;
 	char *comment = NULL;;
-	int nat, i, type;
+	int i, type;
 	double dx, dy, dz;
 	float x, y, z;
 	char *s;
@@ -1329,20 +1358,20 @@ static PyObject *Trajectory_write(Trajectory *self, PyObject *args, PyObject *kw
 		    else
 		        fprintf(self->fd, "\n");
 
-			type = PyArray_TYPE(py_coords);
+			type = PyArray_TYPE((PyArrayObject*)py_coords);
 		    for (i = 0; i < self->nofatoms; i++) {
 		        s = PyString_AsString(PyList_GetItem(self->symbols, i));
 				switch(type) {
 					case NPY_FLOAT:
-				        x = *( (float*) PyArray_GETPTR2(py_coords, i, 0) );
-    				    y = *( (float*) PyArray_GETPTR2(py_coords, i, 1) );
-        				z = *( (float*) PyArray_GETPTR2(py_coords, i, 2) );
+				        x = *( (float*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 0) );
+    				    y = *( (float*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 1) );
+        				z = *( (float*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 2) );
 		        		fprintf(self->fd, "%-3s  %12.6f  %12.6f  %12.6f\n", s, x, y, z);
 						break;
 					case NPY_DOUBLE:
-				        dx = *( (double*) PyArray_GETPTR2(py_coords, i, 0) );
-    				    dy = *( (double*) PyArray_GETPTR2(py_coords, i, 1) );
-        				dz = *( (double*) PyArray_GETPTR2(py_coords, i, 2) );
+				        dx = *( (double*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 0) );
+    				    dy = *( (double*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 1) );
+        				dz = *( (double*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 2) );
 		        		fprintf(self->fd, "%-3s  %12.8lf  %12.8lf  %12.8lf\n", s, dx, dy, dz);
 						break;
 					default:
@@ -1410,8 +1439,12 @@ static PyMemberDef Trajectory_members[] = {
      "Number of atoms"},
     {"nofframes", T_INT, offsetof(Trajectory, nofframes), 0,
      "Number of frames"},
+    {"lastframe", T_INT, offsetof(Trajectory, lastFrame), 0,
+     "Last frame read/written ID"},
     {"moldenSections", T_OBJECT_EX, offsetof(Trajectory, moldenSections), 0,
      "Dictionary containing byte offsets to sections in Molden file"},
+    {"filename", T_STRING, offsetof(Trajectory, filename), 0,
+     "File name"},
     {NULL}  /* Sentinel */
 };
 
