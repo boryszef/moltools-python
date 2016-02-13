@@ -1,4 +1,5 @@
 from numpy.distutils.core import setup, Extension
+from numpy.distutils.misc_util import get_info
 import subprocess
 
 def extraPackagePresent(pkg):
@@ -12,8 +13,16 @@ def getPackageFlags(pkg):
     libs = subprocess.check_output(['pkg-config', '--libs', pkg])
     return cflags.strip(), libs.strip()
 
-extraCFlags = [ "-O0 -g" ]# -Wall -Wextra" ]
-extraLFlags = [ "-O0 -g" ]
+extraCFlags = [ ]#"-O0 -g -Wall -Wextra" ]
+extraLFlags = [ ]#"-O0 -g" ]
+extraInfo = get_info('npymath')
+
+for libdir in extraInfo['library_dirs']:
+    extraLFlags.append("-L"+libdir)
+for lib in extraInfo['libraries']:
+    extraLFlags.append("-l"+lib)
+for hdir in extraInfo['include_dirs']:
+    extraLFlags.append("-I"+hdir)
 
 # Check if gromacs is present
 if extraPackagePresent('libgromacs'):

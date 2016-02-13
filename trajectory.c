@@ -25,6 +25,7 @@
 #define NO_IMPORT_ARRAY
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 #include <numpy/arrayobject.h>
+#include <numpy/halffloat.h>
 
 #include "moltools.h"
 #include "trajectory.h"
@@ -1263,8 +1264,11 @@ static PyObject *Trajectory_read(Trajectory *self) {
 int traj_write_gro(Trajectory *self, PyObject *py_coords, PyObject *py_vel,
 				PyObject *py_box, char *comment) {
 
-	int i, resid;
-	double x, y, z;
+	int i, resid, type;
+	npy_half hx, hy, hz;
+	float x, y, z;
+	double dx, dy, dz;
+	long double lx, ly, lz;
 	char *s, *resnam;
 	char empty[1] = "";
 	int box_order[9][2] = { {0,0}, {1,1}, {2,2}, {0,1}, {0,2}, {1,0}, {1,2}, {2,0}, {2,1} };
@@ -1277,6 +1281,7 @@ int traj_write_gro(Trajectory *self, PyObject *py_coords, PyObject *py_vel,
         fprintf(self->fd, "\n");
     fprintf(self->fd, "%5d\n", self->nofatoms);
 
+	type = PyArray_TYPE((PyArrayObject*)py_coords);
     for (i = 0; i < self->nofatoms; i++) {
 		if (self->resids != Py_None)
 			resid = *((int*) PyArray_GETPTR1((PyArrayObject*)self->resids, i));
@@ -1286,11 +1291,42 @@ int traj_write_gro(Trajectory *self, PyObject *py_coords, PyObject *py_vel,
 			resnam = PyString_AsString(PyList_GetItem(self->resnames, i));
 		else
 			resnam = empty;
-        x = *( (double*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 0) ) / 10.0;
-        y = *( (double*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 1) ) / 10.0;
-        z = *( (double*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 2) ) / 10.0;
         s = PyString_AsString(PyList_GetItem(self->symbols, i));
-        fprintf(self->fd, "%5d%-5s%5s%5d%8.3lf%8.3lf%8.3lf\n", resid, resnam, s, i+1, x, y, z);
+		/* Depending on the dtype used in python, the pointer has to be    *
+		 * casted to the right C type and the correct C type variable must *
+		 * be used.                                                        */
+		switch(type) {
+			case NPY_HALF:
+		        hx = *( (npy_half*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 0) ) / 10.0;
+    		    hy = *( (npy_half*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 1) ) / 10.0;
+        		hz = *( (npy_half*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 2) ) / 10.0;
+				x = npy_half_to_float(hx);
+				y = npy_half_to_float(hy);
+				z = npy_half_to_float(hz);
+        		fprintf(self->fd, "%5d%-5s%5s%5d%8.3f%8.3f%8.3f\n", resid, resnam, s, i+1, x, y, z);
+				break;
+			case NPY_FLOAT:
+		        x = *( (float*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 0) ) / 10.0;
+    		    y = *( (float*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 1) ) / 10.0;
+        		z = *( (float*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 2) ) / 10.0;
+        		fprintf(self->fd, "%5d%-5s%5s%5d%8.3f%8.3f%8.3f\n", resid, resnam, s, i+1, x, y, z);
+				break;
+			case NPY_DOUBLE:
+		        dx = *( (double*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 0) ) / 10.0;
+    		    dy = *( (double*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 1) ) / 10.0;
+        		dz = *( (double*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 2) ) / 10.0;
+        		fprintf(self->fd, "%5d%-5s%5s%5d%8.3lf%8.3lf%8.3lf\n", resid, resnam, s, i+1, dx, dy, dz);
+				break;
+			case NPY_LONGDOUBLE:
+		        lx = *( (long double*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 0) ) / 10.0;
+    		    ly = *( (long double*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 1) ) / 10.0;
+        		lz = *( (long double*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 2) ) / 10.0;
+        		fprintf(self->fd, "%5d%-5s%5s%5d%8.3Lf%8.3Lf%8.3Lf\n", resid, resnam, s, i+1, lx, ly, lz);
+				break;
+			default:
+				PyErr_SetString(PyExc_ValueError, "Incorrect type of coordinate array");
+				return -1;
+		}
     }
 
 	/* Do some testing on the array */
@@ -1303,10 +1339,33 @@ int traj_write_gro(Trajectory *self, PyObject *py_coords, PyObject *py_vel,
 			if (dims[0] != 3 || dims[1] != 3) {
 				PyErr_SetString(PyExc_ValueError, "Incorrect box shape");
 				return -1; }
+			type = PyArray_TYPE((PyArrayObject*)py_box);
 			for (i = 0; i < 9; i++) {
-				x = *( (double*) PyArray_GETPTR2((PyArrayObject*)py_box, box_order[i][0], box_order[i][1]) );
-				x /= 10.0;
-				box[i] = x;
+				switch(type) {
+					case NPY_HALF:
+						hx = *( (npy_half*) PyArray_GETPTR2((PyArrayObject*)py_box, box_order[i][0], box_order[i][1]) );
+						x = npy_half_to_float(hx)/10.0;
+						box[i] = (float)x;
+						break;
+					case NPY_FLOAT:
+						x = *( (float*) PyArray_GETPTR2((PyArrayObject*)py_box, box_order[i][0], box_order[i][1]) );
+						x /= 10.0;
+						box[i] = (float)x;
+						break;
+					case NPY_DOUBLE:
+						dx = *( (double*) PyArray_GETPTR2((PyArrayObject*)py_box, box_order[i][0], box_order[i][1]) );
+						dx /= 10.0;
+						box[i] = (float)dx;
+						break;
+					case NPY_LONGDOUBLE:
+						lx = *( (long double*) PyArray_GETPTR2((PyArrayObject*)py_box, box_order[i][0], box_order[i][1]) );
+						lx /= 10.0;
+						box[i] = (float)lx;
+						break;
+					default:
+						PyErr_Format(PyExc_ValueError, "Incorrect type in box vector (%u)", type);
+						return -1;
+				}
 			}
 			for (i = 0; i < 3; i++)
 				fprintf(self->fd, "%10.5f", box[i]);
@@ -1331,6 +1390,8 @@ static PyObject *Trajectory_write(Trajectory *self, PyObject *args, PyObject *kw
 	PyObject *py_box = NULL;
 	char *comment = NULL;;
 	int i, type;
+	npy_half hx, hy, hz;
+	long double lx, ly, lz;
 	double dx, dy, dz;
 	float x, y, z;
 	char *s;
@@ -1362,11 +1423,20 @@ static PyObject *Trajectory_write(Trajectory *self, PyObject *args, PyObject *kw
 		    for (i = 0; i < self->nofatoms; i++) {
 		        s = PyString_AsString(PyList_GetItem(self->symbols, i));
 				switch(type) {
+					case NPY_HALF:
+				        hx = *( (npy_half*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 0) );
+    				    hy = *( (npy_half*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 1) );
+        				hz = *( (npy_half*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 2) );
+						x = npy_half_to_float(hx);
+						y = npy_half_to_float(hy);
+						z = npy_half_to_float(hz);
+		        		fprintf(self->fd, "%-3s  %8.3f  %8.3f  %8.3f\n", s, x, y, z);
+						break;
 					case NPY_FLOAT:
 				        x = *( (float*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 0) );
     				    y = *( (float*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 1) );
         				z = *( (float*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 2) );
-		        		fprintf(self->fd, "%-3s  %12.6f  %12.6f  %12.6f\n", s, x, y, z);
+		        		fprintf(self->fd, "%-3s  %10.6f  %10.6f  %10.6f\n", s, x, y, z);
 						break;
 					case NPY_DOUBLE:
 				        dx = *( (double*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 0) );
@@ -1374,8 +1444,14 @@ static PyObject *Trajectory_write(Trajectory *self, PyObject *args, PyObject *kw
         				dz = *( (double*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 2) );
 		        		fprintf(self->fd, "%-3s  %12.8lf  %12.8lf  %12.8lf\n", s, dx, dy, dz);
 						break;
+					case NPY_LONGDOUBLE:
+				        lx = *( (long double*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 0) );
+    				    ly = *( (long double*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 1) );
+        				lz = *( (long double*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 2) );
+		        		fprintf(self->fd, "%-3s  %16.10Lf  %16.10Lf  %16.10Lf\n", s, lx, ly, lz);
+						break;
 					default:
-						PyErr_SetString(PyExc_ValueError, "Incorrect type in box vector");
+						PyErr_Format(PyExc_ValueError, "Incorrect type of coordinates array (%u)", type);
 						return NULL;
 				}
 		    }
@@ -1427,24 +1503,24 @@ static PyObject* Trajectory_repr(Trajectory *self) {
 /* Class definition */
 
 static PyMemberDef Trajectory_members[] = {
-    {"symbols", T_OBJECT_EX, offsetof(Trajectory, symbols), 0,
-     "Symbols of atoms"},
-    {"atomicnumbers", T_OBJECT_EX, offsetof(Trajectory, atomicnumbers), 0,
-     "Atomic numbers"},
-    {"resids", T_OBJECT_EX, offsetof(Trajectory, resids), 0,
-     "Residue numbers"},
-    {"resnames", T_OBJECT_EX, offsetof(Trajectory, resnames), 0,
-     "Residue names"},
-    {"nofatoms", T_INT, offsetof(Trajectory, nofatoms), 0,
-     "Number of atoms"},
-    {"nofframes", T_INT, offsetof(Trajectory, nofframes), 0,
-     "Number of frames"},
-    {"lastframe", T_INT, offsetof(Trajectory, lastFrame), 0,
-     "Last frame read/written ID"},
-    {"moldenSections", T_OBJECT_EX, offsetof(Trajectory, moldenSections), 0,
+    {"symbols", T_OBJECT_EX, offsetof(Trajectory, symbols), READONLY,
+     "A list of atomic symbols"},
+    {"atomicnumbers", T_OBJECT_EX, offsetof(Trajectory, atomicnumbers), READONLY,
+     "An ndarray with atomic numbers"},
+    {"resids", T_OBJECT_EX, offsetof(Trajectory, resids), READONLY,
+     "An ndarray with residue numbers - one number per atom"},
+    {"resnames", T_OBJECT_EX, offsetof(Trajectory, resnames), READONLY,
+     "A list of residue names"},
+    {"nofatoms", T_INT, offsetof(Trajectory, nofatoms), READONLY,
+     "Number of atoms (int)"},
+    {"nofframes", T_INT, offsetof(Trajectory, nofframes), READONLY,
+     "Number of frames (int)"},
+    {"lastframe", T_INT, offsetof(Trajectory, lastFrame), READONLY,
+     "The number of the Last frame read or written"},
+    {"moldenSections", T_OBJECT_EX, offsetof(Trajectory, moldenSections), READONLY,
      "Dictionary containing byte offsets to sections in Molden file"},
-    {"filename", T_STRING, offsetof(Trajectory, filename), 0,
-     "File name"},
+    {"filename", T_STRING, offsetof(Trajectory, filename), READONLY,
+     "File name (str)"},
     {NULL}  /* Sentinel */
 };
 
@@ -1517,16 +1593,22 @@ PyTypeObject TrajectoryType = {
 	/* Documentation string */
 	"Trajectory class. Implements reading of trajectories from XYZ. Molden, GRO\n"
 	"and XTC. Writing is implemented for XYZ and GRO. The process is two-step;\n"
-	"first, the object must be created, by specifying filename (reading) or\n"
-	"topology information. Second, frames can be read/saved repeteadly. Reading\n"
-	"examples:\n"
+	"first, the object must be created, by specifying filename (for reading) or\n"
+	"topology information (for writing). Second, frames can be read/saved\n"
+	"repeteadly. Reading examples:\n"
 	"  traj = Trajectory('my.xyz')\n"
 	"  frame1 = traj.read()\n"
 	"  frame2 = traj.read()\n"
+	"Object of the class Trajectory contains such fields as:\n"
+	"symbols, atomicnumbers, resids, resnames, nofatoms, nofframes, lastframe,\n"
+    "moldenSections, filename. Method read() returns a dictionary with items\n"
+	"depending on the file format, but at least 'coordinates' are present.\n"
 	"Writing example:\n"
-	"  traj = Trajectory(symbols_list)\n"
+	"  traj = Trajectory('my.xyz', symbols_list)\n"
 	"  traj.write(coordinates1)\n"
 	"  traj.write(coordinates2)\n"
+	"When writing a trajectory, at least the file name and the list of symbols\n"
+	"must be specified.\n"
 	"Creating an instance for reading:\n"
 	"  traj = Trajectory(filename, format='GUESS', mode='r', units='angs')\n"
 	"Available formats include: XYZ, GRO, MOLDEN, XTC - guessed if not specified.\n"
