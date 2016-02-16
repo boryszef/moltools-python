@@ -31,5 +31,6 @@ PyObject *distanceMatrix(PyObject *self, PyObject *args, PyObject *kwds);
 PyObject *centerofmass(PyObject *, PyObject *);
 PyObject *inertia(PyObject *, PyObject *, PyObject *);
 PyObject *mep_distance(PyObject *, PyObject *, PyObject *);
+PyObject *quatfit(PyObject *self, PyObject *args, PyObject *kwds);
 
 #endif /* __MEASURE_H__ */

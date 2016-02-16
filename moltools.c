@@ -114,6 +114,10 @@ static PyMethodDef moltoolsMethods[] = {
 		"\n"
 		"Computes mass-weighted distance of two structures, as used in\n"
 		"IRC/MEP calculations. If masses are omitted, no weighting is done.\n"
+		"       __________________________\n"
+		"MEP = √ Σ_i (m_i * (δr_i)^2) / M \n"
+		"\n"
+		"When masses are skipped, the function simply assumes m = 1, M = N.\n"
 		"\n" },
 	{"distanceMatrix", (PyCFunction)distanceMatrix, METH_VARARGS | METH_KEYWORDS,
 		"\n"
@@ -153,6 +157,15 @@ static PyMethodDef moltoolsMethods[] = {
 		"Rotates the coordinates so that the principal moments of inertia\n"
 		"are aligned with axes of the coordinate system.\n"
 		"\n" },*/
+	{"quatfit", (PyCFunction)quatfit, METH_VARARGS | METH_KEYWORDS,
+		"\n"
+		"fitted = quatfit(reference, fit, masses=None)\n"
+		"\n"
+		"Performs a quaternion fit of 'fit' ndarray (Nx3) to 'reference'\n"
+		"ndarray (Nx3). If masses (list) are given, the fit is mass weighted.\n"
+		"Returns an (Nx3) ndarray with fitted coordinates. Remember to translate\n"
+		"both molecules to the origin of the coordinate system.\n"
+		"\n" },
 
     {NULL, NULL, 0, NULL}        /* Sentinel */
 };

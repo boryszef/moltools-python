@@ -571,3 +571,6 @@ PyObject *mep_distance(PyObject *self, PyObject *args, PyObject *kwds) {
 }
 
 
+PyObject *quatfit(PyObject *self, PyObject *args, PyObject *kwds) {
+	return NULL;
+}
