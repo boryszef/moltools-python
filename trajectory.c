@@ -414,6 +414,7 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
 	/* Read number of atoms */
 	if( (buffer = readline(self->fd)) == NULL) {
 		PyErr_SetFromErrno(PyExc_IOError);
+		Py_DECREF(py_result);
 		return NULL; }
 
 	if (sscanf(buffer, "%d", &nat) != 1) {
@@ -426,11 +427,13 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
 
 	if (nat != self->nofatoms) {
 		PyErr_SetString(PyExc_IOError, "Error reading number of atoms");
+		Py_DECREF(py_result);
 		return NULL; }
 
 	/* Read the comment line */
 	if((buffer = readline(self->fd)) == NULL) {
 		PyErr_SetFromErrno(PyExc_IOError);
+		Py_DECREF(py_result);
 		return NULL; }
 	buffer[strlen(buffer)-1] = '\0';
 
@@ -445,10 +448,12 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
 	xyz = (ARRAY_REAL*) malloc(3 * self->nofatoms * sizeof(ARRAY_REAL));
 	if(xyz == NULL) {
 		PyErr_SetFromErrno(PyExc_MemoryError);
+		Py_DECREF(py_result);
 		return NULL; }
 	charges = (ARRAY_REAL*) malloc(self->nofatoms * sizeof(ARRAY_REAL));
 	if(charges == NULL) {
 		PyErr_SetFromErrno(PyExc_MemoryError);
+		Py_DECREF(py_result);
 		return NULL; }
 	charges_present = 0;
 
@@ -458,6 +463,7 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
 		/* Get the whole line */
 		if((buffer = readline(self->fd)) == NULL) {
 			PyErr_SetFromErrno(PyExc_IOError);
+		Py_DECREF(py_result);
 			return NULL; }
 		buffer[strlen(buffer)-1] = '\0';
 		buffpos = buffer;
@@ -468,14 +474,17 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
 		/* Read coordinates */
 		if ( (token = strtok(NULL, " ")) == NULL) {
 			PyErr_SetString(PyExc_IOError, "Missing coordinate");
+			Py_DECREF(py_result);
 			return NULL; }
 		xyz[3*pos + 0] = atof(token) * factor;
 		if ( (token = strtok(NULL, " ")) == NULL) {
 			PyErr_SetString(PyExc_IOError, "Missing coordinate");
+			Py_DECREF(py_result);
 			return NULL; }
 		xyz[3*pos + 1] = atof(token) * factor;
 		if ( (token = strtok(NULL, " ")) == NULL) {
 			PyErr_SetString(PyExc_IOError, "Missing coordinate");
+			Py_DECREF(py_result);
 			return NULL; }
 		xyz[3*pos + 2] = atof(token) * factor;
 
@@ -486,6 +495,7 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
 			/* This is bad: until now, there were no charges */
 			if ( pos > 0 && !charges_present ) {
 				PyErr_SetString(PyExc_IOError, "Unexpected charges found");
+				Py_DECREF(py_result);
 				return NULL;
 			}
 
@@ -497,6 +507,7 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
 			/* This is bad: we were expecting charges here and found nothing */
 			if ( pos > 0 && charges_present ) {
 				PyErr_SetString(PyExc_IOError, "Missing charges");
+				Py_DECREF(py_result);
 				return NULL;
 			}
 		}
@@ -623,7 +634,7 @@ static PyObject *read_frame_from_molden_geometries(Trajectory *self) {
 	fseek(self->fd, self->filePosition1, SEEK_SET);
 	py_result = read_frame_from_xyz(self);
 	if (py_result == Py_None) {
-		Py_RETURN_NONE;
+		return py_result;
 	}
 	self->filePosition1 = ftell(self->fd);
 
@@ -1041,7 +1052,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 		Py_INCREF(self->resnames);
 	}
 
-	self->filename = (char*) malloc(strlen(filename) * sizeof(char));
+	self->filename = (char*) malloc((strlen(filename)+1) * sizeof(char));
 	strcpy(self->filename, filename);
 	if (mode == NULL || mode[0] == 'r')
 		self->mode = 'r';
@@ -1143,6 +1154,10 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 		switch(self->type) {
 			case XYZ:
 			case GRO:
+				if ( (self->fd = fopen(filename, "r")) == NULL ) {
+					PyErr_SetFromErrno(PyExc_IOError);
+					return -1; }
+				break;
 			case MOLDEN:
 				if ( (self->fd = fopen(filename, "r")) == NULL ) {
 					PyErr_SetFromErrno(PyExc_IOError);
@@ -1225,14 +1240,14 @@ static PyObject *Trajectory_read(Trajectory *self) {
 
 		case XYZ:
 			py_result = read_frame_from_xyz(self);
-			if (py_result == Py_None) Py_RETURN_NONE;
+			if (py_result == Py_None) return py_result;
 			self->filePosition1 = ftell(self->fd);
 			self->filePosition1 = self->filePosition2;
 			break;
 
 		case GRO:
 			py_result = read_frame_from_gro(self);
-			if (py_result == Py_None) Py_RETURN_NONE;
+			if (py_result == Py_None) return py_result;
 			self->filePosition1 = ftell(self->fd);
 			self->filePosition1 = self->filePosition2;
 			break;
@@ -1242,7 +1257,7 @@ static PyObject *Trajectory_read(Trajectory *self) {
 				py_result = read_frame_from_molden_atoms(self);
 			else
 				py_result = read_frame_from_molden_geometries(self);
-			if (py_result == Py_None) Py_RETURN_NONE;
+			if (py_result == Py_None) return py_result;
 			break;
 
 		case XTC:

@@ -26,6 +26,7 @@ int build_tables(PyObject **list_symbols, PyObject **list_names,
 	/* Set the first element to None, so that indexing starts at 1 */
 	val = Py_BuildValue("s", "");
 	PyList_SetItem(*list_symbols, 0, val);
+	Py_INCREF(val);
 	PyList_SetItem(*list_names, 0, val);
 	Py_INCREF(Py_None);
 	PyList_SetItem(*list_masses, 0, Py_None);
