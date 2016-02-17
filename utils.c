@@ -244,3 +244,36 @@ void copyPoint(double dst[3], double src[3]) {
 	dst[1] = src[1];
 	dst[2] = src[2];
 }
+
+float getFromArray2D(PyObject *arr, int i, int j) {
+	int type;
+	npy_half hx;
+	float fx;
+	double dx;
+	long double lx;
+
+	type = PyArray_TYPE((PyArrayObject*)arr);
+	switch(type) {
+		case NPY_HALF:
+	        hx = *( (npy_half*) PyArray_GETPTR2((PyArrayObject*)arr, i, j));
+			fx = npy_half_to_float(hx);
+        	return fx;
+			break;
+		case NPY_FLOAT:
+	        fx = *( (float*) PyArray_GETPTR2((PyArrayObject*)arr, i, j));
+        	return fx;
+			break;
+		case NPY_DOUBLE:
+	        dx = *( (double*) PyArray_GETPTR2((PyArrayObject*)arr, i, j));
+        	return (float)dx;
+			break;
+		case NPY_LONGDOUBLE:
+	        lx = *( (long double*) PyArray_GETPTR2((PyArrayObject*)arr, i, j));
+        	return (float)lx;
+			break;
+		default:
+			PyErr_SetString(PyExc_ValueError, "Incorrect type of coordinate array");
+			return NAN;
+			break;
+    }
+}

@@ -572,5 +572,85 @@ PyObject *mep_distance(PyObject *self, PyObject *args, PyObject *kwds) {
 
 
 PyObject *quatfit(PyObject *self, PyObject *args, PyObject *kwds) {
+
+	PyObject *py_coords1, *py_coords2, py_masses;
+	npy_intp *dim1, *dim2, *dim3;
+	int nat, i;
+	float *csum, *cdif, *mean, *a, *b;
+	float x, y, m00, m01, m02, m03, m11, m12, m13, m22, m23, m33;
+
+	static char *kwlist[] = {
+		"coordinates1", "coordinates2", "masses", NULL };
+
+	if(!PyArg_ParseTupleAndKeywords(args, kwds, "O!O!|O!", kwlist,
+			&PyArray_Type, &py_coords1,
+			&PyArray_Type, &py_coords2,
+			&PyArray_Type, &py_masses))
+		return NULL;
+
+	dim1 = PyArray_DIMS(py_coords1);
+	dim2 = PyArray_DIMS(py_coords2);
+	if (dim1[0] != dim2[0]) {
+		PyErr_SetString(PyExc_RuntimeError, "Arrays not aligned.");
+		return NULL;
+	}
+
+	if ( py_masses != NULL ) {
+		dim3 = PyArray_DIMS(py_masses);
+		if (dim1[0] != dim3[0]) {
+			PyErr_SetString(PyExc_RuntimeError, "Arrays not aligned.");
+			return NULL;
+		}
+	}
+
+	nat = dim1[0];
+
+	csum = (float*) malloc(3 * nat * sizeof(float));
+	cdif = (float*) malloc(3 * nat * sizeof(float));
+	mean = (float*) malloc(10 * sizeof(float));
+	if (csum == NULL || cdiff == NULL || mean == NULL) {
+		PyErr_SetFromErrno(PyExc_MemoryError);
+		return NULL; }
+
+	// Calculate csum = X+Y, cdif = X-Y
+	for (i = 0; i < nat; i++) {
+		x = getFromArray2D(py_coords1, i, 0);
+		y = getFromArray2D(py_coords2, i, 0);
+		csum[3*i] = x+y;
+		cdif[3*i] = x-y;
+		x = getFromArray2D(py_coords1, i, 1);
+		y = getFromArray2D(py_coords2, i, 1);
+		csum[3*i+1] = x+y;
+		cdif[3*i+1] = x-y;
+		x = getFromArray2D(py_coords1, i, 2);
+		y = getFromArray2D(py_coords2, i, 2);
+		csum[3*i+2] = x+y;
+		cdif[3*i+2] = x-y;
+	}
+
+	// Calulate mean of A_i = A^t . A
+	for (i = 0; i < nat; i++) {
+
+		a = csum + i*3;
+		b = cdif + i*3;
+
+		m00 += b[0]*b[0] + b[1]*b[1] + b[2]*b[2];
+		m01 += a[2]*b[1] - a[1]*b[2];
+		m02 += a[0]*b[2] - a[2]*b[0];
+		m03 += a[1]*b[0] - a[0]*b[1];
+
+		m11 += a[1]*a[1] + a[2]*a[2] + b[0]*b[0];
+		m12 += b[0]*b[1] - a[0]*a[1];
+		m13 += b[0]*b[2] - a[0]*a[2];
+                 
+		m22 += a[0]*a[0] + a[2]*a[2] + b[1]*b[1];
+		m23 += b[1]*b[2] - a[1]*a[2];
+
+		m33 += a[0]*a[0] + a[1]*a[1] + b[2]*b[2];
+
+	}
+
+	//for (i = 0; i < 10; i++) mean[i] /= nat;
+
 	return NULL;
 }

@@ -39,5 +39,6 @@ void nearestImage(double center[3], double other[3], double half[3]);
 double threePointAngleCosine(double A[3], double B[3], double C[3]);
 double distanceSquare(double p[3], double q[3]);
 void copyPoint(double dst[3], double src[3]);
+float getFromArray2D(PyObject *arr, int i, int j);
 
 #endif /* __MOLTOOLS_H__ */
