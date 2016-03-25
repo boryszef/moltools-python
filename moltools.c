@@ -209,15 +209,15 @@ PyMODINIT_FUNC initmoltools(void)
 	PyObject *exposed_atom_symbols, *exposed_atom_names;
 	PyObject *exposed_atom_masses, *exposed_symbol2number;
 	PyObject *exposed_covalentradii;
-	extern PyTypeObject EAMffType;
+	//extern PyTypeObject EAMffType;
 	extern PyTypeObject MoleculeType;
 
 	/* Use system-wide locale, but make sure that decimal point is a point! */
 	setlocale(LC_ALL, "");
 	setlocale(LC_NUMERIC, "C");
 
-	if (PyType_Ready(&EAMffType) < 0)
-		return;
+	//if (PyType_Ready(&EAMffType) < 0)
+	//	return;
 	if (PyType_Ready(&MoleculeType) < 0)
 		return;
 
@@ -241,8 +241,8 @@ PyMODINIT_FUNC initmoltools(void)
 	PyModule_AddObject(md, "AtomicNumbers" , exposed_symbol2number);
 	PyModule_AddObject(md, "CovalentRadii" , exposed_covalentradii);
 
-	Py_INCREF(&EAMffType);
-	PyModule_AddObject(md, "EAMff", (PyObject *)&EAMffType);
+	//Py_INCREF(&EAMffType);
+	//PyModule_AddObject(md, "EAMff", (PyObject *)&EAMffType);
 
 	Py_INCREF(&MoleculeType);
 	PyModule_AddObject(md, "Molecule", (PyObject *)&MoleculeType);
