@@ -29,7 +29,7 @@ PyObject *findHBonds(PyObject *self, PyObject *args, PyObject *kwds) {
 		"symbols", "coordinates", "acceptors", "box", "cutoff",
 		"carbon_cutoff", "acceptor_cutoff", "angle_cutoff", NULL };
 
-	if(!PyArg_ParseTupleAndKeywords(args, kwds, "O!O!O!|O!ddd", kwlist,
+	if(!PyArg_ParseTupleAndKeywords(args, kwds, "O!O!O!|O!dddd", kwlist,
 			&PyList_Type, &py_syms,
 			&PyArray_Type, &py_coords,
 			&PyList_Type, &py_accs,
