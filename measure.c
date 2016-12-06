@@ -211,7 +211,7 @@ PyObject *findHBonds(PyObject *self, PyObject *args, PyObject *kwds) {
 			cosval = threePointAngleCosine(A, B, C);
 
 			if (cosval > cos_cutoff) {
-				tuple = Py_BuildValue("(iii)", h, i, j);
+				tuple = Py_BuildValue("(iii)", h, nearest, j);
 				PyList_Append(out, tuple);
 				Py_DECREF(tuple);
 			}
