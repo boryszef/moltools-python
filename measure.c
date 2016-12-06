@@ -16,30 +16,32 @@ PyObject *findHBonds(PyObject *self, PyObject *args, PyObject *kwds) {
 	char *atomSymbol1, *atomSymbol2;
 	npy_intp *numpyint;
     int use_pbc, type, naccept, natoms;
-	int h, i, j;
+	int h, i, j, nearest;
 	double box[3], half[3];
 	double H[3], I[3], J[3], other[3], nearHI[3], nearHJ[3];
 	double *A, *B, *C;
-	double d2hi, d2hj, d2ij, cosval, cos_cutoff;
-	double cutoff = 3.5, carbon_cutoff = -1.0, angle_cutoff = 30.;
+	double d2hi, d2hj, d2ij, cosval, cos_cutoff, test;
+	double cutoff = 3.5, carbon_cutoff = -1.0;
+	double acceptor_cutoff = 2.6, angle_cutoff = 30.;
 	char **acceptors;
 
 	static char *kwlist[] = {
 		"symbols", "coordinates", "acceptors", "box", "cutoff",
-		"carbon_cutoff", "angle_cutoff", NULL };
+		"carbon_cutoff", "acceptor_cutoff", "angle_cutoff", NULL };
 
 	if(!PyArg_ParseTupleAndKeywords(args, kwds, "O!O!O!|O!ddd", kwlist,
 			&PyList_Type, &py_syms,
 			&PyArray_Type, &py_coords,
 			&PyList_Type, &py_accs,
 			&PyArray_Type, &py_box,
-			&cutoff, &carbon_cutoff, &angle_cutoff))
+			&cutoff, &carbon_cutoff, &acceptor_cutoff, &angle_cutoff))
 		return NULL;
 
 	if (carbon_cutoff < 0) carbon_cutoff = cutoff;
 
 	cutoff *= cutoff;
 	carbon_cutoff *= carbon_cutoff;
+	acceptor_cutoff *= acceptor_cutoff;
 
 	cos_cutoff = cos(angle_cutoff / 180. * M_PI);
 
@@ -88,12 +90,18 @@ PyObject *findHBonds(PyObject *self, PyObject *args, PyObject *kwds) {
 		}
 		if (use_pbc) wrapCartesian(H, box);
 
+		// Find the nearest heavy atom
+
+		d2hi = -1.0;
+
 		for (i = 0; i < natoms; i++) {
 
 			if (h == i) continue;
 
 			atomSymbol1 = PyString_AsString(PyList_GetItem(py_syms, i));
-			if (!lookupStringInList(atomSymbol1, acceptors, naccept)) continue;
+			//if (!lookupStringInList(atomSymbol1, acceptors, naccept)) continue;
+
+			if(!strcmp(atomSymbol1, "H")) continue;
 
 			switch(type) {
 				case NPY_FLOAT:
@@ -111,78 +119,102 @@ PyObject *findHBonds(PyObject *self, PyObject *args, PyObject *kwds) {
 				wrapCartesian(I, box);
 				copyPoint(nearHI, I);
 				nearestImage(H, nearHI, half);
-				d2hi = distanceSquare(H, nearHI);
+				test = distanceSquare(H, nearHI);
 			} else
-				d2hi = distanceSquare(H, I);
+				test = distanceSquare(H, I);
 
-			if (d2hi > cutoff) continue;
+			//if (d2hi > cutoff) continue;
+			if (d2hi < 0 || d2hi > test) {
+				d2hi = test;
+				nearest = i;
+			}
+		}
 
-			if (!strcmp(atomSymbol1, "C") && d2hi > carbon_cutoff) continue;
+		// Skip if the nearest is not in the list
+		atomSymbol1 = PyString_AsString(PyList_GetItem(py_syms, nearest));
+		if (!lookupStringInList(atomSymbol1, acceptors, naccept)) continue;
 
-			for (j = i+1; j < natoms; j++) {
+		switch(type) {
+			case NPY_FLOAT:
+				I[0] = *( (float*) PyArray_GETPTR2(py_coords, nearest, 0) );
+				I[1] = *( (float*) PyArray_GETPTR2(py_coords, nearest, 1) );
+				I[2] = *( (float*) PyArray_GETPTR2(py_coords, nearest, 2) );
+				break;
+			case NPY_DOUBLE:
+				I[0] = *( (double*) PyArray_GETPTR2(py_coords, nearest, 0) );
+				I[1] = *( (double*) PyArray_GETPTR2(py_coords, nearest, 1) );
+				I[2] = *( (double*) PyArray_GETPTR2(py_coords, nearest, 2) );
+				break;
+		}
 
-				atomSymbol2 = PyString_AsString(PyList_GetItem(py_syms, j));
-				if (!lookupStringInList(atomSymbol2, acceptors, naccept)) continue;
+		//if (!strcmp(atomSymbol1, "C") && d2hi > carbon_cutoff) continue;
 
-				switch(type) {
-					case NPY_FLOAT:
-						J[0] = *( (float*) PyArray_GETPTR2(py_coords, j, 0) );
-						J[1] = *( (float*) PyArray_GETPTR2(py_coords, j, 1) );
-						J[2] = *( (float*) PyArray_GETPTR2(py_coords, j, 2) );
-						break;
-					case NPY_DOUBLE:
-						J[0] = *( (double*) PyArray_GETPTR2(py_coords, j, 0) );
-						J[1] = *( (double*) PyArray_GETPTR2(py_coords, j, 1) );
-						J[2] = *( (double*) PyArray_GETPTR2(py_coords, j, 2) );
-						break;
-				}
+		for (j = 0; j < natoms; j++) {
 
-				if (use_pbc) {
-					wrapCartesian(J, box);
-					copyPoint(nearHJ, J);
-					nearestImage(H, nearHJ, half);
-					d2hj = distanceSquare(H, nearHJ);
-				} else
-					d2hj = distanceSquare(H, J);
+			if (j == nearest || j == h) continue;
 
-				if (d2hj > cutoff) continue;
+			atomSymbol2 = PyString_AsString(PyList_GetItem(py_syms, j));
+			if (!lookupStringInList(atomSymbol2, acceptors, naccept)) continue;
 
-				if (!strcmp(atomSymbol2, "C") && d2hj > carbon_cutoff) continue;
+			if(!strcmp(atomSymbol1, "C")) continue;
 
-				if (use_pbc) {
-					copyPoint(other, J);
-					nearestImage(I, other, half);
-					d2ij = distanceSquare(I, other);
-				} else
-					d2ij = distanceSquare(I, J);
-
-				if (d2ij > cutoff) continue;
-
-				if (!strcmp(atomSymbol1, "C") || !strcmp(atomSymbol2, "C") && d2ij > carbon_cutoff) continue;
-
-				A = H;
-				if (d2hi < d2hj) {
-					B = I;
-					C = J;
-				} else {
-					B = J;
-					C = I;
-				}
-
-				if (use_pbc) {
-					nearestImage(B, A, half);
-					nearestImage(B, C, half);
-				}
-
-				cosval = threePointAngleCosine(A, B, C);
-
-				if (cosval > cos_cutoff) {
-					tuple = Py_BuildValue("(iii)", h, i, j);
-					PyList_Append(out, tuple);
-					Py_DECREF(tuple);
-				}
+			switch(type) {
+				case NPY_FLOAT:
+					J[0] = *( (float*) PyArray_GETPTR2(py_coords, j, 0) );
+					J[1] = *( (float*) PyArray_GETPTR2(py_coords, j, 1) );
+					J[2] = *( (float*) PyArray_GETPTR2(py_coords, j, 2) );
+					break;
+				case NPY_DOUBLE:
+					J[0] = *( (double*) PyArray_GETPTR2(py_coords, j, 0) );
+					J[1] = *( (double*) PyArray_GETPTR2(py_coords, j, 1) );
+					J[2] = *( (double*) PyArray_GETPTR2(py_coords, j, 2) );
+					break;
 			}
 
+			if (use_pbc) {
+				wrapCartesian(J, box);
+				copyPoint(nearHJ, J);
+				nearestImage(H, nearHJ, half);
+				d2hj = distanceSquare(H, nearHJ);
+			} else
+				d2hj = distanceSquare(H, J);
+
+			if (d2hj > acceptor_cutoff) continue;
+
+			//if (!strcmp(atomSymbol2, "C") && d2hj > carbon_cutoff) continue;
+
+			if (use_pbc) {
+				copyPoint(other, J);
+				nearestImage(I, other, half);
+				d2ij = distanceSquare(I, other);
+			} else
+				d2ij = distanceSquare(I, J);
+
+			if (d2ij > cutoff) continue;
+
+			if (!strcmp(atomSymbol1, "C") && d2ij > carbon_cutoff) continue;
+
+			A = H;
+			if (d2hi < d2hj) {
+				B = I;
+				C = J;
+			} else {
+				B = J;
+				C = I;
+			}
+
+			if (use_pbc) {
+				nearestImage(B, A, half);
+				nearestImage(B, C, half);
+			}
+
+			cosval = threePointAngleCosine(A, B, C);
+
+			if (cosval > cos_cutoff) {
+				tuple = Py_BuildValue("(iii)", h, i, j);
+				PyList_Append(out, tuple);
+				Py_DECREF(tuple);
+			}
 		}
 	}
 
