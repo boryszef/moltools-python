@@ -11,7 +11,7 @@ int lookupStringInList(char *needle, char **stack, int len) {
 
 
 PyObject *findHBonds(PyObject *self, PyObject *args, PyObject *kwds) {
-	PyArrayObject *py_coords, *py_box;
+	PyArrayObject *py_coords, *py_box = NULL;
 	PyObject *py_syms, *py_accs, *out, *tuple;
 	char *atomSymbol1, *atomSymbol2;
 	npy_intp *numpyint;
@@ -39,6 +39,7 @@ PyObject *findHBonds(PyObject *self, PyObject *args, PyObject *kwds) {
 
 	if (carbon_cutoff < 0) carbon_cutoff = cutoff;
 
+	//printf("%f %f %f\n", cutoff, carbon_cutoff, acceptor_cutoff);
 	cutoff *= cutoff;
 	carbon_cutoff *= carbon_cutoff;
 	acceptor_cutoff *= acceptor_cutoff;
@@ -132,7 +133,8 @@ PyObject *findHBonds(PyObject *self, PyObject *args, PyObject *kwds) {
 
 		// Skip if the nearest is not in the list
 		atomSymbol1 = PyString_AsString(PyList_GetItem(py_syms, nearest));
-		if (!lookupStringInList(atomSymbol1, acceptors, naccept)) continue;
+		//if (!lookupStringInList(atomSymbol1, acceptors, naccept)) continue;
+		//commented out - the list should apply only to acceptors
 
 		switch(type) {
 			case NPY_FLOAT:
@@ -156,7 +158,7 @@ PyObject *findHBonds(PyObject *self, PyObject *args, PyObject *kwds) {
 			atomSymbol2 = PyString_AsString(PyList_GetItem(py_syms, j));
 			if (!lookupStringInList(atomSymbol2, acceptors, naccept)) continue;
 
-			if(!strcmp(atomSymbol1, "C")) continue;
+			//if(!strcmp(atomSymbol1, "C")) continue;
 
 			switch(type) {
 				case NPY_FLOAT:
@@ -194,21 +196,24 @@ PyObject *findHBonds(PyObject *self, PyObject *args, PyObject *kwds) {
 
 			if (!strcmp(atomSymbol1, "C") && d2ij > carbon_cutoff) continue;
 
-			A = H;
+			/*A = H;
 			if (d2hi < d2hj) {
 				B = I;
 				C = J;
 			} else {
 				B = J;
 				C = I;
-			}
+			}*/
 
 			if (use_pbc) {
-				nearestImage(B, A, half);
-				nearestImage(B, C, half);
+				//nearestImage(B, A, half);
+				//nearestImage(B, C, half);
+				nearestImage(I, H, half);
+				nearestImage(I, J, half);
 			}
 
-			cosval = threePointAngleCosine(A, B, C);
+			//cosval = threePointAngleCosine(A, B, C);
+			cosval = threePointAngleCosine(H, I, J);
 
 			if (cosval > cos_cutoff) {
 				tuple = Py_BuildValue("(iii)", h, nearest, j);
