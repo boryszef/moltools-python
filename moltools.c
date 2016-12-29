@@ -21,10 +21,17 @@
  ***************************************************************************/
 
 
+#define PY_ARRAY_UNIQUE_SYMBOL MOLTOOLS
+#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+#include <numpy/arrayobject.h>
+
 #include "moltools.h"
-
-//#include "periodic_table.c"
-
+#include "periodic_table.h"
+//#include "writers.h"
+//#include "readers.h"
+#include "measure.h"
+#include "constants.h"
+#include "topology.h"
 
 
 
@@ -63,64 +70,13 @@ static PyObject *mass_list(PyObject *self, PyObject *args) {
 }
 
 
-static PyObject *rot_inertia(PyObject *self, PyObject *args, PyObject *kwds) {
+/*static PyObject *rot_inertia(PyObject *self, PyObject *args, PyObject *kwds) {
 	return NULL;
-}
+}*/
 
 
 static PyMethodDef moltoolsMethods[] = {
-    {"read", (PyCFunction)exposed_read, METH_VARARGS | METH_KEYWORDS,
-		"\n"
-		"dict = read(filename [, unit ] )\n"
-		"\n"
-		"Reads a coordinate file and returns data as a dictionary.\n"
-		"Currently, supports only XYZ and Molden formats. In some file\n"
-		"formats the unit can be chosen between unit = angs, bohr, nm.\n"
-		"\n"
-		"XYZ:    supports extended files (charges in the fifth column)\n"
-		"        as well as standard files; coordinates are assumed to be\n"
-		"        in Angstroms. Also supports multiframe files. In that\n"
-		"        case, returns a list of dictionaries.\n"
-		"\n"
-		"Molden: supports groups N_GEO, GEOCONV (energies only),\n"
-		"        GEOMETRIES (XYZ only), ATOMS (Angstroms only).\n"
-		"\n"
-		"Output structure, dictionary including various keys, depending\n"
-		"on what is found in the file:\n"
-		"\n"
-		"number_of_atoms - number of atoms (int)\n"
-		"comment         - comment line extracted from second line (str)\n"
-		"symbols         - atom symbols (list)\n"
-		"coordinates     - array of [number_of_atoms,3] coordinates\n"
-		"                  (numpy array)\n"
-		"charges         - array of [number_of_atoms] point charges\n"
-		"                  (numpy array)\n"
-		"energies        - energies of the subsequent configurations\n"
-		"                  (numpy array)\n"
-		"geometries      - list of dictionaries, one for each configuration\n"
-		"atomic_numbers  - atomic numbers (nuclear charge, numpy array, int)\n"
-		"\n" },
-    {"write", (PyCFunction)exposed_write, METH_VARARGS | METH_KEYWORDS,
-		"\n"
-		"write(FILENAME, SYMBOLS, COORDS, [ comment=COMMENT,\n"
-		"      residues=RESNAM, residue_numbers=RESNUM, box=PBCBOX,\n"
-		"      format=FORMAT, mode=MODE ])\n"
-		"\n"
-		"Write structure in XYZ or GRO format. Following parameters are\n"
-		"obligatory:\n"
-		"FILENAME - file name (string)\n"
-		"SYMBOLS  - atomic symbols (list)\n"
-		"COORDS   - coordinates (numpy array)\n"
-		"Following parameters are optional:\n"
-		"FORMAT   - file format, 'XYZ' or 'GRO' (default 'XYZ')\n"
-		"MODE     - writing mode, 'w' or 'a' (default 'w')\n"
-		"COMMENT  - comment text (string), default is empty\n"
-		"RESNAM   - residue names (list of strings), default are empty\n"
-		"           strings\n"
-		"RESNUM   - residue numbers (list if int), default is 1\n"
-		"PBCBOX   - Dimentions of the box, used in PBC (numpy array);\n"
-		"           required when GRO format is used\n"
-		"\n" },
+
 	{"findBonds", (PyCFunction)find_bonds, METH_VARARGS | METH_KEYWORDS,
 		"\n"
 		"findBonds(symbols, coordinates, factor=1.3, format=list)\n"
@@ -159,6 +115,10 @@ static PyMethodDef moltoolsMethods[] = {
 		"\n"
 		"Computes mass-weighted distance of two structures, as used in\n"
 		"IRC/MEP calculations. If masses are omitted, no weighting is done.\n"
+		"       __________________________\n"
+		"MEP = √ Σ_i (m_i * (δr_i)^2) / M \n"
+		"\n"
+		"When masses are skipped, the function simply assumes m = 1, M = N.\n"
 		"\n" },
 	{"distanceMatrix", (PyCFunction)distanceMatrix, METH_VARARGS | METH_KEYWORDS,
 		"\n"
@@ -191,12 +151,21 @@ static PyMethodDef moltoolsMethods[] = {
 		"\n"
 		"Computes the moments of inertia tensor of a molecule.\n"
 		"\n" },
-	{"rot_inertia", (PyCFunction)rot_inertia, METH_VARARGS | METH_KEYWORDS,
+	/*{"rot_inertia", (PyCFunction)rot_inertia, METH_VARARGS | METH_KEYWORDS,
 		"\n"
 		"coordinates_rot, principal_moments = rot_inertia(coordinates, inertia_tensor)\n"
 		"\n"
 		"Rotates the coordinates so that the principal moments of inertia\n"
 		"are aligned with axes of the coordinate system.\n"
+		"\n" },*/
+	{"quatfit", (PyCFunction)quatfit, METH_VARARGS | METH_KEYWORDS,
+		"\n"
+		"fitted = quatfit(reference, fit, masses=None)\n"
+		"\n"
+		"Performs a quaternion fit of 'fit' ndarray (Nx3) to 'reference'\n"
+		"ndarray (Nx3). If masses (list) are given, the fit is mass weighted.\n"
+		"Returns an (Nx3) ndarray with fitted coordinates. Remember to translate\n"
+		"both molecules to the origin of the coordinate system.\n"
 		"\n" },
 
     {NULL, NULL, 0, NULL}        /* Sentinel */
@@ -210,7 +179,9 @@ PyMODINIT_FUNC initmoltools(void)
 	PyObject *exposed_atom_masses, *exposed_symbol2number;
 	PyObject *exposed_covalentradii;
 	//extern PyTypeObject EAMffType;
-	extern PyTypeObject MoleculeType;
+	extern PyTypeObject TrajectoryType;
+	//extern PyTypeObject FrameType;
+
 
 	/* Use system-wide locale, but make sure that decimal point is a point! */
 	setlocale(LC_ALL, "");
@@ -218,8 +189,12 @@ PyMODINIT_FUNC initmoltools(void)
 
 	//if (PyType_Ready(&EAMffType) < 0)
 	//	return;
-	if (PyType_Ready(&MoleculeType) < 0)
+
+	if (PyType_Ready(&TrajectoryType) < 0)
+
 		return;
+	//if (PyType_Ready(&FrameType) < 0)
+	//	return;
 
     md = Py_InitModule3("moltools", moltoolsMethods,
 	     "The moltools module provides some classes and functions related to molecular "
@@ -244,7 +219,10 @@ PyMODINIT_FUNC initmoltools(void)
 	//Py_INCREF(&EAMffType);
 	//PyModule_AddObject(md, "EAMff", (PyObject *)&EAMffType);
 
-	Py_INCREF(&MoleculeType);
-	PyModule_AddObject(md, "Molecule", (PyObject *)&MoleculeType);
+	Py_INCREF(&TrajectoryType);
+	PyModule_AddObject(md, "Trajectory", (PyObject *)&TrajectoryType);
+
+	//Py_INCREF(&FrameType);
+	//PyModule_AddObject(md, "Frame", (PyObject *)&FrameType);
 }
 

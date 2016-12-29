@@ -21,26 +21,12 @@
  ***************************************************************************/
 
 
-#ifndef __MOLTOOLS_H__
-#define __MOLTOOLS_H__
+#ifndef __CONSTANTS_H__
+#define __CONSTANTS_H__
 
 
-#include <Python.h>
-#include "structmember.h"
-//#include <stdio.h>
-//#include <stdlib.h>
-//#include <string.h>
-//#include <errno.h>
-#include <locale.h>
-//#include <math.h>
-//#include <sys/types.h>
-//#include <sys/stat.h>
-//#include <unistd.h>
+int build_tables(PyObject **list_symbols, PyObject **list_names,
+                 PyObject **list_masses, PyObject **symbol2number,
+                 PyObject **dict_radii);
 
-#define BOHRTOANGS 0.529177209
-
-#define ARRAY_REAL double
-#define NPY_ARRAY_REAL NPY_DOUBLE
-
-
-#endif /* __MOLTOOLS_H__ */
+#endif /* __CONSTANTS_H__ */

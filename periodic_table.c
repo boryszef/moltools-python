@@ -20,7 +20,7 @@
 
  ***************************************************************************/
 
-#include "moltools.h"
+#include "periodic_table.h"
 
 /* Covalent radii are taken from:
  * http://pubs.rsc.org/en/content/articlehtml/2008/dt/b801115j

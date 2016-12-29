@@ -21,13 +21,14 @@
  ***************************************************************************/
 
 
-#include "moltools.h"
+#define PY_ARRAY_UNIQUE_SYMBOL MOLTOOLS
+#define NO_IMPORT_ARRAY
+#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+#include <numpy/arrayobject.h>
 
-
-typedef struct {
-	int len;
-	int *idx;
-} Group;
+#include "periodic_table.h"
+#include "utils.h"
+#include "topology.h"
 
 
 static int groupOverlap(Group a, Group b) {
@@ -145,7 +146,7 @@ PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds) {
 		}
 		val1 = PyList_GetItem(py_symbols, i); // borrowed
 		idx = getElementIndexBySymbol(PyString_AsString(val1));
-		if(element_table[idx].number == -1) {
+		if(idx == -1) {
 			PyErr_SetString(PyExc_RuntimeError, "Symbol unrecognized.");
 			return NULL; }
 		ar = element_table[idx].covalent_radius;
@@ -169,7 +170,7 @@ PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds) {
 			}
 			val2 = PyList_GetItem(py_symbols, j); // borrowed
 			idx = getElementIndexBySymbol(PyString_AsString(val2));
-			if(element_table[idx].number == -1) {
+			if(idx == -1) {
 				PyErr_SetString(PyExc_RuntimeError, "Symbol unrecognized.");
 				return NULL; }
 			br = element_table[idx].covalent_radius;

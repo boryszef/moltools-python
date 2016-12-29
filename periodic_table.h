@@ -21,26 +21,16 @@
  ***************************************************************************/
 
 
-#ifndef __MOLTOOLS_H__
-#define __MOLTOOLS_H__
+#ifndef __PERIODIC_TABLE_H__
+#define __PERIODIC_TABLE_H__
 
 
-#include <Python.h>
-#include "structmember.h"
-//#include <stdio.h>
-//#include <stdlib.h>
-//#include <string.h>
-//#include <errno.h>
-#include <locale.h>
-//#include <math.h>
-//#include <sys/types.h>
-//#include <sys/stat.h>
-//#include <unistd.h>
+typedef const struct element__ {
+		int number;
+		double mass;
+		const char *symbol;
+		const char *name;
+		float covalent_radius;
+	} Element;
 
-#define BOHRTOANGS 0.529177209
-
-#define ARRAY_REAL double
-#define NPY_ARRAY_REAL NPY_DOUBLE
-
-
-#endif /* __MOLTOOLS_H__ */
+#endif /* __PERIODIC_TABLE_H__ */

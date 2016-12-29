@@ -1,4 +1,10 @@
-#include "moltools.h"
+#define PY_ARRAY_UNIQUE_SYMBOL MOLTOOLS
+#define NO_IMPORT_ARRAY
+#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+#include <numpy/arrayobject.h>
+
+//#include "moltools.h"
+#include "utils.h"
 
 
 int lookupStringInList(char *needle, char **stack, int len) {
@@ -122,12 +128,75 @@ PyObject *findHBonds(PyObject *self, PyObject *args, PyObject *kwds) {
 				nearestImage(H, nearHI, half);
 				test = distanceSquare(H, nearHI);
 			} else
-				test = distanceSquare(H, I);
+				d2hi = distanceSquare(H, I);
 
-			//if (d2hi > cutoff) continue;
-			if (d2hi < 0 || d2hi > test) {
-				d2hi = test;
-				nearest = i;
+			if (d2hi > cutoff) continue;
+
+			if (!strcmp(atomSymbol1, "C") && d2hi > carbon_cutoff) continue;
+
+			for (j = i+1; j < natoms; j++) {
+
+				atomSymbol2 = PyString_AsString(PyList_GetItem(py_syms, j));
+				if (!lookupStringInList(atomSymbol2, acceptors, naccept)) continue;
+
+				switch(type) {
+					case NPY_FLOAT:
+						J[0] = *( (float*) PyArray_GETPTR2(py_coords, j, 0) );
+						J[1] = *( (float*) PyArray_GETPTR2(py_coords, j, 1) );
+						J[2] = *( (float*) PyArray_GETPTR2(py_coords, j, 2) );
+						break;
+					case NPY_DOUBLE:
+						J[0] = *( (double*) PyArray_GETPTR2(py_coords, j, 0) );
+						J[1] = *( (double*) PyArray_GETPTR2(py_coords, j, 1) );
+						J[2] = *( (double*) PyArray_GETPTR2(py_coords, j, 2) );
+						break;
+				}
+
+				if (use_pbc) {
+					wrapCartesian(J, box);
+					copyPoint(nearHJ, J);
+					nearestImage(H, nearHJ, half);
+					d2hj = distanceSquare(H, nearHJ);
+				} else
+					d2hj = distanceSquare(H, J);
+
+				if (d2hj > cutoff) continue;
+
+				if (!strcmp(atomSymbol2, "C") && d2hj > carbon_cutoff) continue;
+
+				if (use_pbc) {
+					copyPoint(other, J);
+					nearestImage(I, other, half);
+					d2ij = distanceSquare(I, other);
+				} else
+					d2ij = distanceSquare(I, J);
+
+				if (d2ij > cutoff) continue;
+
+				if ((!strcmp(atomSymbol1, "C") || !strcmp(atomSymbol2, "C")) && d2ij > carbon_cutoff) continue;
+
+				A = H;
+				if (d2hi < d2hj) {
+					B = I;
+					C = J;
+				} else {
+					B = J;
+					C = I;
+				}
+
+				if (use_pbc) {
+					nearestImage(B, A, half);
+					nearestImage(B, C, half);
+				}
+
+				cosval = threePointAngleCosine(A, B, C);
+
+				if (cosval > cos_cutoff) {
+					tuple = Py_BuildValue("(iii)", h, i, j);
+					PyList_Append(out, tuple);
+					Py_DECREF(tuple);
+				}
+
 			}
 		}
 
@@ -231,12 +300,12 @@ PyObject *findHBonds(PyObject *self, PyObject *args, PyObject *kwds) {
 
 PyObject *measureAngleCosine(PyObject *self, PyObject *args, PyObject *kwds) {
 	PyArrayObject *py_atom1, *py_atom2, *py_atom3, *py_box = NULL;
-	PyObject *out;
+	//PyObject *out;
 	double box[3], half[3];
-	double A[3], B[3], C[3], p[3], q[3];
-	double lp, lq, cos;
-	int use_pbc, type;
-	npy_intp *numpyint;
+	double A[3], B[3], C[3];
+	double cos;
+	int use_pbc;
+	//npy_intp *numpyint;
 
 	static char *kwlist[] = {
 		"atom1", "atom2", "atom3", "box", NULL };
@@ -439,7 +508,7 @@ PyObject *inertia(PyObject *self, PyObject *args, PyObject *kwds) {
 	PyArrayObject *py_coords, *py_masses;
 	PyObject *py_inertia;
 	npy_intp *dim1, *dim2, dims[2];
-	int nat, i, j, type;
+	int nat, i, type;
 	double *I;
 	double mass;
 	float x, y, z;
@@ -513,7 +582,7 @@ PyObject *mep_distance(PyObject *self, PyObject *args, PyObject *kwds) {
 
 	PyArrayObject *py_coords1, *py_coords2;
 	PyArrayObject *py_masses = NULL;
-	PyObject *py_result;
+	//PyObject *py_result;
 	npy_intp *dim1, *dim2, *dim3;
 	int nat, i, type1, type2;
 	double mass;
@@ -600,3 +669,86 @@ PyObject *mep_distance(PyObject *self, PyObject *args, PyObject *kwds) {
 }
 
 
+PyObject *quatfit(PyObject *self, PyObject *args, PyObject *kwds) {
+
+	PyObject *py_coords1, *py_coords2, *py_masses;
+	npy_intp *dim1, *dim2, *dim3;
+	int nat, i;
+	float *csum, *cdif, *mean, *a, *b;
+	float x, y, m00, m01, m02, m03, m11, m12, m13, m22, m23, m33;
+
+	static char *kwlist[] = {
+		"coordinates1", "coordinates2", "masses", NULL };
+
+	if(!PyArg_ParseTupleAndKeywords(args, kwds, "O!O!|O!", kwlist,
+			&PyArray_Type, &py_coords1,
+			&PyArray_Type, &py_coords2,
+			&PyArray_Type, &py_masses))
+		return NULL;
+
+	dim1 = PyArray_DIMS((PyArrayObject*)py_coords1);
+	dim2 = PyArray_DIMS((PyArrayObject*)py_coords2);
+	if (dim1[0] != dim2[0]) {
+		PyErr_SetString(PyExc_RuntimeError, "Arrays not aligned.");
+		return NULL;
+	}
+
+	if ( py_masses != NULL ) {
+		dim3 = PyArray_DIMS((PyArrayObject*)py_masses);
+		if (dim1[0] != dim3[0]) {
+			PyErr_SetString(PyExc_RuntimeError, "Arrays not aligned.");
+			return NULL;
+		}
+	}
+
+	nat = dim1[0];
+
+	csum = (float*) malloc(3 * nat * sizeof(float));
+	cdif = (float*) malloc(3 * nat * sizeof(float));
+	mean = (float*) malloc(10 * sizeof(float));
+	if (csum == NULL || cdif == NULL || mean == NULL) {
+		PyErr_SetFromErrno(PyExc_MemoryError);
+		return NULL; }
+
+	// Calculate csum = X+Y, cdif = X-Y
+	for (i = 0; i < nat; i++) {
+		x = getFromArray2D(py_coords1, i, 0);
+		y = getFromArray2D(py_coords2, i, 0);
+		csum[3*i] = x+y;
+		cdif[3*i] = x-y;
+		x = getFromArray2D(py_coords1, i, 1);
+		y = getFromArray2D(py_coords2, i, 1);
+		csum[3*i+1] = x+y;
+		cdif[3*i+1] = x-y;
+		x = getFromArray2D(py_coords1, i, 2);
+		y = getFromArray2D(py_coords2, i, 2);
+		csum[3*i+2] = x+y;
+		cdif[3*i+2] = x-y;
+	}
+
+	// Calulate mean of A_i = A^t . A
+	for (i = 0; i < nat; i++) {
+
+		a = csum + i*3;
+		b = cdif + i*3;
+
+		m00 += b[0]*b[0] + b[1]*b[1] + b[2]*b[2];
+		m01 += a[2]*b[1] - a[1]*b[2];
+		m02 += a[0]*b[2] - a[2]*b[0];
+		m03 += a[1]*b[0] - a[0]*b[1];
+
+		m11 += a[1]*a[1] + a[2]*a[2] + b[0]*b[0];
+		m12 += b[0]*b[1] - a[0]*a[1];
+		m13 += b[0]*b[2] - a[0]*a[2];
+                 
+		m22 += a[0]*a[0] + a[2]*a[2] + b[1]*b[1];
+		m23 += b[1]*b[2] - a[1]*a[2];
+
+		m33 += a[0]*a[0] + a[1]*a[1] + b[2]*b[2];
+
+	}
+
+	//for (i = 0; i < 10; i++) mean[i] /= nat;
+
+	return NULL;
+}

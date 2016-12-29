@@ -23,7 +23,13 @@
 
 
 
-#include "moltools.h"
+#define PY_ARRAY_UNIQUE_SYMBOL MOLTOOLS
+#define NO_IMPORT_ARRAY
+#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+#include <numpy/arrayobject.h>
+
+#include "periodic_table.h"
+#include "utils.h"
 
 
 /*****************************************************************************
@@ -68,8 +74,9 @@ char *readline(FILE *fd) {
 	/* Allocate the memory */
 	line = (char*) malloc( length + 1 );
 
-	/* Realliy read the data */
-	if ( fgets(line, length + 1, fd) == NULL ) buffer[0] = '\0';
+	/* Really read the data */
+	if ( fgets(line, length + 1, fd) == NULL ) return NULL;
+	//printf("Line:%s:\n", line);
 
 	return line;
 }
@@ -118,15 +125,37 @@ int stripline(char *line) {
 	return length;
 }
 
+
+/* Extract number from buf (at pos, with length len) and return as float *
+ * For example: "abc  45.6 xyz"                                          *
+ *               0123456789012                                           *
+ *               strPartFloat(buf, 4, 5) -> " 45.6" -> 45.6              */
+
+float strPartFloat(char *buf, int pos, int len) {
+	char *number;
+	float fret;
+
+	number = (char*) malloc((len+1) * sizeof(char));
+	strncpy(number, buf+pos, len);
+	number[len] = '\0';
+	stripline(number);
+	fret = (float)atof(number);
+	free(number);
+	return fret;
+}
+
+
+
 int getElementIndexBySymbol(const char *symbol) {
 	extern Element element_table[];
 	int idx = 0;
 
 	while (element_table[idx].number != -1) {
-		if (!strcmp(symbol, element_table[idx++].symbol)) break;
+		if (!strcmp(symbol, element_table[idx].symbol)) return idx;
+		idx += 1;
 	}
 
-	return idx;
+	return -1;
 }
 
 
@@ -206,8 +235,41 @@ double distanceSquare(double p[3], double q[3]) {
 }
 
 
-double copyPoint(double dst[3], double src[3]) {
+void copyPoint(double dst[3], double src[3]) {
 	dst[0] = src[0];
 	dst[1] = src[1];
 	dst[2] = src[2];
+}
+
+float getFromArray2D(PyObject *arr, int i, int j) {
+	int type;
+	npy_half hx;
+	float fx;
+	double dx;
+	long double lx;
+
+	type = PyArray_TYPE((PyArrayObject*)arr);
+	switch(type) {
+		case NPY_HALF:
+	        hx = *( (npy_half*) PyArray_GETPTR2((PyArrayObject*)arr, i, j));
+			fx = npy_half_to_float(hx);
+        	return fx;
+			break;
+		case NPY_FLOAT:
+	        fx = *( (float*) PyArray_GETPTR2((PyArrayObject*)arr, i, j));
+        	return fx;
+			break;
+		case NPY_DOUBLE:
+	        dx = *( (double*) PyArray_GETPTR2((PyArrayObject*)arr, i, j));
+        	return (float)dx;
+			break;
+		case NPY_LONGDOUBLE:
+	        lx = *( (long double*) PyArray_GETPTR2((PyArrayObject*)arr, i, j));
+        	return (float)lx;
+			break;
+		default:
+			PyErr_SetString(PyExc_ValueError, "Incorrect type of coordinate array");
+			return NAN;
+			break;
+    }
 }

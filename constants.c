@@ -1,4 +1,5 @@
-#include "moltools.h"
+#include <Python.h>
+#include "periodic_table.h"
 
 
 int build_tables(PyObject **list_symbols, PyObject **list_names,
@@ -25,7 +26,9 @@ int build_tables(PyObject **list_symbols, PyObject **list_names,
 	/* Set the first element to None, so that indexing starts at 1 */
 	val = Py_BuildValue("s", "");
 	PyList_SetItem(*list_symbols, 0, val);
+	Py_INCREF(val);
 	PyList_SetItem(*list_names, 0, val);
+	Py_INCREF(Py_None);
 	PyList_SetItem(*list_masses, 0, Py_None);
 
 	/* Fill with data */
@@ -41,7 +44,12 @@ int build_tables(PyObject **list_symbols, PyObject **list_names,
 
 		/* Atom mass */
 		mass = element_table[idx].mass;
-		val = mass >= 0 ? Py_BuildValue("d", mass) : Py_None;
+		if (mass >= 0) {
+			val = Py_BuildValue("d", mass);
+		} else {
+			val = Py_None;
+			Py_INCREF(Py_None);
+		}
 		PyList_SetItem(*list_masses, element_table[idx].number, val);
 
 		/* Hash tables symbol->number and symbol->covalent radius */

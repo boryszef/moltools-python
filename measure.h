@@ -21,26 +21,16 @@
  ***************************************************************************/
 
 
-#ifndef __MOLTOOLS_H__
-#define __MOLTOOLS_H__
+#ifndef __MEASURE_H__
+#define __MEASURE_H__
 
 
-#include <Python.h>
-#include "structmember.h"
-//#include <stdio.h>
-//#include <stdlib.h>
-//#include <string.h>
-//#include <errno.h>
-#include <locale.h>
-//#include <math.h>
-//#include <sys/types.h>
-//#include <sys/stat.h>
-//#include <unistd.h>
+PyObject *findHBonds(PyObject *self, PyObject *args, PyObject *kwds);
+PyObject *measureAngleCosine(PyObject *self, PyObject *args, PyObject *kwds);
+PyObject *distanceMatrix(PyObject *self, PyObject *args, PyObject *kwds);
+PyObject *centerofmass(PyObject *, PyObject *);
+PyObject *inertia(PyObject *, PyObject *, PyObject *);
+PyObject *mep_distance(PyObject *, PyObject *, PyObject *);
+PyObject *quatfit(PyObject *self, PyObject *args, PyObject *kwds);
 
-#define BOHRTOANGS 0.529177209
-
-#define ARRAY_REAL double
-#define NPY_ARRAY_REAL NPY_DOUBLE
-
-
-#endif /* __MOLTOOLS_H__ */
+#endif /* __MEASURE_H__ */

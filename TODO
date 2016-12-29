@@ -1,0 +1,11 @@
+Things that need to be done:
+
+* Rewrite readline() using realloc
+
+* Port the code into Python3.
+
+* Code refactoring.
+
+* Parallelize.
+
+* In read_topo_from_xyz, capitalize symbols before getting atomic number
