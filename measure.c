@@ -573,7 +573,7 @@ PyObject *mep_distance(PyObject *self, PyObject *args, PyObject *kwds) {
 
 PyObject *quatfit(PyObject *self, PyObject *args, PyObject *kwds) {
 
-	PyObject *py_coords1, *py_coords2, py_masses;
+	PyObject *py_coords1, *py_coords2, *py_masses;
 	npy_intp *dim1, *dim2, *dim3;
 	int nat, i;
 	float *csum, *cdif, *mean, *a, *b;
@@ -588,15 +588,15 @@ PyObject *quatfit(PyObject *self, PyObject *args, PyObject *kwds) {
 			&PyArray_Type, &py_masses))
 		return NULL;
 
-	dim1 = PyArray_DIMS(py_coords1);
-	dim2 = PyArray_DIMS(py_coords2);
+	dim1 = PyArray_DIMS((PyArrayObject*)py_coords1);
+	dim2 = PyArray_DIMS((PyArrayObject*)py_coords2);
 	if (dim1[0] != dim2[0]) {
 		PyErr_SetString(PyExc_RuntimeError, "Arrays not aligned.");
 		return NULL;
 	}
 
 	if ( py_masses != NULL ) {
-		dim3 = PyArray_DIMS(py_masses);
+		dim3 = PyArray_DIMS((PyArrayObject*)py_masses);
 		if (dim1[0] != dim3[0]) {
 			PyErr_SetString(PyExc_RuntimeError, "Arrays not aligned.");
 			return NULL;
@@ -608,7 +608,7 @@ PyObject *quatfit(PyObject *self, PyObject *args, PyObject *kwds) {
 	csum = (float*) malloc(3 * nat * sizeof(float));
 	cdif = (float*) malloc(3 * nat * sizeof(float));
 	mean = (float*) malloc(10 * sizeof(float));
-	if (csum == NULL || cdiff == NULL || mean == NULL) {
+	if (csum == NULL || cdif == NULL || mean == NULL) {
 		PyErr_SetFromErrno(PyExc_MemoryError);
 		return NULL; }
 
