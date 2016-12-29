@@ -35,6 +35,7 @@
 
 
 
+
 static PyObject *mass_list(PyObject *self, PyObject *args) {
 	int nat, i, j;
 	extern Element element_table[];
@@ -181,13 +182,16 @@ PyMODINIT_FUNC initmoltools(void)
 	extern PyTypeObject TrajectoryType;
 	//extern PyTypeObject FrameType;
 
+
 	/* Use system-wide locale, but make sure that decimal point is a point! */
 	setlocale(LC_ALL, "");
 	setlocale(LC_NUMERIC, "C");
 
 	//if (PyType_Ready(&EAMffType) < 0)
 	//	return;
+
 	if (PyType_Ready(&TrajectoryType) < 0)
+
 		return;
 	//if (PyType_Ready(&FrameType) < 0)
 	//	return;

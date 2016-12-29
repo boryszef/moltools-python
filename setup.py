@@ -32,6 +32,7 @@ if extraPackagePresent('libgromacs'):
     extraLFlags.append(libs)
 
 moltools = Extension('moltools',
+
 	sources = [ 'periodic_table.c', 'periodic_table.h',
                     'utils.c', 'utils.h',
 	            'measure.c', 'measure.h',
@@ -40,6 +41,7 @@ moltools = Extension('moltools',
 	            'trajectory.c', 'trajectory.h',
                     'moltools.c', 'moltools.h' ],
 	extra_compile_args=extraCFlags,	extra_link_args=extraLFlags,
+
 )
 
 setup (name = 'moltools-python', version = '0.1.1',
