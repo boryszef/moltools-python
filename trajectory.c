@@ -29,6 +29,9 @@
 
 #include "moltools.h"
 #include "trajectory.h"
+#include "utils.h"
+#include "readers.h"
+#include "writers.h"
 
 
 
@@ -44,23 +47,23 @@ static void Trajectory_dealloc(Trajectory* self)
     self->symbols = NULL;
     Py_XDECREF(tmp);
 
-    tmp = self->resids;
-    self->resids = NULL;
+    tmp = self->resIDs;
+    self->resIDs = NULL;
     Py_XDECREF(tmp);
 
-    tmp = self->resnames;
-    self->resnames = NULL;
+    tmp = self->resNames;
+    self->resNames = NULL;
     Py_XDECREF(tmp);
 
-    tmp = self->atomicnumbers;
-    self->atomicnumbers = NULL;
+    tmp = self->atomicNumbers;
+    self->atomicNumbers = NULL;
     Py_XDECREF(tmp);
 
     tmp = self->moldenSections;
     self->moldenSections = NULL;
     Py_XDECREF(tmp);
 
-    free(self->filename);
+    free(self->fileName);
     switch(self->type) {
         case XYZ:
         case MOLDEN:
@@ -79,7 +82,7 @@ static void Trajectory_dealloc(Trajectory* self)
 #ifdef HAVE_GROMACS
     sfree(self->xtcCoord);
 #endif
-    self->ob_type->tp_free((PyObject*)self);
+    Py_TYPE(self)->tp_free((PyObject*)self);
 }
 
 
@@ -95,7 +98,7 @@ static PyObject *Trajectory_new(PyTypeObject *type, PyObject *args, PyObject *kw
         self->type = GUESS;
         self->units = ANGS;
         self->mode = 'r';
-        self->filename = NULL;
+        self->fileName = NULL;
         self->fd = NULL;
 #ifdef HAVE_GROMACS
         self->xd = NULL;
@@ -104,21 +107,21 @@ static PyObject *Trajectory_new(PyTypeObject *type, PyObject *args, PyObject *kw
         self->filePosition1 = -1;
         self->filePosition2 = -1;
         self->moldenStyle = MLUNKNOWN;
-        self->nofatoms = 0;
-        self->nofframes = 0;
+        self->nOfAtoms = 0;
+        self->nOfFrames = 0;
         self->lastFrame = -1;
 
         Py_INCREF(Py_None);
         self->symbols = Py_None;
         
         Py_INCREF(Py_None);
-        self->atomicnumbers = Py_None;
+        self->atomicNumbers = Py_None;
         
         Py_INCREF(Py_None);
-        self->resids = Py_None;
+        self->resIDs = Py_None;
         
         Py_INCREF(Py_None);
-        self->resnames = Py_None;
+        self->resNames = Py_None;
         
         Py_INCREF(Py_None);
         self->moldenSections = Py_None;
@@ -174,19 +177,19 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
     }
 
     if (py_resid != NULL) {
-        Py_DECREF(self->resids);
-        self->resids = py_resid;
-        Py_INCREF(self->resids);
+        Py_DECREF(self->resIDs);
+        self->resIDs = py_resid;
+        Py_INCREF(self->resIDs);
     }
 
     if (py_resn != NULL) {
-        Py_DECREF(self->resnames);
-        self->resnames = py_resn;
-        Py_INCREF(self->resnames);
+        Py_DECREF(self->resNames);
+        self->resNames = py_resn;
+        Py_INCREF(self->resNames);
     }
 
-    self->filename = (char*) malloc((strlen(filename)+1) * sizeof(char));
-    strcpy(self->filename, filename);
+    self->fileName = (char*) malloc((strlen(filename)+1) * sizeof(char));
+    strcpy(self->fileName, filename);
     if (mode == NULL || mode[0] == 'r')
         self->mode = 'r';
     else if (mode[0] == 'w')
@@ -262,7 +265,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
             PyErr_SetString(PyExc_ValueError, "Need atomic symbols");
             return -1; }
 
-        self->nofatoms = PyList_Size(self->symbols);
+        self->nOfAtoms = PyList_Size(self->symbols);
 
         /* Open the coordinate file */
         switch(self->type) {
@@ -339,7 +342,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
                 break;
             case XTC:
 #ifdef HAVE_GROMACS
-                if (!read_first_xtc(self->xd, &(self->nofatoms), &step, &time,
+                if (!read_first_xtc(self->xd, &(self->nOfAtoms), &step, &time,
                                     box, &(self->xtcCoord), &prec, &bOK) && bOK) {
                     PyErr_SetString(PyExc_IOError, "Error reading first frame");
                     return -1; }
@@ -415,6 +418,8 @@ static PyObject *Trajectory_write(Trajectory *self, PyObject *args, PyObject *kw
     PyObject *py_coords = NULL;
     PyObject *py_vel = NULL;
     PyObject *py_box = NULL;
+    PyObject *py_sym = NULL;
+	PyObject *py_uni = NULL;
     char *comment = NULL;;
     int i, type;
     npy_half hx, hy, hz;
@@ -440,15 +445,19 @@ static PyObject *Trajectory_write(Trajectory *self, PyObject *args, PyObject *kw
     switch(self->type) {
 
         case XYZ:
-            fprintf(self->fd, "%d\n", self->nofatoms);
+            fprintf(self->fd, "%d\n", self->nOfAtoms);
             if( comment != NULL )
                 fprintf(self->fd, "%s\n", comment);
             else
                 fprintf(self->fd, "\n");
 
             type = PyArray_TYPE((PyArrayObject*)py_coords);
-            for (i = 0; i < self->nofatoms; i++) {
-                s = PyString_AsString(PyList_GetItem(self->symbols, i));
+            for (i = 0; i < self->nOfAtoms; i++) {
+                //s = PyString_AsString(PyList_GetItem(self->symbols, i));
+                py_uni = PyList_GetItem(self->symbols, i);
+                py_sym = PyUnicode_AsEncodedString(py_uni, "ascii", "strict");
+				s = PyBytes_AS_STRING(py_sym);
+				Py_XDECREF(py_uni);
                 switch(type) {
                     case NPY_HALF:
                         hx = *( (npy_half*) PyArray_GETPTR2((PyArrayObject*)py_coords, i, 0) );
@@ -479,8 +488,10 @@ static PyObject *Trajectory_write(Trajectory *self, PyObject *args, PyObject *kw
                         break;
                     default:
                         PyErr_Format(PyExc_ValueError, "Incorrect type of coordinates array (%u)", type);
+						Py_XDECREF(py_sym);
                         return NULL;
                 }
+				Py_XDECREF(py_sym);
             }
             break;
 
@@ -517,8 +528,8 @@ static PyObject* Trajectory_repr(Trajectory *self) {
         default:
             strcpy(format,       ""); break;
     }
-    str = PyString_FromFormat("Trajectory('%s', format='%s', mode='%c')",
-                                self->filename, format, self->mode);
+    str = PyUnicode_FromFormat("Trajectory('%s', format='%s', mode='%c')",
+                                self->fileName, format, self->mode);
     return str;
 }
 
@@ -532,21 +543,21 @@ static PyObject* Trajectory_repr(Trajectory *self) {
 static PyMemberDef Trajectory_members[] = {
     {"symbols", T_OBJECT_EX, offsetof(Trajectory, symbols), READONLY,
      "A list of atomic symbols"},
-    {"atomicNumbers", T_OBJECT_EX, offsetof(Trajectory, atomicnumbers), READONLY,
+    {"atomicNumbers", T_OBJECT_EX, offsetof(Trajectory, atomicNumbers), READONLY,
      "An ndarray with atomic numbers"},
-    {"resIDs", T_OBJECT_EX, offsetof(Trajectory, resids), READONLY,
+    {"resIDs", T_OBJECT_EX, offsetof(Trajectory, resIDs), READONLY,
      "An ndarray with residue numbers - one number per atom"},
-    {"resNames", T_OBJECT_EX, offsetof(Trajectory, resnames), READONLY,
+    {"resNames", T_OBJECT_EX, offsetof(Trajectory, resNames), READONLY,
      "A list of residue names"},
-    {"nOfAtoms", T_INT, offsetof(Trajectory, nofatoms), READONLY,
+    {"nOfAtoms", T_INT, offsetof(Trajectory, nOfAtoms), READONLY,
      "Number of atoms (int)"},
-    {"nOfFrames", T_INT, offsetof(Trajectory, nofframes), READONLY,
+    {"nOfFrames", T_INT, offsetof(Trajectory, nOfFrames), READONLY,
      "Number of frames (int)"},
     {"lastFrame", T_INT, offsetof(Trajectory, lastFrame), READONLY,
      "The number of the Last frame read or written"},
     {"moldenSections", T_OBJECT_EX, offsetof(Trajectory, moldenSections), READONLY,
      "Dictionary containing byte offsets to sections in Molden file"},
-    {"filename", T_STRING, offsetof(Trajectory, filename), READONLY,
+    {"fileName", T_STRING, offsetof(Trajectory, fileName), READONLY,
      "File name (str)"},
     {NULL}  /* Sentinel */
 };
@@ -611,15 +622,15 @@ PyTypeObject TrajectoryType = {
     /* Documentation string */
     "Trajectory class. Implements reading of trajectories from XYZ. Molden, GRO\n"
     "and XTC. Writing is implemented for XYZ and GRO. The process is two-step;\n"
-    "first, the object must be created, by specifying filename (for reading) or\n"
+    "first, the object must be created, by specifying fileName (for reading) or\n"
     "topology information (for writing). Second, frames can be read/saved\n"
     "repeteadly. Reading examples:\n"
     "  traj = Trajectory('my.xyz')\n"
     "  frame1 = traj.read()\n"
     "  frame2 = traj.read()\n"
     "Object of the class Trajectory contains such fields as:\n"
-    "symbols, atomicnumbers, resids, resnames, nofatoms, nofframes, lastframe,\n"
-    "moldenSections, filename. Method read() returns a dictionary with items\n"
+    "symbols, atomicNumbers, resIDs, resNames, nOfAtoms, nOfFrames, lastFrame,\n"
+    "moldenSections, fileName. Method read() returns a dictionary with items\n"
     "depending on the file format, but at least 'coordinates' are present.\n"
     "Writing example:\n"
     "  traj = Trajectory('my.xyz', symbols_list)\n"
@@ -628,7 +639,7 @@ PyTypeObject TrajectoryType = {
     "When writing a trajectory, at least the file name and the list of symbols\n"
     "must be specified.\n"
     "Creating an instance for reading:\n"
-    "  traj = Trajectory(filename, format='GUESS', mode='r', units='angs')\n"
+    "  traj = Trajectory(fileName, format='GUESS', mode='r', units='angs')\n"
     "Available formats include: XYZ, GRO, MOLDEN, XTC - guessed if not specified.\n"
     "Mode: 'r' (default), 'w', 'a'.\n"
     "Units: 'angs' (default), 'bohr', 'nm'.\n"

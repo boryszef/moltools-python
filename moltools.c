@@ -31,13 +31,27 @@
 
 
 static PyMethodDef moltoolsMethods[] = {
-
     {NULL, NULL, 0, NULL}        /* Sentinel */
+};
+
+
+static struct PyModuleDef moltoolsModule = {
+    PyModuleDef_HEAD_INIT,
+    "moltools",   /* name of module */
+    /* module documentation, may be NULL */
+    "The moltools module provides some classes and functions related to molecular "
+    "modelling. The idea is to facilitate writing scripts for processing molecular "
+    "data, using standard types. For atomic coordinates, numpy arrays are used, "
+    "since they are fast and implement linear algebra.",
+    -1,           /* size of per-interpreter state of the module,
+                     or -1 if the module keeps state in global variables. */
+    moltoolsMethods
 };
 
 
 PyMODINIT_FUNC initmoltools(void)
 {
+    PyObject *md;
     extern PyTypeObject TrajectoryType;
 
 
@@ -45,19 +59,17 @@ PyMODINIT_FUNC initmoltools(void)
     setlocale(LC_ALL, "");
     setlocale(LC_NUMERIC, "C");
 
-    if (PyType_Ready(&TrajectoryType) < 0)
-        return;
-
-    md = Py_InitModule3("moltools", moltoolsMethods,
-         "The moltools module provides some classes and functions related to molecular "
-         "modelling. The idea is to facilitate writing scripts for processing molecular "
-         "data, using standard types. For atomic coordinates, numpy arrays are used, "
-         "since they are fast and implement linear algebra.");
-    if(md == NULL) return;
-
     import_array();
+
+    if (PyType_Ready(&TrajectoryType) < 0)
+        return NULL;
+
+	md = PyModule_Create(&moltoolsModule);
+	if (md == NULL) return NULL;
 
     Py_INCREF(&TrajectoryType);
     PyModule_AddObject(md, "Trajectory", (PyObject *)&TrajectoryType);
+
+	return md;
 }
 

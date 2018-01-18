@@ -1,3 +1,8 @@
+import sys
+if sys.version_info.major < 3:
+    print("This package works with Python3 only.")
+    exit(1)
+
 from numpy.distutils.core import setup, Extension
 from numpy.distutils.misc_util import get_info
 
@@ -8,6 +13,9 @@ extraInfo = get_info('npymath')
 moltools = Extension('moltools',
 
 	sources = [ 'trajectory.c', 'trajectory.h',
+                    'utils.c', 'utils.h',
+                    'readers.c', 'readers.h',
+                    'writers.c', 'writers.h',
                     'moltools.c', 'moltools.h' ],
 	extra_compile_args=extraCFlags,	extra_link_args=extraLFlags,
 
