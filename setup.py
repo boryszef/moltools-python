@@ -14,8 +14,7 @@ moltools = Extension('moltools',
 
 	sources = [ 'trajectory.c', 'trajectory.h',
                     'utils.c', 'utils.h',
-                    'readers.c', 'readers.h',
-                    'writers.c', 'writers.h',
+                    'periodic_table.c', 'periodic_table.h',
                     'moltools.c', 'moltools.h' ],
 	extra_compile_args=extraCFlags,	extra_link_args=extraLFlags,
 

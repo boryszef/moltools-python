@@ -23,6 +23,14 @@
 #ifndef __TRAJECTORY_H__
 #define __TRAJECTORY_H__
 
+#include <Python.h>
+
+#define PY_ARRAY_UNIQUE_SYMBOL MOLTOOLS
+#define NO_IMPORT_ARRAY
+#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+#include <numpy/arrayobject.h>
+#include <numpy/halffloat.h>
+
 #ifdef HAVE_GROMACS
 	#include <gromacs/utility/smalloc.h>
 	#include <gromacs/fileio/xtcio.h>
@@ -59,5 +67,15 @@ typedef struct {
 
 } Trajectory;
 
+static int read_topo_from_xyz(Trajectory *self);
+static int read_topo_from_molden(Trajectory *self);
+static int read_topo_from_gro(Trajectory *self);
+static PyObject *read_frame_from_xyz(Trajectory *self);
+static PyObject *read_frame_from_molden_atoms(Trajectory *self);
+static PyObject *read_frame_from_molden_geometries(Trajectory *self);
+static PyObject *read_frame_from_gro(Trajectory *self);
+#ifdef HAVE_GROMACS
+static PyObject *read_frame_from_xtc(Trajectory *self);
+#endif
 
 #endif /* __TRAJECTORY_H__ */

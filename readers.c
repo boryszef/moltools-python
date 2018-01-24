@@ -20,6 +20,10 @@
 
  ***************************************************************************/
 
+#include "trajectory.h"
+#include "moltools.h"
+#include "utils.h"
+#include "periodic_table.h"
 
 /* Local helper functions */
 
@@ -80,10 +84,10 @@ static int read_topo_from_xyz(Trajectory *self) {
     /* Add atomic numbers to the dictionary */
     dims[0] = nofatoms;
     dims[1] = 1;
-    Py_DECREF(self->atomicnumbers);
-    self->atomicnumbers = PyArray_SimpleNewFromData(1, dims, NPY_INT, (int*) anum);
+    Py_DECREF(self->atomicNumbers);
+    self->atomicNumbers = PyArray_SimpleNewFromData(1, dims, NPY_INT, (int*) anum);
 
-    self->nofatoms = nofatoms;
+    self->nOfAtoms = nofatoms;
 
     return 0;
 }
@@ -123,7 +127,7 @@ PyObject* read_molden_sections(FILE *fd) {
             buffer[len] = '\0';
 
             /* Put the name and position in list */
-            key = PyString_FromString(buffer);
+            key = PyUnicode_FromString(buffer);
             val = Py_BuildValue("i", filepos);
             PyDict_SetItem(dict, key, val);
             Py_DECREF(key);
@@ -160,10 +164,10 @@ static int read_topo_from_molden(Trajectory *self) {
     PyObject *val;
     PyObject *keyGeo, *keyAtom, *keyN, *keyConv;
 
-    keyGeo = PyString_FromString("geometries");
-    keyAtom = PyString_FromString("atoms");
-    keyN = PyString_FromString("n_geo");
-    keyConv = PyString_FromString("geoconv");
+    keyGeo = PyUnicode_FromString("geometries");
+    keyAtom = PyUnicode_FromString("atoms");
+    keyN = PyUnicode_FromString("n_geo");
+    keyConv = PyUnicode_FromString("geoconv");
 
     /* Make sure that the sections are done */
     if (self->moldenSections == NULL) {
@@ -174,7 +178,7 @@ static int read_topo_from_molden(Trajectory *self) {
     /* Determine the style of this file */
     if (PyDict_Contains(self->moldenSections, keyGeo)) {
 
-        filepos = PyInt_AsLong(PyDict_GetItem(self->moldenSections, keyGeo));
+        filepos = PyLong_AsLong(PyDict_GetItem(self->moldenSections, keyGeo));
         fseek(self->fd, filepos, SEEK_SET);
         if ((line = readline(self->fd)) == NULL) return -1;
         free(line);
@@ -183,7 +187,7 @@ static int read_topo_from_molden(Trajectory *self) {
         read_topo_from_xyz(self);
 
     } else if (PyDict_Contains(self->moldenSections, keyAtom)) {
-        filepos = PyInt_AsLong(PyDict_GetItem(self->moldenSections, keyAtom));
+        filepos = PyLong_AsLong(PyDict_GetItem(self->moldenSections, keyAtom));
         fseek(self->fd, filepos, SEEK_SET);
         if ((line = readline(self->fd)) == NULL) return -1;
         stripline(line);
@@ -219,7 +223,7 @@ static int read_topo_from_molden(Trajectory *self) {
             }
             free(line);
 
-        self->nofatoms = nat;
+        self->nOfAtoms = nat;
 
         /* Get rid of Py_None in self->symbols */
         Py_DECREF(self->symbols);
@@ -255,8 +259,8 @@ static int read_topo_from_molden(Trajectory *self) {
         /* Add atomic numbers to the dictionary */
         dims[0] = nat;
         dims[1] = 1;
-        Py_DECREF(self->atomicnumbers);
-        self->atomicnumbers = PyArray_SimpleNewFromData(1, dims, NPY_INT, (int*) anum);
+        Py_DECREF(self->atomicNumbers);
+        self->atomicNumbers = PyArray_SimpleNewFromData(1, dims, NPY_INT, anum);
 
     } else {
 
@@ -264,18 +268,18 @@ static int read_topo_from_molden(Trajectory *self) {
         return -1; }
     
     if (PyDict_Contains(self->moldenSections, keyN)) {
-        filepos = PyInt_AsLong(PyDict_GetItem(self->moldenSections, keyN));
+        filepos = PyLong_AsLong(PyDict_GetItem(self->moldenSections, keyN));
         fseek(self->fd, filepos, SEEK_SET);
         if ((line = readline(self->fd)) == NULL) return -1;
         free(line);
         if ((line = readline(self->fd)) == NULL) return -1;
         stripline(line);
-        self->nofframes = atoi(line);
+        self->nOfFrames = atoi(line);
         free(line);
     }
 
     if (PyDict_Contains(self->moldenSections, keyConv)) {
-        filepos = PyInt_AsLong(PyDict_GetItem(self->moldenSections, keyConv));
+        filepos = PyLong_AsLong(PyDict_GetItem(self->moldenSections, keyConv));
         fseek(self->fd, filepos, SEEK_SET);
         if ((line = readline(self->fd)) == NULL) return -1;
         free(line);
@@ -317,13 +321,13 @@ static int read_topo_from_gro(Trajectory *self) {
         PyErr_SetString(PyExc_IOError, "Incorrect atom number");
         return -1; }
 
-    self->nofatoms = nofatoms;
+    self->nOfAtoms = nofatoms;
 
     /* Get rid of Py_None in self->symbols etc. */
     Py_DECREF(self->symbols);
     self->symbols = PyList_New(nofatoms);
-    Py_DECREF(self->resnames);
-    self->resnames = PyList_New(nofatoms);
+    Py_DECREF(self->resNames);
+    self->resNames = PyList_New(nofatoms);
 
     resid = (int*) malloc(nofatoms * sizeof(int));
     if(resid == NULL) {
@@ -348,7 +352,7 @@ static int read_topo_from_gro(Trajectory *self) {
         symbuf[5] = '\0';
         stripline(symbuf);
         val = Py_BuildValue("s", symbuf);
-        PyList_SetItem(self->resnames, pos, val);
+        PyList_SetItem(self->resNames, pos, val);
 
         /* Read atom name */
         strncpy(symbuf, buffer+10, 5);
@@ -364,8 +368,8 @@ static int read_topo_from_gro(Trajectory *self) {
     /* Add residue IDs to the dictionary */
     dims[0] = nofatoms;
     dims[1] = 1;
-    Py_DECREF(self->resids);
-    self->resids = PyArray_SimpleNewFromData(1, dims, NPY_INT, (int*) resid);
+    Py_DECREF(self->resIDs);
+    self->resIDs = PyArray_SimpleNewFromData(1, dims, NPY_INT, resid);
     /***************************************************************
      * Do not free the raw array! It will be still used by Python! *
      ***************************************************************/
@@ -412,7 +416,7 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
     }
     free(buffer);
 
-    if (nat != self->nofatoms) {
+    if (nat != self->nOfAtoms) {
         PyErr_SetString(PyExc_IOError, "Error reading number of atoms");
         Py_DECREF(py_result);
         return NULL; }
@@ -426,18 +430,18 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
 
     val = Py_BuildValue("s", buffer);
     free(buffer);
-    key = PyString_FromString("comment");
+    key = PyUnicode_FromString("comment");
     PyDict_SetItem(py_result, key, val);
     Py_DECREF(key);
     Py_DECREF(val);
 
     /* Set-up the raw arrays for coordinates and charges */
-    xyz = (ARRAY_REAL*) malloc(3 * self->nofatoms * sizeof(ARRAY_REAL));
+    xyz = (ARRAY_REAL*) malloc(3 * self->nOfAtoms * sizeof(ARRAY_REAL));
     if(xyz == NULL) {
         PyErr_SetFromErrno(PyExc_MemoryError);
         Py_DECREF(py_result);
         return NULL; }
-    charges = (ARRAY_REAL*) malloc(self->nofatoms * sizeof(ARRAY_REAL));
+    charges = (ARRAY_REAL*) malloc(self->nOfAtoms * sizeof(ARRAY_REAL));
     if(charges == NULL) {
         PyErr_SetFromErrno(PyExc_MemoryError);
         Py_DECREF(py_result);
@@ -445,7 +449,7 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
     charges_present = 0;
 
     /* Atom loop */
-    for(pos = 0; pos < self->nofatoms; pos++) {
+    for(pos = 0; pos < self->nOfAtoms; pos++) {
 
         /* Get the whole line */
         if((buffer = readline(self->fd)) == NULL) {
@@ -504,14 +508,14 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
     }
 
     /* Add coordinates to the dictionary */
-    dims[0] = self->nofatoms;
+    dims[0] = self->nOfAtoms;
     dims[1] = 3;
-    py_coord = PyArray_SimpleNewFromData(2, dims, NPY_ARRAY_REAL, (ARRAY_REAL*) xyz);
+    py_coord = PyArray_SimpleNewFromData(2, dims, NPY_ARRAY_REAL, xyz);
     /***************************************************************
      * Do not free the raw array! It will be still used by Python! *
      ***************************************************************/
 
-    key = PyString_FromString("coordinates");
+    key = PyUnicode_FromString("coordinates");
     PyDict_SetItem(py_result, key, py_coord);
     Py_DECREF(key);
     Py_DECREF(py_coord);
@@ -519,8 +523,8 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
 
     /* Add charges, if present */
     if ( charges_present ) {
-        py_charges = PyArray_SimpleNewFromData(1, dims, NPY_ARRAY_REAL, (ARRAY_REAL*) charges);
-        key = PyString_FromString("charges");
+        py_charges = PyArray_SimpleNewFromData(1, dims, NPY_ARRAY_REAL, charges);
+        key = PyUnicode_FromString("charges");
         PyDict_SetItem(py_result, key, py_charges);
         Py_DECREF(key);
         Py_DECREF(py_charges);
@@ -548,14 +552,14 @@ static PyObject *read_frame_from_molden_atoms(Trajectory *self) {
 
     py_result = PyDict_New();
 
-    xyz = (ARRAY_REAL*) malloc(3 * self->nofatoms * sizeof(ARRAY_REAL));
+    xyz = (ARRAY_REAL*) malloc(3 * self->nOfAtoms * sizeof(ARRAY_REAL));
     if(xyz == NULL) {
         PyErr_SetFromErrno(PyExc_MemoryError);
         return NULL; }
 
     /* Loop over the lines */
     fseek(self->fd, self->filePosition1, SEEK_SET);
-    for (i = 0; i < self->nofatoms; i++ ) {
+    for (i = 0; i < self->nOfAtoms; i++ ) {
 
         line = readline(self->fd);
         stripline(line);
@@ -598,10 +602,10 @@ static PyObject *read_frame_from_molden_atoms(Trajectory *self) {
     self->filePosition1 = ftell(self->fd);
 
     /* Add coordinates to the dictionary */
-    dims[0] = self->nofatoms;
+    dims[0] = self->nOfAtoms;
     dims[1] = 3;
-    py_geom = PyArray_SimpleNewFromData(2, dims, NPY_ARRAY_REAL, (ARRAY_REAL*) xyz);
-    key = PyString_FromString("coordinates");
+    py_geom = PyArray_SimpleNewFromData(2, dims, NPY_ARRAY_REAL, xyz);
+    key = PyUnicode_FromString("coordinates");
     PyDict_SetItem(py_result, key, py_geom);
     Py_DECREF(key);
     Py_DECREF(py_geom);
@@ -630,7 +634,7 @@ static PyObject *read_frame_from_molden_geometries(Trajectory *self) {
         fseek(self->fd, self->filePosition2, SEEK_SET);
         line = readline(self->fd);
         stripline(line);
-        key = PyString_FromString("energy");
+        key = PyUnicode_FromString("energy");
         val = Py_BuildValue("d", atof(line));
         PyDict_SetItem(py_result, key, val);
         Py_DECREF(key);
@@ -677,7 +681,7 @@ static PyObject *read_frame_from_gro(Trajectory *self) {
 
     val = Py_BuildValue("s", buffer);
     free(buffer);
-    key = PyString_FromString("comment");
+    key = PyUnicode_FromString("comment");
     PyDict_SetItem(py_result, key, val);
     Py_DECREF(key);
     Py_DECREF(val);
@@ -686,18 +690,18 @@ static PyObject *read_frame_from_gro(Trajectory *self) {
     if( (buffer = readline(self->fd)) == NULL) {
         PyErr_SetFromErrno(PyExc_IOError);
         return NULL; }
-    if( sscanf(buffer, "%d", &nat) != 1 || nat != self->nofatoms) {
+    if( sscanf(buffer, "%d", &nat) != 1 || nat != self->nOfAtoms) {
         PyErr_SetString(PyExc_IOError, "Incorrect atom number");
         return NULL; }
     free(buffer);
 
 
     /* Set-up the raw arrays for coordinates and charges */
-    xyz = (ARRAY_REAL*) malloc(3 * self->nofatoms * sizeof(ARRAY_REAL));
+    xyz = (ARRAY_REAL*) malloc(3 * self->nOfAtoms * sizeof(ARRAY_REAL));
     if(xyz == NULL) {
         PyErr_SetFromErrno(PyExc_MemoryError);
         return NULL; }
-    vel = (ARRAY_REAL*) malloc(3 * self->nofatoms * sizeof(ARRAY_REAL));
+    vel = (ARRAY_REAL*) malloc(3 * self->nOfAtoms * sizeof(ARRAY_REAL));
     if(vel == NULL) {
         PyErr_SetFromErrno(PyExc_MemoryError);
         return NULL; }
@@ -707,7 +711,7 @@ static PyObject *read_frame_from_gro(Trajectory *self) {
         return NULL; }
 
     /* Atom loop */
-    for(pos = 0; pos < self->nofatoms; pos++) {
+    for(pos = 0; pos < self->nOfAtoms; pos++) {
 
         /* Get the whole line */
         if((buffer = readline(self->fd)) == NULL) {
@@ -753,14 +757,14 @@ static PyObject *read_frame_from_gro(Trajectory *self) {
     free(buffer);
 
     /* Add coordinates to the dictionary */
-    dims[0] = self->nofatoms;
+    dims[0] = self->nOfAtoms;
     dims[1] = 3;
     py_coord = PyArray_SimpleNewFromData(2, dims, NPY_ARRAY_REAL, (ARRAY_REAL*) xyz);
     /***************************************************************
      * Do not free the raw array! It will be still used by Python! *
      ***************************************************************/
 
-    key = PyString_FromString("coordinates");
+    key = PyUnicode_FromString("coordinates");
     PyDict_SetItem(py_result, key, py_coord);
     Py_DECREF(key);
     Py_DECREF(py_coord);
@@ -773,7 +777,7 @@ static PyObject *read_frame_from_gro(Trajectory *self) {
          * Do not free the raw array! It will be still used by Python! *
          ***************************************************************/
 
-        key = PyString_FromString("velocities");
+        key = PyUnicode_FromString("velocities");
         PyDict_SetItem(py_result, key, py_vel);
         Py_DECREF(key);
         Py_DECREF(py_vel);
@@ -783,7 +787,7 @@ static PyObject *read_frame_from_gro(Trajectory *self) {
     dims[0] = 3;
     dims[1] = 3;
     py_box = PyArray_SimpleNewFromData(2, dims, NPY_ARRAY_REAL, (ARRAY_REAL*) box);
-    key = PyString_FromString("box");
+    key = PyUnicode_FromString("box");
     PyDict_SetItem(py_result, key, py_box);
     Py_DECREF(key);
     Py_DECREF(py_box);
@@ -795,6 +799,7 @@ static PyObject *read_frame_from_gro(Trajectory *self) {
 
 
 
+#ifdef HAVE_GROMACS
 static PyObject *read_frame_from_xtc(Trajectory *self) {
 
     PyObject *py_dict, *val, *key, *py_coord, *py_box;
@@ -808,7 +813,7 @@ static PyObject *read_frame_from_xtc(Trajectory *self) {
     /* Create the dictionary that will be returned */
     py_dict = PyDict_New();
 
-    if (!read_next_xtc(self->xd, self->nofatoms, &step, &time, mbox, self->xtcCoord, &prec, &bOK)) {
+    if (!read_next_xtc(self->xd, self->nOfAtoms, &step, &time, mbox, self->xtcCoord, &prec, &bOK)) {
         Py_DECREF(py_dict);
         Py_RETURN_NONE;
     }
@@ -819,13 +824,13 @@ static PyObject *read_frame_from_xtc(Trajectory *self) {
     }
 
     val = Py_BuildValue("i", step);
-    key = PyString_FromString("step");
+    key = PyUnicode_FromString("step");
     PyDict_SetItem(py_dict, key, val);
     Py_DECREF(key);
     Py_DECREF(val);
 
     val = Py_BuildValue("f", time);
-    key = PyString_FromString("time");
+    key = PyUnicode_FromString("time");
     PyDict_SetItem(py_dict, key, val);
     Py_DECREF(key);
     Py_DECREF(val);
@@ -848,19 +853,19 @@ static PyObject *read_frame_from_xtc(Trajectory *self) {
 
     dims[0] = 3;
     dims[1] = 3;
-    py_box = PyArray_SimpleNewFromData(2, dims, NPY_FLOAT, (float*)box);
-    key = PyString_FromString("box");
+    py_box = PyArray_SimpleNewFromData(2, dims, NPY_FLOAT, (float*) box);
+    key = PyUnicode_FromString("box");
     PyDict_SetItem(py_dict, key, py_box);
     Py_DECREF(key);
     Py_DECREF(py_box);
 
     /* Set-up the raw arrays for coordinates and charges */
-    xyz = (float*) malloc(3 * self->nofatoms * sizeof(float));
+    xyz = (float*) malloc(3 * self->nOfAtoms * sizeof(float));
     if(xyz == NULL) {
         PyErr_SetFromErrno(PyExc_MemoryError);
         return NULL; }
 
-    for (i = 0; i < self->nofatoms; i++) {
+    for (i = 0; i < self->nOfAtoms; i++) {
         /* Times 10, because converting from nm */
         xyz[i*3    ] = (float)(self->xtcCoord[i][0] * 10.0);
         xyz[i*3 + 1] = (float)(self->xtcCoord[i][1] * 10.0);
@@ -868,20 +873,21 @@ static PyObject *read_frame_from_xtc(Trajectory *self) {
     }
 
     /* Add coordinates to the dictionary */
-    dims[0] = self->nofatoms;
+    dims[0] = self->nOfAtoms;
     dims[1] = 3;
     py_coord = PyArray_SimpleNewFromData(2, dims, NPY_FLOAT, (float*) xyz);
     /***************************************************************
      * Do not free the raw array! It will be still used by Python! *
      ***************************************************************/
 
-    key = PyString_FromString("coordinates");
+    key = PyUnicode_FromString("coordinates");
     PyDict_SetItem(py_dict, key, py_coord);
     Py_DECREF(key);
     Py_DECREF(py_coord);
 
     return py_dict;
 }
+#endif /* HAVE_GROMACS */
 
 /* End of helper functions */
 

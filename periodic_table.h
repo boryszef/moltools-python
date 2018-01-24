@@ -20,10 +20,17 @@
 
  ***************************************************************************/
 
-#ifndef __WRITERS_H__
-#define __WRITERS_H__
 
-int traj_write_gro(Trajectory *self, PyObject *py_coords, PyObject *py_vel,
-                PyObject *py_box, char *comment);
+#ifndef __PERIODIC_TABLE_H__
+#define __PERIODIC_TABLE_H__
 
-#endif /* __WRITERS_H__ */
+
+typedef const struct element__ {
+		int number;
+		double mass;
+		const char *symbol;
+		const char *name;
+		float covalent_radius;
+	} Element;
+
+#endif /* __PERIODIC_TABLE_H__ */
