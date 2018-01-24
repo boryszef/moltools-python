@@ -24,9 +24,6 @@
 #ifndef __UTILS_H__
 #define __UTILS_H__
 
-#include <Python.h>
-#include <numpy/halffloat.h>
-
 #define sq(a) ((a) * (a))
 
 char *readline(FILE *);

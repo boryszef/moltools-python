@@ -24,11 +24,6 @@
 #ifndef __MOLTOOLS_H__
 #define __MOLTOOLS_H__
 
-
-#include <Python.h>
-#include "structmember.h"
-#include <locale.h>
-
 #define BOHRTOANGS 0.529177209
 
 #define ARRAY_REAL double
