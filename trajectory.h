@@ -56,6 +56,7 @@ typedef struct {
 	PyObject *atomicNumbers; /* atomic numbers */
 	PyObject *resIDs; /* residue numbers */
 	PyObject *resNames; /* residue names */
+	PyObject *atomicMasses; /* atomic Masses */
 
 	//PyObject *moldenSections; /* Sections in Molden file and offsets */
 

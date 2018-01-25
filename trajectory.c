@@ -52,6 +52,10 @@ static void Trajectory_dealloc(Trajectory* self)
     self->atomicNumbers = NULL;
     Py_XDECREF(tmp);
 
+    tmp = self->atomicMasses;
+    self->atomicMasses = NULL;
+    Py_XDECREF(tmp);
+
     //tmp = self->moldenSections;
     //self->moldenSections = NULL;
     //Py_XDECREF(tmp);
@@ -109,6 +113,9 @@ static PyObject *Trajectory_new(PyTypeObject *type, PyObject *args, PyObject *kw
         
         Py_INCREF(Py_None);
         self->atomicNumbers = Py_None;
+        
+        Py_INCREF(Py_None);
+        self->atomicMasses = Py_None;
         
         Py_INCREF(Py_None);
         self->resIDs = Py_None;
@@ -456,6 +463,8 @@ static PyMemberDef Trajectory_members[] = {
      "A list of atomic symbols"},
     {"atomicNumbers", T_OBJECT_EX, offsetof(Trajectory, atomicNumbers), READONLY,
      "An ndarray with atomic numbers"},
+    {"atomicMasses", T_OBJECT_EX, offsetof(Trajectory, atomicMasses), READONLY,
+     "An ndarray with atomic masses"},
     {"resIDs", T_OBJECT_EX, offsetof(Trajectory, resIDs), READONLY,
      "An ndarray with residue numbers - one number per atom"},
     {"resNames", T_OBJECT_EX, offsetof(Trajectory, resNames), READONLY,
@@ -530,34 +539,34 @@ PyTypeObject TrajectoryType = {
     Py_TPFLAGS_DEFAULT,        /*tp_flags*/
 
     /* Documentation string */
-    "Trajectory class. Implements reading of trajectories from XYZ. Molden, GRO\n"
-    "and XTC. Writing is implemented for XYZ and GRO. The process is two-step;\n"
-    "first, the object must be created, by specifying fileName (for reading) or\n"
-    "topology information (for writing). Second, frames can be read/saved\n"
-    "repeteadly. Reading examples:\n"
+    "Trajectory class. Implements reading of trajectories from XYZ. Molden, "
+	 "GRO and XTC. Writing is implemented for XYZ and GRO. The process is "
+	 "two-step; first, the object must be created, by specifying fileName "
+	 "(for reading) or topology information (for writing). Second, frames "
+	 "can be read/saved repeteadly. Reading examples:\n"
     "  traj = Trajectory('my.xyz')\n"
     "  frame1 = traj.read()\n"
     "  frame2 = traj.read()\n"
-    "Object of the class Trajectory contains such fields as:\n"
-    "symbols, atomicNumbers, resIDs, resNames, nOfAtoms, nOfFrames, lastFrame,\n"
-    "moldenSections, fileName. Method read() returns a dictionary with items\n"
-    "depending on the file format, but at least 'coordinates' are present.\n"
-    "Writing example:\n"
+    "Object of the class Trajectory contains such fields as: symbols, "
+	 "atomicNumbers, atomicMasses, resIDs, resNames, nOfAtoms, nOfFrames, "
+	 "lastFrame, moldenSections, fileName. Method read() returns a dictionary "
+	 "with items depending on the file format, but at least 'coordinates' "
+	 "are present. Writing example:\n"
     "  traj = Trajectory('my.xyz', symbols_list)\n"
     "  traj.write(coordinates1)\n"
     "  traj.write(coordinates2)\n"
-    "When writing a trajectory, at least the file name and the list of symbols\n"
-    "must be specified.\n"
-    "Creating an instance for reading:\n"
+    "When writing a trajectory, at least the file name and the list of "
+	 "symbols must be specified. Creating an instance for reading:\n"
     "  traj = Trajectory(fileName, format='GUESS', mode='r', units='angs')\n"
-    "Available formats include: XYZ, GRO, MOLDEN, XTC - guessed if not specified.\n"
+    "Available formats include: XYZ, GRO, MOLDEN, XTC - guessed if not "
+	 "specified.\n"
     "Mode: 'r' (default), 'w', 'a'.\n"
     "Units: 'angs' (default), 'bohr', 'nm'.\n"
     "Creating an instance for writing:\n"
-    "  traj = Trajectory(filename, format='GUESS', mode='w', symbols=, resids=,\n"
-    "                    resnames=)\n"
-    "symbols and resnames are lists, while resids, coodinates and velocities are\n"
-    "ndarrays.\n",           /* tp_doc */
+    "  traj = Trajectory(filename, format='GUESS', mode='w', symbols=, "
+	 "resids=, resnames=)\n"
+    "symbols and resnames are lists, while resids, coodinates and velocities "
+	 "are ndarrays.\n",           /* tp_doc */
 
     0,                       /* tp_traverse */
     0,                       /* tp_clear */
@@ -605,6 +614,7 @@ static int read_topo_from_xyz(Trajectory *self) {
 	 char *buffpos, *token;
 	 size_t buflen = 0;
     int *anum;
+	 ARRAY_REAL *masses;
     extern Element element_table[];
 
     npy_intp dims[2];
@@ -630,6 +640,11 @@ static int read_topo_from_xyz(Trajectory *self) {
         PyErr_SetFromErrno(PyExc_MemoryError);
         return -1; }
 
+    masses = (ARRAY_REAL*) malloc(nofatoms * sizeof(ARRAY_REAL));
+    if(masses == NULL) {
+        PyErr_SetFromErrno(PyExc_MemoryError);
+        return -1; }
+
     /* Atom loop */
     for(pos = 0; pos < nofatoms; pos++) {
 
@@ -645,10 +660,13 @@ static int read_topo_from_xyz(Trajectory *self) {
         PyList_SetItem(self->symbols, pos, val);
 
         idx = getElementIndexBySymbol(token);
-        if (idx == -1)
+        if (idx == -1) {
             anum[pos] = -1;
-        else
+				masses[pos] = 0.0;
+        } else {
             anum[pos] = element_table[idx].number;
+				masses[pos] = element_table[idx].mass;
+		}
 
         /* Free the line buffer */
     }
@@ -659,6 +677,8 @@ static int read_topo_from_xyz(Trajectory *self) {
     dims[1] = 1;
     Py_DECREF(self->atomicNumbers);
     self->atomicNumbers = PyArray_SimpleNewFromData(1, dims, NPY_INT, (int*) anum);
+    Py_DECREF(self->atomicMasses);
+    self->atomicMasses = PyArray_SimpleNewFromData(1, dims, NPY_ARRAY_REAL, (ARRAY_REAL*) masses);
 
     self->nOfAtoms = nofatoms;
 
