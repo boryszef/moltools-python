@@ -999,9 +999,11 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
 
     /* Read number of atoms */
     if( getline(&buffer, &buflen, self->fd) == -1) {
-        PyErr_SetFromErrno(PyExc_IOError);
+        /* Could this be the end of the file? */
+        free(buffer);
         Py_DECREF(py_result);
-        return NULL; }
+        Py_RETURN_NONE;
+	}
 
     if (sscanf(buffer, "%d", &nat) != 1) {
         /* Possibly end of file */
