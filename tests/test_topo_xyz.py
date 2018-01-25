@@ -57,7 +57,7 @@ class TestTrajectoryTopologyXYZ(unittest.TestCase):
                         symbols[a], rndb(), crd[a,0], rndb(), crd[a,1], rndb(),
                         crd[a,2], rndb()))
             xyz.close()
-        self.data.append(structure)
+            self.data.append(structure)
 
 
     def tearDown(self):
@@ -74,7 +74,6 @@ class TestTrajectoryTopologyXYZ(unittest.TestCase):
         for i in range(self.nFiles):
             absolute = "%s/%d.xyz" % (self.tmpDir, i)
             traj = mt.Trajectory(absolute)
-            print(traj.nOfAtoms, self.data[i]['nAtoms'])
             self.assertEqual(traj.fileName, absolute)
             self.assertEqual(traj.nOfAtoms, self.data[i]['nAtoms'])
 
