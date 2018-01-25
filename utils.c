@@ -28,58 +28,10 @@
 #include "periodic_table.h"
 
 
-/*****************************************************************************
- *  This is a helper function that reads a line from the file desctiptor fd  *
- *  and returns an allocated string, including the new-line character.       *
- *  If the read operation return no characters an empty string is returned.  *
- *  In any case, the string is terminated with the '\0' character.           *
- *  Make sure, you free the allocated memory after use!                      *
- *****************************************************************************/
+// char *readline(FILE *fd) has been removed in favour of GNU's getline
 
-#define CHUNK 10
-char *readline(FILE *fd) {
-	int length, last;
-	long int offset;
-	char buffer[CHUNK];
-	char *line;
-
-	/* Initial offset in the file */
-	if ( (offset = ftell(fd)) == -1) {
-		PyErr_SetFromErrno(PyExc_IOError);
-		return NULL; }
-
-	/* Get the first chunk of data; if nothing read, make it empty */
-	if ( fgets(buffer, CHUNK, fd) == NULL ) buffer[0] = '\0';
-	last = strlen(buffer) - 1;
-	length = last + 1;
-
-	/* Continue reading because this is not the end of the line yet */
-	while( buffer[last] != '\n' && last != -1) {
-
-		/* Get the next chunk; if empty - finish here */
-		if ( fgets(buffer, CHUNK, fd) == NULL ) buffer[0] = '\0';
-		last = strlen(buffer) - 1;
-		length += last + 1;
-	}
-
-	/* Rewind the file */
-	if ( fseek(fd, offset, SEEK_SET) == -1 ) {
-		PyErr_SetFromErrno(PyExc_IOError);
-		return NULL; }
-
-	/* Allocate the memory */
-	line = (char*) malloc( length + 1 );
-
-	/* Really read the data */
-	if ( fgets(line, length + 1, fd) == NULL ) return NULL;
-	//printf("Line:%s:\n", line);
-
-	return line;
-}
-
-
-
-
+/* Change uppercase into lowercase in place, return number *
+ * of changes made.                                        */
 int make_lowercase(char *line) {
 	int length, i, c, count = 0;
 
@@ -94,7 +46,8 @@ int make_lowercase(char *line) {
 }
 
 
-
+/* Strip blank characters on both sides *
+ * and return length of the new string  */
 int stripline(char *line) {
 	int length, i, start, end;
 	char c;

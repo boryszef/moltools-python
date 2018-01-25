@@ -47,7 +47,7 @@ static struct PyModuleDef moltoolsModule = {
 };
 
 
-PyMODINIT_FUNC initmoltools(void)
+PyMODINIT_FUNC PyInit_moltools(void)
 {
 	PyObject *md;
 	extern PyTypeObject TrajectoryType;
