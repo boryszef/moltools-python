@@ -36,7 +36,7 @@
 char *readline(FILE *);
 int make_lowercase(char *);
 int stripline(char *);
-float strPartFloat(char *buf, int pos, int len);
+float strPartFloat(const char *buf, int pos, int len);
 int getElementIndexBySymbol(const char *symbol);
 double *vectorToDouble(double dvec[], PyArrayObject *arr);
 void wrapCartesian(double point[3], double box[3]);

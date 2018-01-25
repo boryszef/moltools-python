@@ -80,7 +80,7 @@ int stripline(char *line) {
  *               0123456789012                                           *
  *               strPartFloat(buf, 4, 5) -> " 45.6" -> 45.6              */
 
-float strPartFloat(char *buf, int pos, int len) {
+float strPartFloat(const char *buf, int pos, int len) {
 	char *number;
 	float fret;
 

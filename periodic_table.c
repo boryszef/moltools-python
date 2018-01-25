@@ -146,7 +146,7 @@ Element element_table[] = {
 { 117,  -1.0        , "Uus",   "Ununseptium", -1.0 },
 { 118,  -1.0        , "Uuo",    "Ununoctium", -1.0 },
 /*           SENTINEL           */
-{  -1,  -1.0        ,    "",              "", -1.0 },
+{  -1,  -1.0        ,  NULL,              "", -1.0 },
 };
 
 

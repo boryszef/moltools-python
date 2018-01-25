@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <ctype.h>
+#include <float.h>
 #include "CUnit/Basic.h"
 #include "utils.h"
 
@@ -55,12 +56,63 @@ void testSTRIPLINE(void) {
 		" abcd\n", "  ab\nd  ", "ab\tc\n", "\tab\td\t", "a  b" };
 	char buffer[20];
 	int buflen;
-	int i, j, pos, result;
+	int i, result;
 	
 	for (i = 0; i < 10; i++) {
 		strcpy(buffer, templates[i]);
 		buflen = stripline(buffer);
 		CU_ASSERT(buflen == 4);
+	}
+}
+
+void testSTRPARTFLOAT(void) {
+	const char *templates[10] = {
+		"\t\ta9.99bcd",
+		"\tab-1.11cd   ",
+		"\nab1cd\t",
+		"\nab0cd",
+		"  a-1bcd",
+		" ab9e+9cd\n",
+		"  a   -9e-9b\nd  ",
+		"ab\t  33333  c\n",
+		"\tab-4.44   \td\t",
+		"a  0.00001b" };
+	const struct {
+		int start;
+		int len;
+		float val;
+	} data[] = {
+		{ 3, 4, 9.99 },
+		{ 3, 5, -1.11 },
+		{ 3, 1, 1.0 },
+		{ 3, 1, 0.0 },
+		{ 3, 2, -1.0 },
+		{ 3, 4, 9.0e+9 },
+		{ 3, 8, -9.0e-9 },
+		{ 3, 9, 33333.0 },
+		{ 3, 8, -4.44 },
+		{ 3, 7, 0.00001 } };
+	int i;
+	float result;
+	
+	for (i = 0; i < 10; i++) {
+		result = strPartFloat(templates[i], data[i].start, data[i].len);
+		CU_ASSERT(fabs(result - data[i].val) < FLT_EPSILON);
+	}
+}
+
+void testBYSYMBOL(void) {
+	const struct {
+		const char *sym;
+		int id;
+	} symbols[] = {
+		{ "H", 0 }, { "He", 1 }, { "C", 5 }, { "Zn", 29 },
+		{ "Uus", 116 }, { "Uuo", 117 }, { "", -1 }, { "Xyz", -1 }};
+	int i, result;
+	
+	for (i = 0; i < 8; i++) {
+		result = getElementIndexBySymbol(symbols[i].sym);
+		CU_ASSERT(result == symbols[i].id);
 	}
 }
 
@@ -83,8 +135,17 @@ int main() {
       return CU_get_error();
    }
 
-   /* add the tests to the suite */
    if (CU_add_test(pSuite, "test of stripline()", testSTRIPLINE) == NULL) {
+      CU_cleanup_registry();
+      return CU_get_error();
+   }
+
+   if (CU_add_test(pSuite, "test of strPartFloat()", testSTRPARTFLOAT) == NULL) {
+      CU_cleanup_registry();
+      return CU_get_error();
+   }
+
+   if (CU_add_test(pSuite, "test of getElementIndexBySymbol()", testBYSYMBOL) == NULL) {
       CU_cleanup_registry();
       return CU_get_error();
    }
