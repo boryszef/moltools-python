@@ -34,7 +34,8 @@ typedef struct {
 
 	PyObject_HEAD
 
-	enum { GUESS, XYZ, MOLDEN, GRO, XTC } type;
+	enum { GUESS, XYZ } type;
+	//enum { GUESS, XYZ, MOLDEN, GRO, XTC } type;
 	enum { ANGS, BOHR, NM } units;
 	char mode;
 	char *fileName; /* Used while opening the file and for __repr__ */
@@ -42,20 +43,20 @@ typedef struct {
 	/* Used for keeping track of the position in the file while reading     *
 	 * frames. Two variables are needed, because some formats, like Molden, *
 	 * store geometries and energies in different parts of the file.        */
-#ifdef HAVE_GROMACS
-	t_fileio *xd;
-	rvec *xtcCoord;
-#endif
+//#ifdef HAVE_GROMACS
+//	t_fileio *xd;
+//	rvec *xtcCoord;
+//#endif
 	long filePosition1;
 	long filePosition2;
-	enum { MLGEOMETRY, MLATOMS, MLUNKNOWN } moldenStyle;
+//	enum { MLGEOMETRY, MLATOMS, MLUNKNOWN } moldenStyle;
 	int nOfAtoms;
-	int nOfFrames;
+//	int nOfFrames;
 	int lastFrame;
 	PyObject *symbols; /* list of symbols */
 	PyObject *atomicNumbers; /* atomic numbers */
-	PyObject *resIDs; /* residue numbers */
-	PyObject *resNames; /* residue names */
+//	PyObject *resIDs; /* residue numbers */
+//	PyObject *resNames; /* residue names */
 	PyObject *atomicMasses; /* atomic Masses */
 
 	//PyObject *moldenSections; /* Sections in Molden file and offsets */
@@ -69,8 +70,8 @@ static PyObject *read_frame_from_xyz(Trajectory *self);
 //static PyObject *read_frame_from_molden_atoms(Trajectory *self);
 //static PyObject *read_frame_from_molden_geometries(Trajectory *self);
 //static PyObject *read_frame_from_gro(Trajectory *self);
-#ifdef HAVE_GROMACS
-static PyObject *read_frame_from_xtc(Trajectory *self);
-#endif
+//#ifdef HAVE_GROMACS
+//static PyObject *read_frame_from_xtc(Trajectory *self);
+//#endif
 
 #endif /* __TRAJECTORY_H__ */

@@ -33,7 +33,6 @@
 
 #define sq(a) ((a) * (a))
 
-char *readline(FILE *);
 int make_lowercase(char *);
 int stripline(char *);
 float strPartFloat(const char *buf, int pos, int len);

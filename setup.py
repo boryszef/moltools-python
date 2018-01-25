@@ -5,21 +5,21 @@ if sys.version_info.major < 3:
 
 from numpy.distutils.core import setup, Extension
 from numpy.distutils.misc_util import get_info
-import subprocess
+#import subprocess
 from distutils.ccompiler import new_compiler
 from distutils.sysconfig import get_python_inc, get_python_lib
 import glob
 
-def extraPackagePresent(pkg):
-    if subprocess.call(['pkg-config', '--exists', pkg]):
-        return False
-    else:
-        return True
+#def extraPackagePresent(pkg):
+#    if subprocess.call(['pkg-config', '--exists', pkg]):
+#        return False
+#    else:
+#        return True
 
-def getPackageFlags(pkg):
-    cflags = subprocess.check_output(['pkg-config', '--cflags', pkg])
-    libs = subprocess.check_output(['pkg-config', '--libs', pkg])
-    return cflags.strip(), libs.strip()
+#def getPackageFlags(pkg):
+#    cflags = subprocess.check_output(['pkg-config', '--cflags', pkg])
+#    libs = subprocess.check_output(['pkg-config', '--libs', pkg])
+#    return cflags.strip(), libs.strip()
 
 extraCFlags = [ "-O3 -march=native" ]
 #extraCFlags = [ "-O0 -g -Wall -Wextra" ]
@@ -44,11 +44,11 @@ for hdir in extraInfo['include_dirs']:
     cc.add_include_dir(hdir)
 
 # Check if gromacs is present
-if extraPackagePresent('libgromacs'):
-    cflags, libs = getPackageFlags('libgromacs')
-    extraCFlags.append('-DHAVE_GROMACS')
-    extraCFlags.append(cflags)
-    extraLFlags.append(libs)
+#if extraPackagePresent('libgromacs'):
+#    cflags, libs = getPackageFlags('libgromacs')
+#    extraCFlags.append('-DHAVE_GROMACS')
+#    extraCFlags.append(cflags)
+#    extraLFlags.append(libs)
 
 moltools = Extension('moltools',
 	sources = [ 'trajectory.c', 'trajectory.h',

@@ -40,13 +40,13 @@ static void Trajectory_dealloc(Trajectory* self)
     self->symbols = NULL;
     Py_XDECREF(tmp);
 
-    tmp = self->resIDs;
+/*    tmp = self->resIDs;
     self->resIDs = NULL;
     Py_XDECREF(tmp);
 
     tmp = self->resNames;
     self->resNames = NULL;
-    Py_XDECREF(tmp);
+    Py_XDECREF(tmp);*/
 
     tmp = self->atomicNumbers;
     self->atomicNumbers = NULL;
@@ -63,22 +63,22 @@ static void Trajectory_dealloc(Trajectory* self)
     free(self->fileName);
     switch(self->type) {
         case XYZ:
-        case MOLDEN:
-        case GRO:
+//        case MOLDEN:
+//        case GRO:
             if (self->fd != NULL) fclose(self->fd);
             break;
-#ifdef HAVE_GROMACS
+/*#ifdef HAVE_GROMACS
         case XTC:
             if (self->xd != NULL) close_xtc(self->xd);
             break;
-#endif
+#endif*/
         case GUESS:
         default:
             break;
     }
-#ifdef HAVE_GROMACS
+/*#ifdef HAVE_GROMACS
     sfree(self->xtcCoord);
-#endif
+#endif*/
     Py_TYPE(self)->tp_free((PyObject*)self);
 }
 
@@ -97,15 +97,15 @@ static PyObject *Trajectory_new(PyTypeObject *type, PyObject *args, PyObject *kw
         self->mode = 'r';
         self->fileName = NULL;
         self->fd = NULL;
-#ifdef HAVE_GROMACS
+/*#ifdef HAVE_GROMACS
         self->xd = NULL;
         self->xtcCoord = NULL;
-#endif
+#endif*/
         self->filePosition1 = -1;
         self->filePosition2 = -1;
         //self->moldenStyle = MLUNKNOWN;
         self->nOfAtoms = 0;
-        self->nOfFrames = 0;
+//        self->nOfFrames = 0;
         self->lastFrame = -1;
 
         Py_INCREF(Py_None);
@@ -117,11 +117,11 @@ static PyObject *Trajectory_new(PyTypeObject *type, PyObject *args, PyObject *kw
         Py_INCREF(Py_None);
         self->atomicMasses = Py_None;
         
-        Py_INCREF(Py_None);
+        /*Py_INCREF(Py_None);
         self->resIDs = Py_None;
         
         Py_INCREF(Py_None);
-        self->resNames = Py_None;
+        self->resNames = Py_None;*/
         
         //Py_INCREF(Py_None);
         //self->moldenSections = Py_None;
@@ -147,28 +147,30 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 	 size_t buflen = 0;
     char *mode = NULL;
     char *units = NULL;
-#ifdef HAVE_GROMACS
+/*#ifdef HAVE_GROMACS
     int step;
     real time, prec;
     matrix box;
     gmx_bool bOK;
-#endif
+#endif*/
 
     PyObject *py_sym = NULL;
-    PyObject *py_resid = NULL;
-    PyObject *py_resn = NULL;;
+//    PyObject *py_resid = NULL;
+//   PyObject *py_resn = NULL;;
 
     static char *kwlist[] = {
         "filename",
         "format", "mode", "units",
-        "symbols", "resids", "resnames", NULL };
+        "symbols", NULL };
+        //"symbols", "resids", "resnames", NULL };
 
-    if(!PyArg_ParseTupleAndKeywords(args, kwds, "s|sssO!O!O!", kwlist,
+    //if(!PyArg_ParseTupleAndKeywords(args, kwds, "s|sssO!O!O!", kwlist,
+    if(!PyArg_ParseTupleAndKeywords(args, kwds, "s|sssO!", kwlist,
             &filename,
             &str_type, &mode, &units,
-            &PyList_Type, &py_sym,
-            &PyArray_Type, &py_resid,
-            &PyList_Type, &py_resn))
+            &PyList_Type, &py_sym))
+//            &PyArray_Type, &py_resid,
+//            &PyList_Type, &py_resn))
         return -1;
 
     if (py_sym != NULL) {
@@ -177,7 +179,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
         Py_INCREF(self->symbols);
     }
 
-    if (py_resid != NULL) {
+/*    if (py_resid != NULL) {
         Py_DECREF(self->resIDs);
         self->resIDs = py_resid;
         Py_INCREF(self->resIDs);
@@ -187,7 +189,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
         Py_DECREF(self->resNames);
         self->resNames = py_resn;
         Py_INCREF(self->resNames);
-    }
+    }*/
 
     self->fileName = (char*) malloc((strlen(filename)+1) * sizeof(char));
     strcpy(self->fileName, filename);
@@ -205,17 +207,17 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
     /* Set the enum symbol of the file format */
     if ( str_type != NULL ) {
         if      ( !strcmp(str_type,    "XYZ") ) self->type = XYZ;
-        else if ( !strcmp(str_type, "MOLDEN") ) self->type = MOLDEN;
-        else if ( !strcmp(str_type,    "GRO") ) self->type = GRO;
-        else if ( !strcmp(str_type,    "XTC") ) self->type = XTC;
+//        else if ( !strcmp(str_type, "MOLDEN") ) self->type = MOLDEN;
+//        else if ( !strcmp(str_type,    "GRO") ) self->type = GRO;
+//        else if ( !strcmp(str_type,    "XTC") ) self->type = XTC;
     }
 
     /* Guess the file format, if not given explicitly */
     if ( self->type == GUESS ) {
         strcpy(ext, filename + strlen(filename) - 4);
         if      ( !strcmp(ext, ".xyz") ) self->type = XYZ;
-        else if ( !strcmp(ext, ".gro") ) self->type = GRO;
-        else if ( !strcmp(ext, ".xtc") ) self->type = XTC;
+//        else if ( !strcmp(ext, ".gro") ) self->type = GRO;
+//        else if ( !strcmp(ext, ".xtc") ) self->type = XTC;
         else if (self->mode == 'r' || self->mode == 'a') {
             /* Extract the first line */
             if ( (test = fopen(filename, "r")) == NULL ) {
@@ -228,26 +230,28 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
             fclose(test);
 
             /* Perhaps it's Molden format? */
-            if ( !strcmp(line, "[molden format]") ) self->type = MOLDEN;
+//            if ( !strcmp(line, "[molden format]") ) self->type = MOLDEN;
 
             free(line);
-        } else {
+				line == NULL;
+			}
+    }
+    if ( self->type == GUESS ) {
             PyErr_SetString(PyExc_ValueError, "Could not guess file format");
             return -1;
         }
-    }
 
     /* Set correct units */
     if (units == NULL) {
         switch(self->type) {
             case XYZ:
-            case MOLDEN:
+            //case MOLDEN:
                 self->units = ANGS;
                 break;
-            case GRO:
+            /*case GRO:
             case XTC:
                 self->units = NM;
-                break;
+                break;*/
             case GUESS:
             default:
                 PyErr_SetString(PyExc_ValueError, "Unsupported file format");
@@ -272,13 +276,13 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
         /* Open the coordinate file */
         switch(self->type) {
             case XYZ:
-            case GRO:
+//            case GRO:
                 if ( (self->fd = fopen(filename, mode)) == NULL ) {
                     PyErr_SetFromErrno(PyExc_IOError);
                     return -1; }
                 break;
-            case MOLDEN:
-            case XTC:
+//            case MOLDEN:
+//            case XTC:
             default:
                 PyErr_SetString(PyExc_NotImplementedError,
                                 "Writing in this format is not implemented");
@@ -292,17 +296,17 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
         /* Open the coordinate file */
         switch(self->type) {
             case XYZ:
-            case GRO:
+//            case GRO:
                 if ( (self->fd = fopen(filename, "r")) == NULL ) {
                     PyErr_SetFromErrno(PyExc_IOError);
                     return -1; }
                 break;
-            case MOLDEN:
+/*            case MOLDEN:
                 if ( (self->fd = fopen(filename, "r")) == NULL ) {
                     PyErr_SetFromErrno(PyExc_IOError);
                     return -1; }
-                //Py_DECREF(self->moldenSections);
-                //self->moldenSections = read_molden_sections(self->fd);
+                Py_DECREF(self->moldenSections);
+                self->moldenSections = read_molden_sections(self->fd);
                 break;
             case XTC:
 #ifdef HAVE_GROMACS
@@ -314,7 +318,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
                     "The module has to be compiled with gromacs support to handle XTC files");
                 return -1;
 #endif
-                break;
+                break;*/
             case GUESS:
             default:
                 PyErr_SetString(PyExc_ValueError, "Unsupported file format");
@@ -330,15 +334,15 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
                 self->filePosition1 = ftell(self->fd);
                 self->filePosition2 = self->filePosition1;
                 break;
-            case MOLDEN:
-                //if (read_topo_from_molden(self) == -1) return -1;
+            /*case MOLDEN:
+                if (read_topo_from_molden(self) == -1) return -1;
                 rewind(self->fd);
-                /* read_topo_from_molden sets file position accordingly */
-                //self->filePosition1 = ftell(self->fd);
-                //self->filePosition2 = self->filePosition1;
+                // read_topo_from_molden sets file position accordingly 
+                self->filePosition1 = ftell(self->fd);
+                self->filePosition2 = self->filePosition1;
                 break;
             case GRO:
-                //if (read_topo_from_gro(self) == -1) return -1;
+                if (read_topo_from_gro(self) == -1) return -1;
                 rewind(self->fd);
                 self->filePosition1 = ftell(self->fd);
                 self->filePosition2 = self->filePosition1;
@@ -352,7 +356,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
                 close_xtc(self->xd);
                 self->xd = open_xtc(filename, "r");
 #endif
-                break;
+                break;*/
             /* If the file format is GUESS or different,
                it means we've failed to guess :-(        */
             case GUESS:
@@ -384,18 +388,18 @@ static PyObject *Trajectory_read(Trajectory *self) {
             self->filePosition1 = self->filePosition2;
             break;
 
-        case GRO:
-            //py_result = read_frame_from_gro(self);
+/*        case GRO:
+            py_result = read_frame_from_gro(self);
             if (py_result == Py_None) return py_result;
             self->filePosition1 = ftell(self->fd);
             self->filePosition1 = self->filePosition2;
             break;
 
         case MOLDEN:
-            /*if (self->moldenStyle == MLATOMS)
+            if (self->moldenStyle == MLATOMS)
                 py_result = read_frame_from_molden_atoms(self);
             else
-                py_result = read_frame_from_molden_geometries(self);*/
+                py_result = read_frame_from_molden_geometries(self);
             if (py_result == Py_None) return py_result;
             break;
 
@@ -404,7 +408,7 @@ static PyObject *Trajectory_read(Trajectory *self) {
             py_result = read_frame_from_xtc(self);
             break;
 #endif
-
+*/
         default:
             break;
     }
@@ -426,12 +430,12 @@ static PyObject* Trajectory_repr(Trajectory *self) {
     switch(self->type) {
         case XYZ:
             strcpy(format,    "XYZ"); break;
-        case MOLDEN:
+/*        case MOLDEN:
             strcpy(format, "MOLDEN"); break;
         case GRO:
             strcpy(format,    "GRO"); break;
         case XTC:
-            strcpy(format,    "XTC"); break;
+            strcpy(format,    "XTC"); break;*/
         default:
             strcpy(format,       ""); break;
     }
@@ -465,14 +469,14 @@ static PyMemberDef Trajectory_members[] = {
      "An ndarray with atomic numbers"},
     {"atomicMasses", T_OBJECT_EX, offsetof(Trajectory, atomicMasses), READONLY,
      "An ndarray with atomic masses"},
-    {"resIDs", T_OBJECT_EX, offsetof(Trajectory, resIDs), READONLY,
+    /*{"resIDs", T_OBJECT_EX, offsetof(Trajectory, resIDs), READONLY,
      "An ndarray with residue numbers - one number per atom"},
     {"resNames", T_OBJECT_EX, offsetof(Trajectory, resNames), READONLY,
-     "A list of residue names"},
+     "A list of residue names"},*/
     {"nOfAtoms", T_INT, offsetof(Trajectory, nOfAtoms), READONLY,
      "Number of atoms (int)"},
-    {"nOfFrames", T_INT, offsetof(Trajectory, nOfFrames), READONLY,
-     "Number of frames (int)"},
+    /*{"nOfFrames", T_INT, offsetof(Trajectory, nOfFrames), READONLY,
+     "Number of frames (int)"},*/
     {"lastFrame", T_INT, offsetof(Trajectory, lastFrame), READONLY,
      "The number of the Last frame read or written"},
     //{"moldenSections", T_OBJECT_EX, offsetof(Trajectory, moldenSections), READONLY,
