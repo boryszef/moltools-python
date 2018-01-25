@@ -23,6 +23,13 @@
 #ifndef __TRAJECTORY_H__
 #define __TRAJECTORY_H__
 
+/* This should come before other Numpy-related declarations in every *
+ * file that does not define the module's init function              */
+#define NO_IMPORT_ARRAY
+
+/* Make sure the general declarations are made first */
+#include "moltools.h"
+
 typedef struct {
 
 	PyObject_HEAD
@@ -55,12 +62,12 @@ typedef struct {
 } Trajectory;
 
 static int read_topo_from_xyz(Trajectory *self);
-static int read_topo_from_molden(Trajectory *self);
-static int read_topo_from_gro(Trajectory *self);
+//static int read_topo_from_molden(Trajectory *self);
+//static int read_topo_from_gro(Trajectory *self);
 static PyObject *read_frame_from_xyz(Trajectory *self);
-static PyObject *read_frame_from_molden_atoms(Trajectory *self);
-static PyObject *read_frame_from_molden_geometries(Trajectory *self);
-static PyObject *read_frame_from_gro(Trajectory *self);
+//static PyObject *read_frame_from_molden_atoms(Trajectory *self);
+//static PyObject *read_frame_from_molden_geometries(Trajectory *self);
+//static PyObject *read_frame_from_gro(Trajectory *self);
 #ifdef HAVE_GROMACS
 static PyObject *read_frame_from_xtc(Trajectory *self);
 #endif

@@ -23,16 +23,9 @@
 
 
 
-#include <Python.h>
-
-#define PY_ARRAY_UNIQUE_SYMBOL MOLTOOLS
-#define NO_IMPORT_ARRAY
-#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-#include <numpy/arrayobject.h>
-#include <numpy/halffloat.h>
-
-#include "periodic_table.h"
+#include "moltools.h"
 #include "utils.h"
+#include "periodic_table.h"
 
 
 /*****************************************************************************

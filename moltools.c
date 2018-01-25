@@ -21,15 +21,7 @@
  ***************************************************************************/
 
 
-
-#include <Python.h>
-#include <structmember.h>
-#include <locale.h>
-
-#define PY_ARRAY_UNIQUE_SYMBOL MOLTOOLS
-#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-#include <numpy/arrayobject.h>
-
+/* This header contains basic declarations, should come first */
 #include "moltools.h"
 
 
@@ -50,30 +42,30 @@ static struct PyModuleDef moltoolsModule = {
     "since they are fast and implement linear algebra.",
     -1,           /* size of per-interpreter state of the module,
                      or -1 if the module keeps state in global variables. */
-    moltoolsMethods
+    moltoolsMethods,
+	 NULL, NULL, NULL, NULL
 };
 
 
 PyMODINIT_FUNC initmoltools(void)
 {
-    PyObject *md;
-    extern PyTypeObject TrajectoryType;
+	PyObject *md;
+	extern PyTypeObject TrajectoryType;
 
+	/* Use system-wide locale, but make sure that decimal point is a point! */
+	setlocale(LC_ALL, "");
+	setlocale(LC_NUMERIC, "C");
 
-    /* Use system-wide locale, but make sure that decimal point is a point! */
-    setlocale(LC_ALL, "");
-    setlocale(LC_NUMERIC, "C");
-
-    import_array();
-
-    if (PyType_Ready(&TrajectoryType) < 0)
-        return NULL;
+	if (PyType_Ready(&TrajectoryType) < 0)
+		return NULL;
 
 	md = PyModule_Create(&moltoolsModule);
 	if (md == NULL) return NULL;
 
-    Py_INCREF(&TrajectoryType);
-    PyModule_AddObject(md, "Trajectory", (PyObject *)&TrajectoryType);
+	Py_INCREF(&TrajectoryType);
+	PyModule_AddObject(md, "Trajectory", (PyObject *)&TrajectoryType);
+
+	import_array();
 
 	return md;
 }

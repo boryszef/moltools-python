@@ -24,6 +24,13 @@
 #ifndef __UTILS_H__
 #define __UTILS_H__
 
+/* This should come before other Numpy-related declarations in every *
+ * file that does not define the module's init function              */
+#define NO_IMPORT_ARRAY
+
+/* Make sure the general declarations are made first */
+#include "moltools.h"
+
 #define sq(a) ((a) * (a))
 
 char *readline(FILE *);

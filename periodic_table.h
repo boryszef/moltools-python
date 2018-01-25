@@ -24,6 +24,12 @@
 #ifndef __PERIODIC_TABLE_H__
 #define __PERIODIC_TABLE_H__
 
+/* This should come before other Numpy-related declarations in every *
+ * file that does not define the module's init function              */
+#define NO_IMPORT_ARRAY
+
+/* Make sure the general declarations are made first */
+#include "moltools.h"
 
 typedef const struct element__ {
 		int number;

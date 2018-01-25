@@ -21,20 +21,6 @@
  ***************************************************************************/
 
 
-#include <Python.h>
-#include <structmember.h>
-
-#define PY_ARRAY_UNIQUE_SYMBOL MOLTOOLS
-#define NO_IMPORT_ARRAY
-#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-#include <numpy/arrayobject.h>
-#include <numpy/halffloat.h>
-
-#ifdef HAVE_GROMACS
-	#include <gromacs/utility/smalloc.h>
-	#include <gromacs/fileio/xtcio.h>
-#endif
-
 #include "moltools.h"
 #include "trajectory.h"
 #include "utils.h"
@@ -498,17 +484,17 @@ static PyMethodDef Trajectory_methods[] = {
 PyTypeObject TrajectoryType = {
 
     PyVarObject_HEAD_INIT(NULL, 0)
-    "moltools.Trajectory",       /*tp_name*/
-    sizeof(Trajectory),          /*tp_basicsize*/
-    0,                           /*tp_itemsize*/
+    "moltools.Trajectory",          /*tp_name*/
+    sizeof(Trajectory),             /*tp_basicsize*/
+    0,                              /*tp_itemsize*/
 
     /* Methods to implement standard operations */
     (destructor)Trajectory_dealloc, /*tp_dealloc*/
     0,                              /*tp_print*/
-    0,                         /*tp_getattr*/
-    0,                         /*tp_setattr*/
-	 0,                         /* tp_reserved */
-    (reprfunc)Trajectory_repr, /*tp_repr*/
+    0,                              /*tp_getattr*/
+    0,                              /*tp_setattr*/
+	 0,                              /* tp_reserved */
+    (reprfunc)Trajectory_repr,      /*tp_repr*/
 
     /* Method suites for standard classes */
     0,                         /*tp_as_number*/
@@ -564,17 +550,27 @@ PyTypeObject TrajectoryType = {
     0,                       /* tp_weaklistoffset */
     0,                       /* tp_iter */
     0,                       /* tp_iternext */
-    Trajectory_methods,             /* tp_methods */
-    Trajectory_members,             /* tp_members */
+    Trajectory_methods,        /* tp_methods */
+    Trajectory_members,        /* tp_members */
     0,                         /* tp_getset */
     0,                         /* tp_base */
     0,                         /* tp_dict */
     0,                         /* tp_descr_get */
     0,                         /* tp_descr_set */
     0,                         /* tp_dictoffset */
-    (initproc)Trajectory_init,      /* tp_init */
+    (initproc)Trajectory_init, /* tp_init */
     0,                         /* tp_alloc */
-    Trajectory_new,                 /* tp_new */
+    Trajectory_new,            /* tp_new */
+	 0,                         /* tp_free */
+	 0,                         /* tp_is_gc */
+	 0,                         /* tp_bases */
+	 0,                         /* tp_mro */
+	 0,                         /* tp_cache */
+	 0,                         /* tp_subclasses */
+	 0,                         /* tp_weaklist */
+	 0,                         /* tp_del */
+	 0,                         /* tp_version_tag */
+	 0                          /* tp_finalize */
 };
 
 /* End of class definition */
