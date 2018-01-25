@@ -52,9 +52,9 @@ static void Trajectory_dealloc(Trajectory* self)
     self->atomicNumbers = NULL;
     Py_XDECREF(tmp);
 
-    tmp = self->moldenSections;
-    self->moldenSections = NULL;
-    Py_XDECREF(tmp);
+    //tmp = self->moldenSections;
+    //self->moldenSections = NULL;
+    //Py_XDECREF(tmp);
 
     free(self->fileName);
     switch(self->type) {
@@ -99,7 +99,7 @@ static PyObject *Trajectory_new(PyTypeObject *type, PyObject *args, PyObject *kw
 #endif
         self->filePosition1 = -1;
         self->filePosition2 = -1;
-        self->moldenStyle = MLUNKNOWN;
+        //self->moldenStyle = MLUNKNOWN;
         self->nOfAtoms = 0;
         self->nOfFrames = 0;
         self->lastFrame = -1;
@@ -116,8 +116,8 @@ static PyObject *Trajectory_new(PyTypeObject *type, PyObject *args, PyObject *kw
         Py_INCREF(Py_None);
         self->resNames = Py_None;
         
-        Py_INCREF(Py_None);
-        self->moldenSections = Py_None;
+        //Py_INCREF(Py_None);
+        //self->moldenSections = Py_None;
     }
 
     return (PyObject *)self;
@@ -247,6 +247,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
                 return -1;
                 break;
         }
+	// If units were given:
     } else {
         if      (!strcmp(units, "angs")) self->units = ANGS;
         else if (!strcmp(units, "bohr")) self->units = BOHR;
@@ -278,6 +279,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
                 break;
         }
 
+	// File was opened for reading
     } else {
 
         /* Open the coordinate file */
@@ -292,7 +294,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
                 if ( (self->fd = fopen(filename, "r")) == NULL ) {
                     PyErr_SetFromErrno(PyExc_IOError);
                     return -1; }
-                Py_DECREF(self->moldenSections);
+                //Py_DECREF(self->moldenSections);
                 //self->moldenSections = read_molden_sections(self->fd);
                 break;
             case XTC:
@@ -412,6 +414,7 @@ static PyObject *Trajectory_read(Trajectory *self) {
 static PyObject* Trajectory_repr(Trajectory *self) {
     PyObject* str;
     char format[10];
+    char units[10];
 
     switch(self->type) {
         case XYZ:
@@ -425,8 +428,19 @@ static PyObject* Trajectory_repr(Trajectory *self) {
         default:
             strcpy(format,       ""); break;
     }
-    str = PyUnicode_FromFormat("Trajectory('%s', format='%s', mode='%c')",
-                                self->fileName, format, self->mode);
+    switch(self->units) {
+        case ANGS:
+            strcpy(units, "angs"); break;
+        case BOHR:
+            strcpy(units, "bohr"); break;
+        case NM:
+            strcpy(units,   "nm"); break;
+        default:
+            strcpy(units,     ""); break;
+	 }
+    str = PyUnicode_FromFormat("Trajectory('%s', format='%s', "
+	 				"mode='%c', units='%s')", self->fileName, format,
+					self->mode, units);
     return str;
 }
 
@@ -452,8 +466,8 @@ static PyMemberDef Trajectory_members[] = {
      "Number of frames (int)"},
     {"lastFrame", T_INT, offsetof(Trajectory, lastFrame), READONLY,
      "The number of the Last frame read or written"},
-    {"moldenSections", T_OBJECT_EX, offsetof(Trajectory, moldenSections), READONLY,
-     "Dictionary containing byte offsets to sections in Molden file"},
+    //{"moldenSections", T_OBJECT_EX, offsetof(Trajectory, moldenSections), READONLY,
+    // "Dictionary containing byte offsets to sections in Molden file"},
     {"fileName", T_STRING, offsetof(Trajectory, fileName), READONLY,
      "File name (str)"},
     {NULL}  /* Sentinel */
@@ -637,8 +651,8 @@ static int read_topo_from_xyz(Trajectory *self) {
             anum[pos] = element_table[idx].number;
 
         /* Free the line buffer */
-        free(buffer);
     }
+    free(buffer);
 
     /* Add atomic numbers to the dictionary */
     dims[0] = nofatoms;
@@ -975,7 +989,6 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
         Py_DECREF(py_result);
         Py_RETURN_NONE;
     }
-    free(buffer);
 
     if (nat != self->nOfAtoms) {
         PyErr_SetString(PyExc_IOError, "Error reading number of atoms");
@@ -990,7 +1003,6 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
     buffer[strlen(buffer)-1] = '\0';
 
     val = Py_BuildValue("s", buffer);
-    free(buffer);
     key = PyUnicode_FromString("comment");
     PyDict_SetItem(py_result, key, val);
     Py_DECREF(key);
@@ -1064,9 +1076,8 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
             }
         }
 
-        /* Free the line buffer */
-        free(buffer);
     }
+    free(buffer);
 
     /* Add coordinates to the dictionary */
     dims[0] = self->nOfAtoms;
@@ -1173,7 +1184,7 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
 
     return py_result;
 
-}
+}*/
 
 
 

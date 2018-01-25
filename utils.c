@@ -107,8 +107,9 @@ int getElementIndexBySymbol(const char *symbol) {
 	return -1;
 }
 
-
-double *vectorToDouble(double dvec[], PyArrayObject *arr) {
+/* Read a cartesian vector from ndarray and return as C-array. *
+ * On error, return NULL. Output is of ARRAY_REAL type         */
+/*ARRAY_REAL *vectorToDouble(ARRAY_REAL dvec[], PyArrayObject *arr) {
 	int type;
 	npy_intp *numpyint;
 
@@ -123,42 +124,42 @@ double *vectorToDouble(double dvec[], PyArrayObject *arr) {
         return NULL; }
     switch(type) {
         case NPY_FLOAT:
-            dvec[0] = *( (float*) PyArray_GETPTR1(arr, 0) );
-            dvec[1] = *( (float*) PyArray_GETPTR1(arr, 1) );
-            dvec[2] = *( (float*) PyArray_GETPTR1(arr, 2) );
+            dvec[0] = (ARRAY_REAL) *( (float*) PyArray_GETPTR1(arr, 0) );
+            dvec[1] = (ARRAY_REAL) *( (float*) PyArray_GETPTR1(arr, 1) );
+            dvec[2] = (ARRAY_REAL) *( (float*) PyArray_GETPTR1(arr, 2) );
             break;
         case NPY_DOUBLE:
-            dvec[0] = *( (double*) PyArray_GETPTR1(arr, 0) );
-            dvec[1] = *( (double*) PyArray_GETPTR1(arr, 1) );
-            dvec[2] = *( (double*) PyArray_GETPTR1(arr, 2) );
+            dvec[0] = (ARRAY_REAL) *( (double*) PyArray_GETPTR1(arr, 0) );
+            dvec[1] = (ARRAY_REAL) *( (double*) PyArray_GETPTR1(arr, 1) );
+            dvec[2] = (ARRAY_REAL) *( (double*) PyArray_GETPTR1(arr, 2) );
             break;
     }
     return dvec;
-}
+}*/
 
 
-void wrapCartesian(double point[3], double box[3]) {
+/*void wrapCartesian(double point[3], double box[3]) {
 	point[0] = fmod(point[0], box[0]);
 	point[1] = fmod(point[1], box[1]);
 	point[2] = fmod(point[2], box[2]);
 	if (point[0] < 0.0) point[0] += box[0];
 	if (point[1] < 0.0) point[1] += box[1];
 	if (point[2] < 0.0) point[2] += box[2];
-}
+}*/
 
 
 
-void nearestImage(double center[3], double other[3], double half[3]) {
+/*void nearestImage(double center[3], double other[3], double half[3]) {
 	if (center[0] - other[0] > half[0]) other[0] += half[0]+half[0];
 	else if (center[0] - other[0] < -half[0]) other[0] -= half[0]+half[0];
 	if (center[1] - other[1] > half[1]) other[1] += half[1]+half[1];
 	else if (center[1] - other[1] < -half[1]) other[1] -= half[1]+half[1];
 	if (center[2] - other[2] > half[2]) other[2] += half[2]+half[2];
 	else if (center[2] - other[2] < -half[2]) other[2] -= half[2]+half[2];
-}
+}*/
 
 
-double threePointAngleCosine(double A[3], double B[3], double C[3]) {
+/*double threePointAngleCosine(double A[3], double B[3], double C[3]) {
 	double p[3], q[3];
 	double lp, lq, cos;
 
@@ -176,21 +177,23 @@ double threePointAngleCosine(double A[3], double B[3], double C[3]) {
 	cos = (p[0]*q[0] + p[1]*q[1] + p[2]*q[2])/sqrt(lp*lq);
 
 	return cos;
-}
+}*/
 
 
-double distanceSquare(double p[3], double q[3]) {
+/*double distanceSquare(double p[3], double q[3]) {
 	return sq(p[0]-q[0]) + sq(p[1]-q[1]) + sq(p[2]-q[2]);
-}
+}*/
 
 
-void copyPoint(double dst[3], double src[3]) {
+/*void copyPoint(double dst[3], double src[3]) {
 	dst[0] = src[0];
 	dst[1] = src[1];
 	dst[2] = src[2];
-}
+}*/
 
-float getFromArray2D(PyObject *arr, int i, int j) {
+/* Get number from array, respecting the type         *
+ * and casting to ARRAY_REAL type used by the module. */
+/*ARRAY_REAL getFromArray2D(PyObject *arr, int i, int j) {
 	int type;
 	npy_half hx;
 	float fx;
@@ -202,23 +205,23 @@ float getFromArray2D(PyObject *arr, int i, int j) {
 		case NPY_HALF:
 	        hx = *( (npy_half*) PyArray_GETPTR2((PyArrayObject*)arr, i, j));
 			fx = npy_half_to_float(hx);
-        	return fx;
+        	return (ARRAY_REAL)fx;
 			break;
 		case NPY_FLOAT:
 	        fx = *( (float*) PyArray_GETPTR2((PyArrayObject*)arr, i, j));
-        	return fx;
+        	return (ARRAY_REAL)fx;
 			break;
 		case NPY_DOUBLE:
 	        dx = *( (double*) PyArray_GETPTR2((PyArrayObject*)arr, i, j));
-        	return (float)dx;
+        	return (ARRAY_REAL)dx;
 			break;
 		case NPY_LONGDOUBLE:
 	        lx = *( (long double*) PyArray_GETPTR2((PyArrayObject*)arr, i, j));
-        	return (float)lx;
+        	return (ARRAY_REAL)lx;
 			break;
 		default:
 			PyErr_SetString(PyExc_ValueError, "Incorrect type of coordinate array");
 			return NAN;
 			break;
     }
-}
+}*/

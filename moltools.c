@@ -36,10 +36,10 @@ static struct PyModuleDef moltoolsModule = {
     PyModuleDef_HEAD_INIT,
     "moltools",   /* name of module */
     /* module documentation, may be NULL */
-    "The moltools module provides some classes and functions related to molecular "
-    "modelling. The idea is to facilitate writing scripts for processing molecular "
-    "data, using standard types. For atomic coordinates, numpy arrays are used, "
-    "since they are fast and implement linear algebra.",
+    "The moltools module provides the Trajectory class and functions related "
+	 "to molecular modelling. The idea is to facilitate writing scripts for "
+	 "processing molecular data, using standard types. For atomic coordinates, "
+	 "numpy arrays are used, since they are fast and implement linear algebra.",
     -1,           /* size of per-interpreter state of the module,
                      or -1 if the module keeps state in global variables. */
     moltoolsMethods,

@@ -21,8 +21,10 @@ def getPackageFlags(pkg):
     libs = subprocess.check_output(['pkg-config', '--libs', pkg])
     return cflags.strip(), libs.strip()
 
-extraCFlags = [ "-O3 -march=native" ]#"-O0 -g -Wall -Wextra" ]
-extraLFlags = [ ]#"-O0 -g" ]
+extraCFlags = [ "-O3 -march=native" ]
+#extraCFlags = [ "-O0 -g -Wall -Wextra" ]
+extraLFlags = []
+#extraLFlags = [ "-O0 -g" ]
 extraInfo = get_info('npymath')
 
 # This is ugly and needs better approach
