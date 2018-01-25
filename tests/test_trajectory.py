@@ -12,7 +12,10 @@ def rndb():
     random.shuffle(l)
     return "".join(l)
 
-atomicSymbols = [ 'H', 'C', 'N', 'O', 'P', 'S', 'Cl', 'Na', 'Cu', 'Fe' ]
+atomicMasses = [
+    {'H':1.008}, {'C':12.011}, {'N':14.007}, {'O':15.999},
+    {'P':30.973762}, {'S':32.06}, {'Cl':35.45}, {'Na':22.98976928},
+    {'Cu':63.546}, {'Fe':55.845} ]
 characters = "".join([chr(x) for x in range(ord('A'), ord('z')+1)])
 
 class TestTrajectoryTopologyXYZ(unittest.TestCase):
@@ -37,7 +40,8 @@ class TestTrajectoryTopologyXYZ(unittest.TestCase):
             structure['nFrames'] = nFrames
 
             xyz = open("%s/%d.xyz" % (self.tmpDir, i), "w")
-            symbols = [random.choice(atomicSymbols) for x in range(nAtoms)]
+            asym = atomicMasses.keys()
+            symbols = [random.choice(asym) for x in range(nAtoms)]
             structure['symbols'] = symbols[:]
 
             structure['coordinates'] = []
@@ -76,7 +80,11 @@ class TestTrajectoryTopologyXYZ(unittest.TestCase):
             traj = mt.Trajectory(absolute)
             self.assertEqual(traj.fileName, absolute)
             self.assertEqual(traj.nOfAtoms, self.data[i]['nAtoms'])
-
+            symbols = self.data[i]['symbols']
+            for a in range(self.data[i]['nAtoms']):
+                self.assertEqual(traj.symbols[a], symbols[a])
+                m = atomicMasses[symbols[a]]
+                self.assertEqual(traj.atomicMasses[a], m)
 
 if __name__ == '__main__':
     unittest.main()
