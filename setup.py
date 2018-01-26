@@ -21,9 +21,8 @@ import unittest
 #    return cflags.strip(), libs.strip()
 
 #extraCFlags = [ "-O3 -march=native" ]
-extraCFlags = [ "-O0 -g -Wall -Wextra" ]
-#extraLFlags = []
-extraLFlags = [ "-O0 -g" ]
+extraCFlags = [ "-O0 -g" ]
+extraLFlags = []
 
 # Check if gromacs is present
 #if extraPackagePresent('libgromacs'):

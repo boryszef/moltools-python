@@ -32,7 +32,7 @@ class TestCUtils(unittest.TestCase):
         obj = cc.compile(["tests/test_utils.c",
             "mdarray/utils.c", "mdarray/periodic_table.c" ],
             extra_postargs=extraOptions)
-        cc.link_executable(obj, "tests/test_utils.x")
+        cc.link_executable(obj, "tests/test_utils.x", extra_postargs=extraOptions)
 
     def test_utils(self):
 
