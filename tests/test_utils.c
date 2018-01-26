@@ -6,6 +6,7 @@
 #include <ctype.h>
 #include <float.h>
 #include "CUnit/Basic.h"
+#include "mdarray.h"
 #include "utils.h"
 
 static FILE* tmpFile = NULL;
@@ -15,6 +16,7 @@ int init_utils(void) {
 		perror("init_utils");
       return -1;
    }*/
+	srand((int)getpid());
 	return 0;
 }
 
@@ -35,7 +37,6 @@ void testLOWERCASE(void) {
 	
 	buflen = strlen(template);
 	buffer = (char*) malloc((buflen+1) * sizeof(char));
-	srand((int)getpid());
 	for (i = 0; i < 10; i++) {
 		strcpy(buffer, template);
 		// Change randomly 5 characters
@@ -116,6 +117,98 @@ void testBYSYMBOL(void) {
 	}
 }
 
+void testGETFROM2D(void) {
+	ARRAY_REAL value, diff;
+	void *xyz;
+	int i, nPoints = 10;
+	npy_intp dims[2];
+	PyObject *points = NULL;
+	int type;
+	const int npy_types[] = { NPY_HALF, NPY_FLOAT, NPY_DOUBLE, NPY_LONGDOUBLE };
+	long double epsilon;
+
+	dims[0] = nPoints;
+	dims[1] = 3;
+
+	for (i = 0; i < 4; i++) {
+		type = npy_types[i];
+		switch(type) {
+			case NPY_HALF:
+				epsilon = 0.0010004;
+				xyz = (npy_half*) malloc(3 * nPoints * sizeof(npy_half));
+				break;
+			case NPY_FLOAT:
+				epsilon = 1e-06;
+				xyz = (float*) malloc(3 * nPoints * sizeof(float));
+				break;
+			case NPY_DOUBLE:
+				epsilon = 1e-15;
+				xyz = (double*) malloc(3 * nPoints * sizeof(double));
+				break;
+			case NPY_LONGDOUBLE:
+				epsilon = 1e-18;
+				xyz = (long double*) malloc(3 * nPoints * sizeof(long double));
+				break;
+		}
+		if(xyz == NULL) return;
+
+		for (i = 0; i < nPoints*3; i++) {
+			switch(type) {
+				case NPY_HALF:
+					((npy_half*)xyz)[i] = (npy_half)rand()/RAND_MAX-0.5;
+					break;
+				case NPY_FLOAT:
+					((float*)xyz)[i] = (float)rand()/RAND_MAX-0.5;
+					break;
+				case NPY_DOUBLE:
+					((double*)xyz)[i] = (double)rand()/RAND_MAX-0.5;
+					break;
+				case NPY_LONGDOUBLE:
+					((long double*)xyz)[i] = (long double)rand()/RAND_MAX-0.5;
+					break;
+			}
+		}
+
+		switch(type) {
+			case NPY_HALF:
+				points = PyArray_SimpleNewFromData(2, dims, type, (npy_half*) xyz);
+				break;
+			case NPY_FLOAT:
+				points = PyArray_SimpleNewFromData(2, dims, type, (float*) xyz);
+				break;
+			case NPY_DOUBLE:
+				points = PyArray_SimpleNewFromData(2, dims, type, (double*) xyz);
+				break;
+			case NPY_LONGDOUBLE:
+				points = PyArray_SimpleNewFromData(2, dims, type, (long double*) xyz);
+				break;
+		}
+
+		for (i = 0; i < nPoints; i++) {
+			value = getFromArray2D(points, type, i, 0);
+			printf("type %d, i %d = %f\n", type, i, value);
+			switch(type) {
+				case NPY_HALF:
+					diff = fabs(((npy_half*)xyz)[i*3] - value);
+					break;
+				case NPY_FLOAT:
+					diff = fabs(((float*)xyz)[i*3] - value);
+					break;
+				case NPY_DOUBLE:
+					diff = fabs(((double*)xyz)[i*3] - value);
+					break;
+				case NPY_LONGDOUBLE:
+					diff = fabs(((long double*)xyz)[i*3] - value);
+					break;
+			}
+			CU_ASSERT(diff < epsilon);
+		}
+
+		Py_DECREF(points);
+		points = NULL;
+	}
+}
+
 int main() {
    CU_pSuite pSuite = NULL;
 
@@ -146,6 +239,11 @@ int main() {
    }
 
    if (CU_add_test(pSuite, "test of getElementIndexBySymbol()", testBYSYMBOL) == NULL) {
+      CU_cleanup_registry();
+      return CU_get_error();
+   }
+
+   if (CU_add_test(pSuite, "test of getFromArray2D()", testGETFROM2D) == NULL) {
       CU_cleanup_registry();
       return CU_get_error();
    }

@@ -20,10 +20,10 @@ import unittest
 #    libs = subprocess.check_output(['pkg-config', '--libs', pkg])
 #    return cflags.strip(), libs.strip()
 
-extraCFlags = [ "-O3 -march=native" ]
-#extraCFlags = [ "-O0 -g -Wall -Wextra" ]
-extraLFlags = []
-#extraLFlags = [ "-O0 -g" ]
+#extraCFlags = [ "-O3 -march=native" ]
+extraCFlags = [ "-O0 -g -Wall -Wextra" ]
+#extraLFlags = []
+extraLFlags = [ "-O0 -g" ]
 
 # Check if gromacs is present
 #if extraPackagePresent('libgromacs'):
@@ -59,4 +59,5 @@ setup(
     install_requires = [ 'numpy>=1.10' ],
     ext_modules = [ mdarray ],
     test_suite = "setup.test_suite",
+    zip_safe = False
     )

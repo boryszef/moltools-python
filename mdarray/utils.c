@@ -1,6 +1,6 @@
 /***************************************************************************
 
-    mdarray-python
+    mdarray
 
     Python module for manipulation of atomic coordinates
     Copyright (C) 2012, Borys Szefczyk
@@ -193,35 +193,33 @@ int getElementIndexBySymbol(const char *symbol) {
 
 /* Get number from array, respecting the type         *
  * and casting to ARRAY_REAL type used by the module. */
-/*ARRAY_REAL getFromArray2D(PyObject *arr, int i, int j) {
-	int type;
+ARRAY_REAL getFromArray2D(PyObject *arr, int type, int i, int j) {
 	npy_half hx;
 	float fx;
 	double dx;
 	long double lx;
 
-	type = PyArray_TYPE((PyArrayObject*)arr);
 	switch(type) {
 		case NPY_HALF:
-	        hx = *( (npy_half*) PyArray_GETPTR2((PyArrayObject*)arr, i, j));
+			hx = *( (npy_half*) PyArray_GETPTR2((PyArrayObject*)arr, i, j));
 			fx = npy_half_to_float(hx);
-        	return (ARRAY_REAL)fx;
+			return (ARRAY_REAL)fx;
 			break;
 		case NPY_FLOAT:
-	        fx = *( (float*) PyArray_GETPTR2((PyArrayObject*)arr, i, j));
-        	return (ARRAY_REAL)fx;
+			fx = *( (float*) PyArray_GETPTR2((PyArrayObject*)arr, i, j));
+			return (ARRAY_REAL)fx;
 			break;
 		case NPY_DOUBLE:
-	        dx = *( (double*) PyArray_GETPTR2((PyArrayObject*)arr, i, j));
-        	return (ARRAY_REAL)dx;
+			dx = *( (double*) PyArray_GETPTR2((PyArrayObject*)arr, i, j));
+			return (ARRAY_REAL)dx;
 			break;
 		case NPY_LONGDOUBLE:
-	        lx = *( (long double*) PyArray_GETPTR2((PyArrayObject*)arr, i, j));
-        	return (ARRAY_REAL)lx;
+			lx = *( (long double*) PyArray_GETPTR2((PyArrayObject*)arr, i, j));
+			return (ARRAY_REAL)lx;
 			break;
 		default:
 			PyErr_SetString(PyExc_ValueError, "Incorrect type of coordinate array");
 			return NAN;
 			break;
-    }
-}*/
+	}
+}

@@ -1,6 +1,6 @@
 /***************************************************************************
 
-    mdarray-python
+    mdarray
 
     Python module for manipulation of atomic coordinates
     Copyright (C) 2012, Borys Szefczyk
@@ -1490,6 +1490,20 @@ static PyObject *read_frame_from_xtc(Trajectory *self) {
     return py_dict;
 }
 #endif /* HAVE_GROMACS */
+
+
+
+int traj_write_xyz(Trajectory *self, PyObject *py_coords, char *comment) {
+	int type;
+
+	fprintf(self->fd, "%d\n", self->nAtoms);
+	if( comment != NULL )
+		fprintf(self->fd, "%s\n", comment);
+	else
+		fprintf(self->fd, "\n");
+	type = PyArray_TYPE((PyArrayObject*)py_coords);
+}
+
 
 /* End of helper functions */
 

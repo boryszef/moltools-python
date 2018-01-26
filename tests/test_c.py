@@ -7,6 +7,7 @@ from numpy.distutils.misc_util import get_info
 import unittest
 
 #testDir = os.path.dirname(os.path.realpath(__file__))
+extraOptions = ["-O0", "-g"]
 
 class TestCUtils(unittest.TestCase):
 
@@ -28,7 +29,9 @@ class TestCUtils(unittest.TestCase):
             cc.add_library(lib)
 
         # Make tests
-        obj = cc.compile(["tests/test_utils.c", "mdarray/utils.c", "mdarray/periodic_table.c" ])
+        obj = cc.compile(["tests/test_utils.c",
+            "mdarray/utils.c", "mdarray/periodic_table.c" ],
+            extra_postargs=extraOptions)
         cc.link_executable(obj, "tests/test_utils.x")
 
     def test_utils(self):

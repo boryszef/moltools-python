@@ -1,6 +1,6 @@
 /***************************************************************************
 
-    mdarray-python
+    mdarray
 
     Python module for manipulation of atomic coordinates
     Copyright (C) 2012, Borys Szefczyk
@@ -43,6 +43,6 @@ int getElementIndexBySymbol(const char *symbol);
 //double threePointAngleCosine(double A[3], double B[3], double C[3]);
 //double distanceSquare(double p[3], double q[3]);
 //void copyPoint(double dst[3], double src[3]);
-//ARRAY_REAL getFromArray2D(PyObject *arr, int i, int j);
+ARRAY_REAL getFromArray2D(PyObject *arr, int type, int i, int j);
 
 #endif /* __UTILS_H__ */
