@@ -983,14 +983,17 @@ static int read_topo_from_xyz(Trajectory *self) {
 
 static PyObject *read_frame_from_xyz(Trajectory *self) {
 
-    PyObject *py_result, *py_coord, *py_charges, *val, *key;
+    PyObject *py_result, *py_coord;
+	 //PyObject *py_charges;
+	 PyObject *val, *key;
     char *buffer = NULL;
 	 char *buffpos, *token;
 	 size_t buflen;
     int pos, nat;
     float factor;
-    ARRAY_REAL *xyz, *charges;
-    unsigned short int charges_present;
+    ARRAY_REAL *xyz;
+	 //ARRAY_REAL *charges;
+    //unsigned short int charges_present;
     npy_intp dims[2];
 
     switch(self->units) {
@@ -1040,12 +1043,12 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
         PyErr_SetFromErrno(PyExc_MemoryError);
         Py_DECREF(py_result);
         return NULL; }
-    charges = (ARRAY_REAL*) malloc(self->nOfAtoms * sizeof(ARRAY_REAL));
+    /*charges = (ARRAY_REAL*) malloc(self->nOfAtoms * sizeof(ARRAY_REAL));
     if(charges == NULL) {
         PyErr_SetFromErrno(PyExc_MemoryError);
         Py_DECREF(py_result);
         return NULL; }
-    charges_present = 0;
+    charges_present = 0;*/
 
     /* Atom loop */
     for(pos = 0; pos < self->nOfAtoms; pos++) {
@@ -1078,11 +1081,11 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
             return NULL; }
         xyz[3*pos + 2] = atof(token) * factor;
 
-        /* Read charge, if present */
-        token = strtok(NULL, " \t");
+        // Read charge, if present
+        /*token = strtok(NULL, " \t");
         if ( token != NULL ) {
 
-            /* This is bad: until now, there were no charges */
+            // This is bad: until now, there were no charges
             if ( pos > 0 && !charges_present ) {
                 PyErr_SetString(PyExc_IOError, "Unexpected charges found");
                 Py_DECREF(py_result);
@@ -1094,13 +1097,13 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
 
         } else {
 
-            /* This is bad: we were expecting charges here and found nothing */
+            // This is bad: we were expecting charges here and found nothing
             if ( pos > 0 && charges_present ) {
                 PyErr_SetString(PyExc_IOError, "Missing charges");
                 Py_DECREF(py_result);
                 return NULL;
             }
-        }
+        }*/
 
     }
     free(buffer);
@@ -1120,15 +1123,16 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
 
 
     /* Add charges, if present */
-    if ( charges_present ) {
+    /*if ( charges_present ) {
         py_charges = PyArray_SimpleNewFromData(1, dims, NPY_ARRAY_REAL, charges);
         key = PyUnicode_FromString("charges");
         PyDict_SetItem(py_result, key, py_charges);
         Py_DECREF(key);
         Py_DECREF(py_charges);
     } else
-        /* Free the charges ONLY if the Python object was not created! */
+        // Free the charges ONLY if the Python object was not created!
         free(charges);
+	*/
 
     return py_result;
 
@@ -1457,7 +1461,7 @@ static PyObject *read_frame_from_xtc(Trajectory *self) {
     Py_DECREF(key);
     Py_DECREF(py_box);
 
-    /* Set-up the raw arrays for coordinates and charges */
+    /* Set-up the raw arrays for coordinates */
     xyz = (float*) malloc(3 * self->nOfAtoms * sizeof(float));
     if(xyz == NULL) {
         PyErr_SetFromErrno(PyExc_MemoryError);
