@@ -1,6 +1,6 @@
 /***************************************************************************
 
-    moltools-python
+    mdarray-python
 
     Python module for manipulation of atomic coordinates
     Copyright (C) 2012, Borys Szefczyk
@@ -23,7 +23,7 @@
 
 
 
-#include "moltools.h"
+#include "mdarray.h"
 #include "utils.h"
 #include "periodic_table.h"
 

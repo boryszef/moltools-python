@@ -1,6 +1,6 @@
 /***************************************************************************
 
-    moltools-python
+    mdarray-python
 
     Python module for manipulation of atomic coordinates
     Copyright (C) 2012, Borys Szefczyk
@@ -21,22 +21,31 @@
  ***************************************************************************/
 
 
-#ifndef __PERIODIC_TABLE_H__
-#define __PERIODIC_TABLE_H__
+#ifndef __MDARRAY_H__
+#define __MDARRAY_H__
 
-/* This should come before other Numpy-related declarations in every *
- * file that does not define the module's init function              */
-#define NO_IMPORT_ARRAY
+/* These two declarations should be package-wide, so put them here! */
+#define PY_ARRAY_UNIQUE_SYMBOL MDARRAY
+#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 
-/* Make sure the general declarations are made first */
-#include "moltools.h"
+/* To make sure that Python and Numpy stuff is declared everywhere, *
+ * put this here, in the header                                     */
+#include <locale.h>
+#include <Python.h>
+#include <structmember.h>
+#include <numpy/arrayobject.h>
+#include <numpy/npy_math.h>
+#include <numpy/halffloat.h>
 
-typedef const struct element__ {
-		int number;
-		double mass;
-		const char *symbol;
-		const char *name;
-		float covalent_radius;
-	} Element;
+//#ifdef HAVE_GROMACS
+//	#include <gromacs/utility/smalloc.h>
+//	#include <gromacs/fileio/xtcio.h>
+//#endif
 
-#endif /* __PERIODIC_TABLE_H__ */
+#define BOHRTOANGS 0.529177209
+
+#define ARRAY_REAL double
+#define NPY_ARRAY_REAL NPY_DOUBLE
+
+
+#endif /* __MDARRAY_H__ */

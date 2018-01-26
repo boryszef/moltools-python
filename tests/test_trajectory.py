@@ -3,7 +3,7 @@ import tempfile
 import random
 import os
 import numpy
-import moltools as mt
+import mdarray as mt
 
 # Return random string of spaces and tabs
 def rndb():
@@ -87,5 +87,3 @@ class TestTrajectoryTopologyXYZ(unittest.TestCase):
                 m = atomicMasses[symbols[a]]
                 self.assertEqual(traj.atomicMasses[a], m)
 
-if __name__ == '__main__':
-    unittest.main()

@@ -1,6 +1,6 @@
 /***************************************************************************
 
-    moltools-python
+    mdarray-python
 
     Python module for manipulation of atomic coordinates
     Copyright (C) 2012, Borys Szefczyk
@@ -22,32 +22,32 @@
 
 
 /* This header contains basic declarations, should come first */
-#include "moltools.h"
+#include "mdarray.h"
 
 
 
 
-static PyMethodDef moltoolsMethods[] = {
+static PyMethodDef mdarrayMethods[] = {
     {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 
 
-static struct PyModuleDef moltoolsModule = {
+static struct PyModuleDef mdarrayModule = {
     PyModuleDef_HEAD_INIT,
-    "moltools",   /* name of module */
+    "mdarray",   /* name of module */
     /* module documentation, may be NULL */
-    "The moltools module provides the Trajectory class and functions related "
+    "The mdarray module provides the Trajectory class and functions related "
 	 "to molecular modelling. The idea is to facilitate writing scripts for "
 	 "processing molecular data, using standard types. For atomic coordinates, "
 	 "numpy arrays are used, since they are fast and implement linear algebra.",
     -1,           /* size of per-interpreter state of the module,
                      or -1 if the module keeps state in global variables. */
-    moltoolsMethods,
+    mdarrayMethods,
 	 NULL, NULL, NULL, NULL
 };
 
 
-PyMODINIT_FUNC PyInit_moltools(void)
+PyMODINIT_FUNC PyInit_mdarray(void)
 {
 	PyObject *md;
 	extern PyTypeObject TrajectoryType;
@@ -59,7 +59,7 @@ PyMODINIT_FUNC PyInit_moltools(void)
 	if (PyType_Ready(&TrajectoryType) < 0)
 		return NULL;
 
-	md = PyModule_Create(&moltoolsModule);
+	md = PyModule_Create(&mdarrayModule);
 	if (md == NULL) return NULL;
 
 	Py_INCREF(&TrajectoryType);

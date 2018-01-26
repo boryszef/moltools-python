@@ -1,6 +1,6 @@
 /***************************************************************************
 
-    moltools-python
+    mdarray-python
 
     Python module for manipulation of atomic coordinates
     Copyright (C) 2012, Borys Szefczyk
@@ -28,7 +28,7 @@
 #define NO_IMPORT_ARRAY
 
 /* Make sure the general declarations are made first */
-#include "moltools.h"
+#include "mdarray.h"
 
 typedef struct {
 

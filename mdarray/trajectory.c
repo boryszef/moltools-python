@@ -1,6 +1,6 @@
 /***************************************************************************
 
-    moltools-python
+    mdarray-python
 
     Python module for manipulation of atomic coordinates
     Copyright (C) 2012, Borys Szefczyk
@@ -21,7 +21,7 @@
  ***************************************************************************/
 
 
-#include "moltools.h"
+#include "mdarray.h"
 #include "trajectory.h"
 #include "utils.h"
 #include "periodic_table.h"
@@ -512,7 +512,7 @@ static PyMethodDef Trajectory_methods[] = {
 PyTypeObject TrajectoryType = {
 
     PyVarObject_HEAD_INIT(NULL, 0)
-    "moltools.Trajectory",          /*tp_name*/
+    "mdarray.Trajectory",          /*tp_name*/
     sizeof(Trajectory),             /*tp_basicsize*/
     0,                              /*tp_itemsize*/
 

@@ -1,6 +1,6 @@
 /***************************************************************************
 
-    moltools-python
+    mdarray-python
 
     Python module for manipulation of atomic coordinates
     Copyright (C) 2012, Borys Szefczyk
@@ -29,7 +29,7 @@
 #define NO_IMPORT_ARRAY
 
 /* Make sure the general declarations are made first */
-#include "moltools.h"
+#include "mdarray.h"
 
 #define sq(a) ((a) * (a))
 
@@ -45,4 +45,4 @@ int getElementIndexBySymbol(const char *symbol);
 //void copyPoint(double dst[3], double src[3]);
 //ARRAY_REAL getFromArray2D(PyObject *arr, int i, int j);
 
-#endif /* __MOLTOOLS_H__ */
+#endif /* __UTILS_H__ */
