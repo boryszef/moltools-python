@@ -50,14 +50,14 @@ typedef struct {
 	long filePosition1;
 	long filePosition2;
 //	enum { MLGEOMETRY, MLATOMS, MLUNKNOWN } moldenStyle;
-	int nOfAtoms;
+	int nAtoms;
 //	int nOfFrames;
 	int lastFrame;
 	PyObject *symbols; /* list of symbols */
-	PyObject *atomicNumbers; /* atomic numbers */
+	PyObject *aNumbers; /* atomic numbers */
 //	PyObject *resIDs; /* residue numbers */
 //	PyObject *resNames; /* residue names */
-	PyObject *atomicMasses; /* atomic Masses */
+	PyObject *masses; /* atomic Masses */
 
 	//PyObject *moldenSections; /* Sections in Molden file and offsets */
 

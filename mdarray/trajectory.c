@@ -48,12 +48,12 @@ static void Trajectory_dealloc(Trajectory* self)
     self->resNames = NULL;
     Py_XDECREF(tmp);*/
 
-    tmp = self->atomicNumbers;
-    self->atomicNumbers = NULL;
+    tmp = self->aNumbers;
+    self->aNumbers = NULL;
     Py_XDECREF(tmp);
 
-    tmp = self->atomicMasses;
-    self->atomicMasses = NULL;
+    tmp = self->masses;
+    self->masses = NULL;
     Py_XDECREF(tmp);
 
     //tmp = self->moldenSections;
@@ -104,7 +104,7 @@ static PyObject *Trajectory_new(PyTypeObject *type, PyObject *args, PyObject *kw
         self->filePosition1 = -1;
         self->filePosition2 = -1;
         //self->moldenStyle = MLUNKNOWN;
-        self->nOfAtoms = 0;
+        self->nAtoms = 0;
 //        self->nOfFrames = 0;
         self->lastFrame = -1;
 
@@ -112,10 +112,10 @@ static PyObject *Trajectory_new(PyTypeObject *type, PyObject *args, PyObject *kw
         self->symbols = Py_None;
         
         Py_INCREF(Py_None);
-        self->atomicNumbers = Py_None;
+        self->aNumbers = Py_None;
         
         Py_INCREF(Py_None);
-        self->atomicMasses = Py_None;
+        self->masses = Py_None;
         
         /*Py_INCREF(Py_None);
         self->resIDs = Py_None;
@@ -271,7 +271,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
             PyErr_SetString(PyExc_ValueError, "Need atomic symbols");
             return -1; }
 
-        self->nOfAtoms = PyList_Size(self->symbols);
+        self->nAtoms = PyList_Size(self->symbols);
 
         /* Open the coordinate file */
         switch(self->type) {
@@ -349,7 +349,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
                 break;
             case XTC:
 #ifdef HAVE_GROMACS
-                if (!read_first_xtc(self->xd, &(self->nOfAtoms), &step, &time,
+                if (!read_first_xtc(self->xd, &(self->nAtoms), &step, &time,
                                     box, &(self->xtcCoord), &prec, &bOK) && bOK) {
                     PyErr_SetString(PyExc_IOError, "Error reading first frame");
                     return -1; }
@@ -465,15 +465,15 @@ static PyObject* Trajectory_repr(Trajectory *self) {
 static PyMemberDef Trajectory_members[] = {
     {"symbols", T_OBJECT_EX, offsetof(Trajectory, symbols), READONLY,
      "A list of atomic symbols"},
-    {"atomicNumbers", T_OBJECT_EX, offsetof(Trajectory, atomicNumbers), READONLY,
+    {"aNumbers", T_OBJECT_EX, offsetof(Trajectory, aNumbers), READONLY,
      "An ndarray with atomic numbers"},
-    {"atomicMasses", T_OBJECT_EX, offsetof(Trajectory, atomicMasses), READONLY,
+    {"masses", T_OBJECT_EX, offsetof(Trajectory, masses), READONLY,
      "An ndarray with atomic masses"},
     /*{"resIDs", T_OBJECT_EX, offsetof(Trajectory, resIDs), READONLY,
      "An ndarray with residue numbers - one number per atom"},
     {"resNames", T_OBJECT_EX, offsetof(Trajectory, resNames), READONLY,
      "A list of residue names"},*/
-    {"nOfAtoms", T_INT, offsetof(Trajectory, nOfAtoms), READONLY,
+    {"nAtoms", T_INT, offsetof(Trajectory, nAtoms), READONLY,
      "Number of atoms (int)"},
     /*{"nOfFrames", T_INT, offsetof(Trajectory, nOfFrames), READONLY,
      "Number of frames (int)"},*/
@@ -552,7 +552,7 @@ PyTypeObject TrajectoryType = {
     "  frame1 = traj.read()\n"
     "  frame2 = traj.read()\n"
     "Object of the class Trajectory contains such fields as: symbols, "
-	 "atomicNumbers, atomicMasses, resIDs, resNames, nOfAtoms, nOfFrames, "
+	 "aNumbers, masses, resIDs, resNames, nAtoms, nOfFrames, "
 	 "lastFrame, moldenSections, fileName. Method read() returns a dictionary "
 	 "with items depending on the file format, but at least 'coordinates' "
 	 "are present. Writing example:\n"
@@ -679,12 +679,12 @@ static int read_topo_from_xyz(Trajectory *self) {
     /* Add atomic numbers to the dictionary */
     dims[0] = nofatoms;
     dims[1] = 1;
-    Py_DECREF(self->atomicNumbers);
-    self->atomicNumbers = PyArray_SimpleNewFromData(1, dims, NPY_INT, (int*) anum);
-    Py_DECREF(self->atomicMasses);
-    self->atomicMasses = PyArray_SimpleNewFromData(1, dims, NPY_ARRAY_REAL, (ARRAY_REAL*) masses);
+    Py_DECREF(self->aNumbers);
+    self->aNumbers = PyArray_SimpleNewFromData(1, dims, NPY_INT, (int*) anum);
+    Py_DECREF(self->masses);
+    self->masses = PyArray_SimpleNewFromData(1, dims, NPY_ARRAY_REAL, (ARRAY_REAL*) masses);
 
-    self->nOfAtoms = nofatoms;
+    self->nAtoms = nofatoms;
 
     return 0;
 }
@@ -820,7 +820,7 @@ static int read_topo_from_xyz(Trajectory *self) {
             }
             free(line);
 
-        self->nOfAtoms = nat;
+        self->nAtoms = nat;
 
         // Get rid of Py_None in self->symbols 
         Py_DECREF(self->symbols);
@@ -856,8 +856,8 @@ static int read_topo_from_xyz(Trajectory *self) {
         // Add atomic numbers to the dictionary 
         dims[0] = nat;
         dims[1] = 1;
-        Py_DECREF(self->atomicNumbers);
-        self->atomicNumbers = PyArray_SimpleNewFromData(1, dims, NPY_INT, anum);
+        Py_DECREF(self->aNumbers);
+        self->aNumbers = PyArray_SimpleNewFromData(1, dims, NPY_INT, anum);
 
     } else {
 
@@ -918,7 +918,7 @@ static int read_topo_from_xyz(Trajectory *self) {
         PyErr_SetString(PyExc_IOError, "Incorrect atom number");
         return -1; }
 
-    self->nOfAtoms = nofatoms;
+    self->nAtoms = nofatoms;
 
     // Get rid of Py_None in self->symbols etc. 
     Py_DECREF(self->symbols);
@@ -1019,7 +1019,7 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
         Py_RETURN_NONE;
     }
 
-    if (nat != self->nOfAtoms) {
+    if (nat != self->nAtoms) {
         PyErr_SetString(PyExc_IOError, "Error reading number of atoms");
         Py_DECREF(py_result);
         return NULL; }
@@ -1038,12 +1038,12 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
     Py_DECREF(val);
 
     /* Set-up the raw arrays for coordinates and charges */
-    xyz = (ARRAY_REAL*) malloc(3 * self->nOfAtoms * sizeof(ARRAY_REAL));
+    xyz = (ARRAY_REAL*) malloc(3 * self->nAtoms * sizeof(ARRAY_REAL));
     if(xyz == NULL) {
         PyErr_SetFromErrno(PyExc_MemoryError);
         Py_DECREF(py_result);
         return NULL; }
-    /*charges = (ARRAY_REAL*) malloc(self->nOfAtoms * sizeof(ARRAY_REAL));
+    /*charges = (ARRAY_REAL*) malloc(self->nAtoms * sizeof(ARRAY_REAL));
     if(charges == NULL) {
         PyErr_SetFromErrno(PyExc_MemoryError);
         Py_DECREF(py_result);
@@ -1051,7 +1051,7 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
     charges_present = 0;*/
 
     /* Atom loop */
-    for(pos = 0; pos < self->nOfAtoms; pos++) {
+    for(pos = 0; pos < self->nAtoms; pos++) {
 
         /* Get the whole line */
         if (getline(&buffer, &buflen, self->fd) == -1) {
@@ -1109,7 +1109,7 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
     free(buffer);
 
     /* Add coordinates to the dictionary */
-    dims[0] = self->nOfAtoms;
+    dims[0] = self->nAtoms;
     dims[1] = 3;
     py_coord = PyArray_SimpleNewFromData(2, dims, NPY_ARRAY_REAL, xyz);
     /***************************************************************
@@ -1154,14 +1154,14 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
 
     py_result = PyDict_New();
 
-    xyz = (ARRAY_REAL*) malloc(3 * self->nOfAtoms * sizeof(ARRAY_REAL));
+    xyz = (ARRAY_REAL*) malloc(3 * self->nAtoms * sizeof(ARRAY_REAL));
     if(xyz == NULL) {
         PyErr_SetFromErrno(PyExc_MemoryError);
         return NULL; }
 
     // Loop over the lines 
     fseek(self->fd, self->filePosition1, SEEK_SET);
-    for (i = 0; i < self->nOfAtoms; i++ ) {
+    for (i = 0; i < self->nAtoms; i++ ) {
 
         line = readline(self->fd);
         stripline(line);
@@ -1204,7 +1204,7 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
     self->filePosition1 = ftell(self->fd);
 
     // Add coordinates to the dictionary 
-    dims[0] = self->nOfAtoms;
+    dims[0] = self->nAtoms;
     dims[1] = 3;
     py_geom = PyArray_SimpleNewFromData(2, dims, NPY_ARRAY_REAL, xyz);
     key = PyUnicode_FromString("coordinates");
@@ -1292,18 +1292,18 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
     if( (buffer = readline(self->fd)) == NULL) {
         PyErr_SetFromErrno(PyExc_IOError);
         return NULL; }
-    if( sscanf(buffer, "%d", &nat) != 1 || nat != self->nOfAtoms) {
+    if( sscanf(buffer, "%d", &nat) != 1 || nat != self->nAtoms) {
         PyErr_SetString(PyExc_IOError, "Incorrect atom number");
         return NULL; }
     free(buffer);
 
 
     // Set-up the raw arrays for coordinates and charges 
-    xyz = (ARRAY_REAL*) malloc(3 * self->nOfAtoms * sizeof(ARRAY_REAL));
+    xyz = (ARRAY_REAL*) malloc(3 * self->nAtoms * sizeof(ARRAY_REAL));
     if(xyz == NULL) {
         PyErr_SetFromErrno(PyExc_MemoryError);
         return NULL; }
-    vel = (ARRAY_REAL*) malloc(3 * self->nOfAtoms * sizeof(ARRAY_REAL));
+    vel = (ARRAY_REAL*) malloc(3 * self->nAtoms * sizeof(ARRAY_REAL));
     if(vel == NULL) {
         PyErr_SetFromErrno(PyExc_MemoryError);
         return NULL; }
@@ -1313,7 +1313,7 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
         return NULL; }
 
     // Atom loop 
-    for(pos = 0; pos < self->nOfAtoms; pos++) {
+    for(pos = 0; pos < self->nAtoms; pos++) {
 
         // Get the whole line 
         if((buffer = readline(self->fd)) == NULL) {
@@ -1359,7 +1359,7 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
     free(buffer);
 
     // Add coordinates to the dictionary 
-    dims[0] = self->nOfAtoms;
+    dims[0] = self->nAtoms;
     dims[1] = 3;
     py_coord = PyArray_SimpleNewFromData(2, dims, NPY_ARRAY_REAL, (ARRAY_REAL*) xyz);
     // **************************************************************
@@ -1415,7 +1415,7 @@ static PyObject *read_frame_from_xtc(Trajectory *self) {
     /* Create the dictionary that will be returned */
     py_dict = PyDict_New();
 
-    if (!read_next_xtc(self->xd, self->nOfAtoms, &step, &time, mbox, self->xtcCoord, &prec, &bOK)) {
+    if (!read_next_xtc(self->xd, self->nAtoms, &step, &time, mbox, self->xtcCoord, &prec, &bOK)) {
         Py_DECREF(py_dict);
         Py_RETURN_NONE;
     }
@@ -1462,12 +1462,12 @@ static PyObject *read_frame_from_xtc(Trajectory *self) {
     Py_DECREF(py_box);
 
     /* Set-up the raw arrays for coordinates */
-    xyz = (float*) malloc(3 * self->nOfAtoms * sizeof(float));
+    xyz = (float*) malloc(3 * self->nAtoms * sizeof(float));
     if(xyz == NULL) {
         PyErr_SetFromErrno(PyExc_MemoryError);
         return NULL; }
 
-    for (i = 0; i < self->nOfAtoms; i++) {
+    for (i = 0; i < self->nAtoms; i++) {
         /* Times 10, because converting from nm */
         xyz[i*3    ] = (float)(self->xtcCoord[i][0] * 10.0);
         xyz[i*3 + 1] = (float)(self->xtcCoord[i][1] * 10.0);
@@ -1475,7 +1475,7 @@ static PyObject *read_frame_from_xtc(Trajectory *self) {
     }
 
     /* Add coordinates to the dictionary */
-    dims[0] = self->nOfAtoms;
+    dims[0] = self->nAtoms;
     dims[1] = 3;
     py_coord = PyArray_SimpleNewFromData(2, dims, NPY_FLOAT, (float*) xyz);
     /***************************************************************

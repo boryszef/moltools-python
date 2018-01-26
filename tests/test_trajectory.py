@@ -18,7 +18,7 @@ atomicMasses = {
     'Cu':(29,63.546), 'Fe':(26,55.845) }
 characters = "".join([chr(x) for x in range(ord('A'), ord('z')+1)])
 
-class TestTrajectoryTopologyXYZ(unittest.TestCase):
+class TestTrajectoryXYZ(unittest.TestCase):
 
     def setUp(self):
         
@@ -63,6 +63,17 @@ class TestTrajectoryTopologyXYZ(unittest.TestCase):
             xyz.close()
             self.data.append(structure)
 
+        # Use various units
+        nAtoms = 10
+        units = { "angs" : 1, "bohr" : 0.529177209, "nm" : 10 }
+        self.units_crd = numpy.random.uniform(-10, 10, (nAtoms, 3))
+        for u,f in units.items():
+            xyz = open("%s/%s.xyz" % (self.tmpDir, u), "w")
+            xyz.write("%d\n\n" % nAtoms)
+            for a in range(nAtoms):
+                xyz.write("He %.7f %.7f %.7f\n" % tuple(self.units_crd[a,:]/f))
+            xyz.close()
+
 
     def tearDown(self):
 
@@ -81,13 +92,13 @@ class TestTrajectoryTopologyXYZ(unittest.TestCase):
             absolute = "%s/%d.xyz" % (self.tmpDir, i)
             traj = mt.Trajectory(absolute)
             self.assertEqual(traj.fileName, absolute)
-            self.assertEqual(traj.nOfAtoms, self.data[i]['nAtoms'])
+            self.assertEqual(traj.nAtoms, self.data[i]['nAtoms'])
             symbols = self.data[i]['symbols']
             for a in range(self.data[i]['nAtoms']):
                 self.assertEqual(traj.symbols[a], symbols[a])
                 m = atomicMasses[symbols[a]]
-                self.assertEqual(traj.atomicMasses[a], m[1])
-                self.assertEqual(traj.atomicNumbers[a], m[0])
+                self.assertEqual(traj.masses[a], m[1])
+                self.assertEqual(traj.aNumbers[a], m[0])
 
             frameNo = 0
             frame = traj.read()
@@ -100,3 +111,14 @@ class TestTrajectoryTopologyXYZ(unittest.TestCase):
                 frameNo += 1
                 frame = traj.read()
             self.assertEqual(frameNo, len(self.data[i]['coordinates']))
+
+    def test_Units(self):
+
+        for u in ["angs", "bohr", "nm"]:
+            absolute = "%s/%s.xyz" % (self.tmpDir, u)
+            traj = mt.Trajectory(absolute, units=u)
+            frame = traj.read()
+            diff = frame['coordinates'] - self.units_crd
+            maxDiff = numpy.max(numpy.abs(diff))
+            self.assertTrue(maxDiff <= 1e-6)
+
