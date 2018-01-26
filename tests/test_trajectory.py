@@ -13,9 +13,9 @@ def rndb():
     return "".join(l)
 
 atomicMasses = {
-    'H':1.008, 'C':12.011, 'N':14.007, 'O':15.999,
-    'P':30.973762, 'S':32.06, 'Cl':35.45, 'Na':22.98976928,
-    'Cu':63.546, 'Fe':55.845 }
+    'H':(1,1.008), 'C':(6,12.011), 'N':(7,14.007), 'O':(8,15.999),
+    'P':(15,30.973762), 'S':(16,32.06), 'Cl':(17,35.45), 'Na':(11,22.98976928),
+    'Cu':(29,63.546), 'Fe':(26,55.845) }
 characters = "".join([chr(x) for x in range(ord('A'), ord('z')+1)])
 
 class TestTrajectoryTopologyXYZ(unittest.TestCase):
@@ -76,6 +76,7 @@ class TestTrajectoryTopologyXYZ(unittest.TestCase):
 
 
     def test_topoComponents(self):
+
         for i in range(self.nFiles):
             absolute = "%s/%d.xyz" % (self.tmpDir, i)
             traj = mt.Trajectory(absolute)
@@ -85,5 +86,17 @@ class TestTrajectoryTopologyXYZ(unittest.TestCase):
             for a in range(self.data[i]['nAtoms']):
                 self.assertEqual(traj.symbols[a], symbols[a])
                 m = atomicMasses[symbols[a]]
-                self.assertEqual(traj.atomicMasses[a], m)
+                self.assertEqual(traj.atomicMasses[a], m[1])
+                self.assertEqual(traj.atomicNumbers[a], m[0])
 
+            frameNo = 0
+            frame = traj.read()
+            while frame:
+                diff = frame['coordinates'] - self.data[i]['coordinates'][frameNo]
+                maxDiff = numpy.max(numpy.abs(diff))
+                self.assertTrue(maxDiff <= 1e-6)
+                comment = frame['comment']
+                self.assertEqual(comment, self.data[i]['comments'][frameNo])
+                frameNo += 1
+                frame = traj.read()
+            self.assertEqual(frameNo, len(self.data[i]['coordinates']))
