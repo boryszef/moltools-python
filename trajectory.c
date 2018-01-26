@@ -659,7 +659,7 @@ static int read_topo_from_xyz(Trajectory *self) {
         buffpos = buffer;
 
         /* Read symbol */
-        token = strtok(buffpos, " ");
+        token = strtok(buffpos, " \t");
         val = Py_BuildValue("s", token);
         PyList_SetItem(self->symbols, pos, val);
 
@@ -835,14 +835,14 @@ static int read_topo_from_xyz(Trajectory *self) {
         for ( i = 0; i < nat; i++ ) {
 
             buffpos = line_store[i];
-            token = strtok(buffpos, " ");
+            token = strtok(buffpos, " \t");
             val = Py_BuildValue("s", token);
             PyList_SetItem(self->symbols, i, val);
 
-            token = strtok(NULL, " ");
+            token = strtok(NULL, " \t");
             // not used 
 
-            token = strtok(NULL, " ");
+            token = strtok(NULL, " \t");
             anum[i] = atoi(token);
 
             // Get rid of the line. 
@@ -1059,27 +1059,27 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
         buffpos = buffer;
 
         /* Read symbol */
-        token = strtok(buffpos, " ");
+        token = strtok(buffpos, " \t");
 
         /* Read coordinates */
-        if ( (token = strtok(NULL, " ")) == NULL) {
+        if ( (token = strtok(NULL, " \t")) == NULL) {
             PyErr_SetString(PyExc_IOError, "Missing coordinate");
             Py_DECREF(py_result);
             return NULL; }
         xyz[3*pos + 0] = atof(token) * factor;
-        if ( (token = strtok(NULL, " ")) == NULL) {
+        if ( (token = strtok(NULL, " \t")) == NULL) {
             PyErr_SetString(PyExc_IOError, "Missing coordinate");
             Py_DECREF(py_result);
             return NULL; }
         xyz[3*pos + 1] = atof(token) * factor;
-        if ( (token = strtok(NULL, " ")) == NULL) {
+        if ( (token = strtok(NULL, " \t")) == NULL) {
             PyErr_SetString(PyExc_IOError, "Missing coordinate");
             Py_DECREF(py_result);
             return NULL; }
         xyz[3*pos + 2] = atof(token) * factor;
 
         /* Read charge, if present */
-        token = strtok(NULL, " ");
+        token = strtok(NULL, " \t");
         if ( token != NULL ) {
 
             /* This is bad: until now, there were no charges */
@@ -1171,21 +1171,21 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
         }
 
         buffpos = line;
-        token = strtok(buffpos, " ");
+        token = strtok(buffpos, " \t");
 
-        token = strtok(NULL, " ");
+        token = strtok(NULL, " \t");
         // not used 
 
-        token = strtok(NULL, " ");
+        token = strtok(NULL, " \t");
         // atomic number - not used here 
 
-        token = strtok(NULL, " ");
+        token = strtok(NULL, " \t");
         xyz[3*i+0] = atof(token);
 
-        token = strtok(NULL, " ");
+        token = strtok(NULL, " \t");
         xyz[3*i+1] = atof(token);
 
-        token = strtok(NULL, " ");
+        token = strtok(NULL, " \t");
         xyz[3*i+2] = atof(token);
 
         if (self->units == BOHR) {

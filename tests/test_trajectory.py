@@ -12,10 +12,10 @@ def rndb():
     random.shuffle(l)
     return "".join(l)
 
-atomicMasses = [
-    {'H':1.008}, {'C':12.011}, {'N':14.007}, {'O':15.999},
-    {'P':30.973762}, {'S':32.06}, {'Cl':35.45}, {'Na':22.98976928},
-    {'Cu':63.546}, {'Fe':55.845} ]
+atomicMasses = {
+    'H':1.008, 'C':12.011, 'N':14.007, 'O':15.999,
+    'P':30.973762, 'S':32.06, 'Cl':35.45, 'Na':22.98976928,
+    'Cu':63.546, 'Fe':55.845 }
 characters = "".join([chr(x) for x in range(ord('A'), ord('z')+1)])
 
 class TestTrajectoryTopologyXYZ(unittest.TestCase):
@@ -40,7 +40,7 @@ class TestTrajectoryTopologyXYZ(unittest.TestCase):
             structure['nFrames'] = nFrames
 
             xyz = open("%s/%d.xyz" % (self.tmpDir, i), "w")
-            asym = atomicMasses.keys()
+            asym = list(atomicMasses.keys())
             symbols = [random.choice(asym) for x in range(nAtoms)]
             structure['symbols'] = symbols[:]
 
@@ -67,11 +67,12 @@ class TestTrajectoryTopologyXYZ(unittest.TestCase):
     def tearDown(self):
 
         # Remove files
-        for f in os.listdir(self.tmpDir):
-            if not f.startswith("."): os.remove(self.tmpDir+"/"+f)
+        #for f in os.listdir(self.tmpDir):
+        #    if not f.startswith("."): os.remove(self.tmpDir+"/"+f)
 
         # Remove directory
-        os.rmdir(self.tmpDir)
+        #os.rmdir(self.tmpDir)
+        pass
 
 
     def test_topoComponents(self):
