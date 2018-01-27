@@ -159,37 +159,19 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 //   PyObject *py_resn = NULL;;
 
     static char *kwlist[] = {
-        "filename",
-        "format", "mode", "units",
+        "filename", "mode",
+        "format", "units",
         "symbols", NULL };
         //"symbols", "resids", "resnames", NULL };
 
     //if(!PyArg_ParseTupleAndKeywords(args, kwds, "s|sssO!O!O!", kwlist,
     if(!PyArg_ParseTupleAndKeywords(args, kwds, "s|sssO!", kwlist,
             &filename,
-            &str_type, &mode, &units,
+            &mode, &str_type, &units,
             &PyList_Type, &py_sym))
 //            &PyArray_Type, &py_resid,
 //            &PyList_Type, &py_resn))
         return -1;
-
-    if (py_sym != NULL) {
-        Py_DECREF(self->symbols);
-        self->symbols = py_sym;
-        Py_INCREF(self->symbols);
-    }
-
-/*    if (py_resid != NULL) {
-        Py_DECREF(self->resIDs);
-        self->resIDs = py_resid;
-        Py_INCREF(self->resIDs);
-    }
-
-    if (py_resn != NULL) {
-        Py_DECREF(self->resNames);
-        self->resNames = py_resn;
-        Py_INCREF(self->resNames);
-    }*/
 
     self->fileName = (char*) malloc((strlen(filename)+1) * sizeof(char));
     strcpy(self->fileName, filename);
@@ -263,7 +245,33 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
         if      (!strcmp(units, "angs")) self->units = ANGS;
         else if (!strcmp(units, "bohr")) self->units = BOHR;
         else if (!strcmp(units,   "nm")) self->units = NM;
+		else {
+            PyErr_SetString(PyExc_ValueError, "Supported units are: angs, bohr, nm");
+            return -1;
+		}
     }
+
+    if (py_sym != NULL) {
+		if (self->mode == 'r') {
+            PyErr_SetString(PyExc_ValueError, "Don't use symbols in 'r' mode");
+            return -1;
+		}
+        Py_DECREF(self->symbols);
+        self->symbols = py_sym;
+        Py_INCREF(self->symbols);
+    }
+
+/*    if (py_resid != NULL) {
+        Py_DECREF(self->resIDs);
+        self->resIDs = py_resid;
+        Py_INCREF(self->resIDs);
+    }
+
+    if (py_resn != NULL) {
+        Py_DECREF(self->resNames);
+        self->resNames = py_resn;
+        Py_INCREF(self->resNames);
+    }*/
 
     if (self->mode == 'w' || self->mode == 'a') {
 
@@ -548,13 +556,14 @@ static PyMethodDef Trajectory_methods[] = {
         "\n"
         "Trajectory.read()\n"
         "\n"
-        "Read next frame from trajectory. Returns a dictionary:\n"
+        "Read next frame from trajectory. Returns a dictionary with:\n"
         "\n"
         "coordinates (ndarray)\n"
         "step (int)\n"
         "time (float)\n"
         "box (ndarray) shape=3,3\n"
         "\n" },
+
 	{"write", (PyCFunction)Trajectory_write, METH_VARARGS | METH_KEYWORDS,
 		"\n"
 		"Trajectory.write(coordinates, [ comment ])\n"
@@ -562,6 +571,7 @@ static PyMethodDef Trajectory_methods[] = {
 		"coordinates (ndarray)\n"
 //		"velocities (ndarray)\n"
 //		"box (ndarray)\n"
+		"comment (string)\n"
 		"\n" },
 
     {NULL}  /* Sentinel */
