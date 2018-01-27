@@ -73,5 +73,6 @@ static PyObject *read_frame_from_xyz(Trajectory *self);
 //#ifdef HAVE_GROMACS
 //static PyObject *read_frame_from_xtc(Trajectory *self);
 //#endif
+static int write_frame_to_xyz(Trajectory *self, PyObject *py_coords, char *comment);
 
 #endif /* __TRAJECTORY_H__ */

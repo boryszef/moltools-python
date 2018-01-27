@@ -198,23 +198,25 @@ ARRAY_REAL getFromArray2D(PyObject *arr, int type, int i, int j) {
 	float fx;
 	double dx;
 	long double lx;
+	void *ptr;
 
+	ptr = PyArray_GETPTR2((PyArrayObject*)arr, i, j);
 	switch(type) {
 		case NPY_HALF:
-			hx = *( (npy_half*) PyArray_GETPTR2((PyArrayObject*)arr, i, j));
+			hx = *( (npy_half*) ptr);
 			fx = npy_half_to_float(hx);
 			return (ARRAY_REAL)fx;
 			break;
 		case NPY_FLOAT:
-			fx = *( (float*) PyArray_GETPTR2((PyArrayObject*)arr, i, j));
+			fx = *( (float*) ptr);
 			return (ARRAY_REAL)fx;
 			break;
 		case NPY_DOUBLE:
-			dx = *( (double*) PyArray_GETPTR2((PyArrayObject*)arr, i, j));
+			dx = *( (double*) ptr);
 			return (ARRAY_REAL)dx;
 			break;
 		case NPY_LONGDOUBLE:
-			lx = *( (long double*) PyArray_GETPTR2((PyArrayObject*)arr, i, j));
+			lx = *( (long double*) ptr);
 			return (ARRAY_REAL)lx;
 			break;
 		default:

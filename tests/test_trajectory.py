@@ -122,3 +122,11 @@ class TestTrajectoryXYZ(unittest.TestCase):
             maxDiff = numpy.max(numpy.abs(diff))
             self.assertTrue(maxDiff <= 1e-6)
 
+    def test_WriteXYZ(self):
+
+        s=['C']
+        x=numpy.array([[1,2,3]])
+        t=mt.Trajectory('foo.xyz', 'XYZ', 'w', 'angs', s)
+        t.write(x,'blah')
+
+

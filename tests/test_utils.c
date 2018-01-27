@@ -120,7 +120,7 @@ void testBYSYMBOL(void) {
 	}
 }
 
-void testGETFROM2D(void) {
+/*void testGETFROM2D(void) {
 	ARRAY_REAL value, diff;
 	void *xyz;
 	float *foo;
@@ -135,8 +135,6 @@ void testGETFROM2D(void) {
 
 	dims[0] = nPoints;
 	dims[1] = 3;
-	foo = malloc(3 * nPoints * sizeof(float));
-	points = PyArray_SimpleNewFromData(2, dims, NPY_FLOAT, foo);
 
 	for (i = 0; i < 3; i++) {
 		type = npy_types[i];
@@ -184,7 +182,7 @@ void testGETFROM2D(void) {
 
 		points = PyArray_SimpleNewFromData(2, dims, type, xyz);
 
-		/*for (i = 0; i < nPoints; i++) {
+		for (i = 0; i < nPoints; i++) {
 			value = getFromArray2D(points, type, i, 0);
 			printf("type %d, i %d = %f\n", type, i, value);
 			switch(type) {
@@ -205,10 +203,10 @@ void testGETFROM2D(void) {
 		}
 
 		Py_DECREF(points);
-		points = NULL;*/
+		points = NULL;
 		free(xyz);
 	}
-}
+}*/
 
 int main() {
    CU_pSuite pSuite = NULL;
@@ -244,10 +242,10 @@ int main() {
       return CU_get_error();
    }
 
-   if (CU_add_test(pSuite, "test of getFromArray2D()", testGETFROM2D) == NULL) {
+   /*if (CU_add_test(pSuite, "test of getFromArray2D()", testGETFROM2D) == NULL) {
       CU_cleanup_registry();
       return CU_get_error();
-   }
+   }*/
 
    /* Run all tests using the CUnit Basic interface */
    CU_basic_set_mode(CU_BRM_VERBOSE);

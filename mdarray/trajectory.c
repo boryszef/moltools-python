@@ -421,6 +421,59 @@ static PyObject *Trajectory_read(Trajectory *self) {
 
 
 
+static PyObject *Trajectory_write(Trajectory *self, PyObject *args, PyObject *kwds) {
+
+	PyObject *py_coords = NULL;
+	//PyObject *py_vel = NULL;
+	//PyObject *py_box = NULL;
+	char *comment = NULL;;
+	int out;
+	npy_half hx, hy, hz;
+	long double lx, ly, lz;
+	double dx, dy, dz;
+	float x, y, z;
+	char *s;
+
+	static char *kwlist[] = {
+		"coordinates", "comment", NULL };
+		//"coordinates", "velocities", "box", "comment", NULL };
+
+	//if(!PyArg_ParseTupleAndKeywords(args, kwds, "O!|O!O!s", kwlist,
+	if(!PyArg_ParseTupleAndKeywords(args, kwds, "O!|s", kwlist,
+			&PyArray_Type, &py_coords,
+			//&PyArray_Type, &py_vel,
+			//&PyArray_Type, &py_box,
+			&comment))
+		return NULL;
+
+	if (self->mode != 'a' && self->mode != 'w') {
+		PyErr_SetString(PyExc_RuntimeError, "Trying to write in read mode");
+		return NULL; }
+
+	switch(self->type) {
+		case XYZ:
+			out = write_frame_to_xyz(self, py_coords, comment);
+			if (out != 0) return NULL;
+			break;
+		/*case GRO:
+			if (traj_write_gro(self, py_coords, py_vel, py_box, comment)) {
+				PyErr_SetString(PyExc_RuntimeError, "Could not write");
+				return NULL;
+			}
+			break;*/
+
+		default:
+			break;
+	}
+
+	self->lastFrame += 1;
+	Py_RETURN_NONE;
+
+}
+
+
+
+
 
 static PyObject* Trajectory_repr(Trajectory *self) {
     PyObject* str;
@@ -502,6 +555,14 @@ static PyMethodDef Trajectory_methods[] = {
         "time (float)\n"
         "box (ndarray) shape=3,3\n"
         "\n" },
+	{"write", (PyCFunction)Trajectory_write, METH_VARARGS | METH_KEYWORDS,
+		"\n"
+		"Trajectory.write(coordinates, [ comment ])\n"
+		"\n"
+		"coordinates (ndarray)\n"
+//		"velocities (ndarray)\n"
+//		"box (ndarray)\n"
+		"\n" },
 
     {NULL}  /* Sentinel */
 };
@@ -1493,15 +1554,46 @@ static PyObject *read_frame_from_xtc(Trajectory *self) {
 
 
 
-int traj_write_xyz(Trajectory *self, PyObject *py_coords, char *comment) {
+static int write_frame_to_xyz(Trajectory *self, PyObject *py_coords, char *comment) {
 	int type;
+	npy_intp *dims;
+	int at;
+	ARRAY_REAL x, y, z;
+	char *sym;
+	
+	// Perform checks.
+	//
+	// Array must be 2D:
+	if (PyArray_NDIM((PyArrayObject*)py_coords) != 2) {
+        PyErr_SetString(PyExc_RuntimeError, "Array must be 2D");
+		return -1; }
+	// dims should be (nAtoms,3)
+	dims = PyArray_DIMS((PyArrayObject*)py_coords);
+	if (dims[0] != self->nAtoms || dims[1] != 3) {
+        PyErr_SetString(PyExc_RuntimeError, "Shape of the array must be (nAtoms, 3)");
+		return -1; }
+	// Symbols must be a sequence
+	if (!PyList_Check(self->symbols)) {
+        PyErr_SetString(PyExc_RuntimeError, "Trajectory instance must contain a list of symbols");
+		return -1; }
 
 	fprintf(self->fd, "%d\n", self->nAtoms);
 	if( comment != NULL )
 		fprintf(self->fd, "%s\n", comment);
 	else
 		fprintf(self->fd, "\n");
+
 	type = PyArray_TYPE((PyArrayObject*)py_coords);
+
+	for (at = 0; at < self->nAtoms; at++) {
+		sym = PyUnicode_AsUTF8(PyList_GetItem(self->symbols, at));
+		x = getFromArray2D(py_coords, type, at, 0);
+		y = getFromArray2D(py_coords, type, at, 1);
+		z = getFromArray2D(py_coords, type, at, 2);
+		fprintf(self->fd, "%s % 12.8f % 12.8f % 12.8f\n", sym, x, y, z);
+	}
+	
+	return 0;
 }
 
 

@@ -20,9 +20,10 @@ import unittest
 #    libs = subprocess.check_output(['pkg-config', '--libs', pkg])
 #    return cflags.strip(), libs.strip()
 
-#extraCFlags = [ "-O3 -march=native" ]
-extraCFlags = [ "-O0 -g" ]
+extraCFlags = [ "-O3 -march=native" ]
+#extraCFlags = [ "-O0 -g" ]
 extraLFlags = []
+#extraLFlags = [ "-O0 -g" ]
 
 # Check if gromacs is present
 #if extraPackagePresent('libgromacs'):
