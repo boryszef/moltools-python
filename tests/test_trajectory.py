@@ -2,6 +2,7 @@ import unittest
 import tempfile
 import random
 import os
+import stat
 import numpy
 import mdarray as mt
 
@@ -86,7 +87,7 @@ class TestTrajectoryXYZ(unittest.TestCase):
         pass
 
 
-    def test_topoComponents(self):
+    def test_initResult(self):
 
         for i in range(self.nFiles):
             absolute = "%s/%d.xyz" % (self.tmpDir, i)
@@ -122,11 +123,41 @@ class TestTrajectoryXYZ(unittest.TestCase):
             maxDiff = numpy.max(numpy.abs(diff))
             self.assertTrue(maxDiff <= 1e-6)
 
+
+    def test_initExceptions(self):
+        self.assertRaises(TypeError, mt.Trajectory)
+        self.assertRaises(FileNotFoundError, mt.Trajectory, 'nonexistent.xyz')
+        denied = self.tmpDir+"/denied.xyz"
+        open(denied, "w").close()
+        os.chmod(denied, 0)
+        self.assertRaises(PermissionError, mt.Trajectory, denied)
+        os.chmod(denied, stat.S_IRWXU)
+        xyz = self.tmpDir+"/angs.xyz"
+        self.assertRaises(ValueError, mt.Trajectory, xyz, 'x')
+        self.assertRaises(ValueError, mt.Trajectory, xyz, format='x')
+        self.assertRaises(ValueError, mt.Trajectory, xyz, 'XYZ', 'x')
+        self.assertRaises(ValueError, mt.Trajectory, xyz, mode='x')
+        self.assertRaises(ValueError, mt.Trajectory, xyz, 'XYZ', 'r', 'x')
+        self.assertRaises(ValueError, mt.Trajectory, xyz, units='x')
+        self.assertRaises(ValueError, mt.Trajectory, xyz, mode='r', symbols=[])
+        self.assertRaises(FileExistsError, mt.Trajectory, xyz, mode='w')
+        self.assertRaises(ValueError, mt.Trajectory, xyz, mode='a')
+        empty = self.tmpDir+"/empty"
+        open(empty, "w").close()
+        self.assertRaises(OSError, mt.Trajectory, empty)
+        nonempty = self.tmpDir+"/nonempty"
+        f = open(nonempty, "w")
+        f.write("x\n")
+        f.close()
+        self.assertRaises(RuntimeError, mt.Trajectory, nonempty)
+        
+
     def test_WriteXYZ(self):
 
         s=['C']
-        x=numpy.array([[1,2,3]])
-        t=mt.Trajectory('foo.xyz', 'XYZ', 'w', 'angs', s)
+        x=numpy.array([[1,2,3]], dtype=numpy.float16)
+        xyz = self.tmpDir+"/out.xyz"
+        t=mt.Trajectory(xyz, 'XYZ', 'w', 'angs', s)
         t.write(x,'blah')
 
 

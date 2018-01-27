@@ -21,6 +21,7 @@
  ***************************************************************************/
 
 
+#include <unistd.h>
 #include "mdarray.h"
 #include "trajectory.h"
 #include "utils.h"
@@ -159,15 +160,15 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 //   PyObject *py_resn = NULL;;
 
     static char *kwlist[] = {
-        "filename", "mode",
-        "format", "units",
+        "filename",
+        "format", "mode", "units",
         "symbols", NULL };
         //"symbols", "resids", "resnames", NULL };
 
     //if(!PyArg_ParseTupleAndKeywords(args, kwds, "s|sssO!O!O!", kwlist,
     if(!PyArg_ParseTupleAndKeywords(args, kwds, "s|sssO!", kwlist,
             &filename,
-            &mode, &str_type, &units,
+            &str_type, &mode, &units,
             &PyList_Type, &py_sym))
 //            &PyArray_Type, &py_resid,
 //            &PyList_Type, &py_resn))
@@ -192,6 +193,11 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 //        else if ( !strcmp(str_type, "MOLDEN") ) self->type = MOLDEN;
 //        else if ( !strcmp(str_type,    "GRO") ) self->type = GRO;
 //        else if ( !strcmp(str_type,    "XTC") ) self->type = XTC;
+        else if ( !strcmp(str_type,  "GUESS") ) self->type = GUESS;
+		else {
+	        PyErr_SetString(PyExc_ValueError, "Incorrect format specification");
+    	    return -1;
+		}
     }
 
     /* Guess the file format, if not given explicitly */
@@ -206,6 +212,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
                 PyErr_SetFromErrno(PyExc_IOError);
                 return -1; }
             if ( getline(&line, &buflen, test) == -1 ) {
+	        	PyErr_SetString(PyExc_IOError, "Empty file");
                 return -1; }
             make_lowercase(line);
             stripline(line);
@@ -219,7 +226,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 			}
     }
     if ( self->type == GUESS ) {
-            PyErr_SetString(PyExc_ValueError, "Could not guess file format");
+            PyErr_SetString(PyExc_RuntimeError, "Could not guess file format");
             return -1;
         }
 
@@ -236,7 +243,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
                 break;*/
             case GUESS:
             default:
-                PyErr_SetString(PyExc_ValueError, "Unsupported file format");
+                PyErr_SetString(PyExc_RuntimeError, "Should not be here");
                 return -1;
                 break;
         }
@@ -274,6 +281,10 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
     }*/
 
     if (self->mode == 'w' || self->mode == 'a') {
+
+		if (self->mode == 'w' && !access(filename, F_OK)) {
+            PyErr_SetString(PyExc_FileExistsError, "Selected 'w' mode, but file exists");
+            return -1; }
 
         if (self->symbols == Py_None) {
             PyErr_SetString(PyExc_ValueError, "Need atomic symbols");
@@ -329,7 +340,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
                 break;*/
             case GUESS:
             default:
-                PyErr_SetString(PyExc_ValueError, "Unsupported file format");
+                PyErr_SetString(PyExc_RuntimeError, "Should not be here");
                 return -1;
                 break;
         }
@@ -369,7 +380,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
                it means we've failed to guess :-(        */
             case GUESS:
             default:
-                PyErr_SetString(PyExc_ValueError, "Unsupported file format");
+                PyErr_SetString(PyExc_RuntimeError, "Should not be here");
                 return -1;
         }
     }
