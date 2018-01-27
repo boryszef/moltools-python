@@ -447,11 +447,7 @@ static PyObject *Trajectory_write(Trajectory *self, PyObject *args, PyObject *kw
 	//PyObject *py_box = NULL;
 	char *comment = NULL;;
 	int out;
-	npy_half hx, hy, hz;
-	long double lx, ly, lz;
-	double dx, dy, dz;
-	float x, y, z;
-	char *s;
+	npy_intp *dims;
 
 	static char *kwlist[] = {
 		"coordinates", "comment", NULL };
@@ -465,8 +461,25 @@ static PyObject *Trajectory_write(Trajectory *self, PyObject *args, PyObject *kw
 			&comment))
 		return NULL;
 
+
+	// Perform checks.
+	//
+	// Mode must be w/a
 	if (self->mode != 'a' && self->mode != 'w') {
 		PyErr_SetString(PyExc_RuntimeError, "Trying to write in read mode");
+		return NULL; }
+	// Array must be 2D:
+	if (PyArray_NDIM((PyArrayObject*)py_coords) != 2) {
+        PyErr_SetString(PyExc_RuntimeError, "Array must be 2D");
+		return NULL; }
+	// dims should be (nAtoms,3)
+	dims = PyArray_DIMS((PyArrayObject*)py_coords);
+	if (dims[0] != self->nAtoms || dims[1] != 3) {
+        PyErr_SetString(PyExc_RuntimeError, "Shape of the array must be (nAtoms, 3)");
+		return NULL; }
+	// Symbols must be a sequence
+	if (!PyList_Check(self->symbols)) {
+        PyErr_SetString(PyExc_RuntimeError, "Trajectory instance must contain a list of symbols");
 		return NULL; }
 
 	switch(self->type) {
@@ -550,7 +563,8 @@ static PyMemberDef Trajectory_members[] = {
     /*{"nOfFrames", T_INT, offsetof(Trajectory, nOfFrames), READONLY,
      "Number of frames (int)"},*/
     {"lastFrame", T_INT, offsetof(Trajectory, lastFrame), READONLY,
-     "The number of the Last frame read or written"},
+     "Index of the last frame read or written; starts with 0, "
+	 "lastFrame = -1 means that none has been read/written."},
     //{"moldenSections", T_OBJECT_EX, offsetof(Trajectory, moldenSections), READONLY,
     // "Dictionary containing byte offsets to sections in Molden file"},
     {"fileName", T_STRING, offsetof(Trajectory, fileName), READONLY,
@@ -1577,26 +1591,9 @@ static PyObject *read_frame_from_xtc(Trajectory *self) {
 
 static int write_frame_to_xyz(Trajectory *self, PyObject *py_coords, char *comment) {
 	int type;
-	npy_intp *dims;
 	int at;
 	ARRAY_REAL x, y, z;
 	char *sym;
-	
-	// Perform checks.
-	//
-	// Array must be 2D:
-	if (PyArray_NDIM((PyArrayObject*)py_coords) != 2) {
-        PyErr_SetString(PyExc_RuntimeError, "Array must be 2D");
-		return -1; }
-	// dims should be (nAtoms,3)
-	dims = PyArray_DIMS((PyArrayObject*)py_coords);
-	if (dims[0] != self->nAtoms || dims[1] != 3) {
-        PyErr_SetString(PyExc_RuntimeError, "Shape of the array must be (nAtoms, 3)");
-		return -1; }
-	// Symbols must be a sequence
-	if (!PyList_Check(self->symbols)) {
-        PyErr_SetString(PyExc_RuntimeError, "Trajectory instance must contain a list of symbols");
-		return -1; }
 
 	fprintf(self->fd, "%d\n", self->nAtoms);
 	if( comment != NULL )

@@ -156,9 +156,10 @@ class TestTrajectoryXYZ(unittest.TestCase):
 
         sym = ['C']
         comment = 'blah'
-        crd = [1,2,3]
+        crd = [1.1111111111,2,3]
 
-        for dtype in [numpy.float16, numpy.float32, numpy.float64]:
+        for dtype in [ numpy.float16, numpy.float32,
+                       numpy.float64, numpy.float128 ]:
 
             x = numpy.array([crd], dtype=dtype)
             xyz = self.tmpDir+"/out.xyz"
@@ -168,11 +169,13 @@ class TestTrajectoryXYZ(unittest.TestCase):
 
             traj = mt.Trajectory(xyz)
             self.assertEqual(traj.nAtoms, 1)
+            self.assertEqual(traj.symbols, sym)
             frame = traj.read()
             self.assertEqual(frame['comment'], comment)
             diff = crd - frame['coordinates'][0,:]
             maxDiff = numpy.max(numpy.abs(diff))
-            epsilon = numpy.finfo(dtype).resolution
+            # 1e-8 is the precision of write_frame_to_xyz due to the format % 12.8f
+            epsilon = max(1e-8, numpy.finfo(dtype).resolution)
             self.assertTrue(maxDiff <= epsilon)
 
             # Try (and fail) to read more frames
@@ -194,3 +197,25 @@ class TestTrajectoryXYZ(unittest.TestCase):
         x = numpy.array([crd, crd], dtype=numpy.float)
         self.assertRaises(RuntimeError, traj.write, x, comment)
         del traj
+
+    def test_writeMultiple(self):
+
+        nFrames = 10
+        sym = ['C', 'O']
+        comment = 'blah'
+        crd = [[1,2,3], [4,5,6]]
+        x = numpy.array(crd, dtype=numpy.float)
+        xyz = self.tmpDir+"/out.xyz"
+        traj = mt.Trajectory(xyz, 'XYZ', 'w', 'angs', sym)
+        for i in range(nFrames):
+            traj.write(x, str(i))
+        del traj
+
+        traj = mt.Trajectory(xyz)
+        count = 0
+        frame = traj.read()
+        while frame:
+            self.assertEqual(frame['comment'], str(count))
+            count += 1
+            frame = traj.read()
+        self.assertEqual(traj.lastFrame, nFrames-1)
