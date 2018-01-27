@@ -154,10 +154,43 @@ class TestTrajectoryXYZ(unittest.TestCase):
 
     def test_WriteXYZ(self):
 
-        s=['C']
-        x=numpy.array([[1,2,3]], dtype=numpy.float16)
+        sym = ['C']
+        comment = 'blah'
+        crd = [1,2,3]
+
+        for dtype in [numpy.float16, numpy.float32, numpy.float64]:
+
+            x = numpy.array([crd], dtype=dtype)
+            xyz = self.tmpDir+"/out.xyz"
+            traj = mt.Trajectory(xyz, 'XYZ', 'w', 'angs', sym)
+            traj.write(x, comment)
+            del traj
+
+            traj = mt.Trajectory(xyz)
+            self.assertEqual(traj.nAtoms, 1)
+            frame = traj.read()
+            self.assertEqual(frame['comment'], comment)
+            diff = crd - frame['coordinates'][0,:]
+            maxDiff = numpy.max(numpy.abs(diff))
+            epsilon = numpy.finfo(dtype).resolution
+            self.assertTrue(maxDiff <= epsilon)
+
+            # Try (and fail) to read more frames
+            frame = traj.read()
+            self.assertIsNone(frame)
+
+            os.remove(xyz)
+
+    def test_writeExceptions(self):
+
+        sym = ['C']
+        comment = 'blah'
+        crd = [1,2,3]
         xyz = self.tmpDir+"/out.xyz"
-        t=mt.Trajectory(xyz, 'XYZ', 'w', 'angs', s)
-        t.write(x,'blah')
-
-
+        self.assertRaises(ValueError, mt.Trajectory, xyz, 'XYZ', 'w')
+        traj = mt.Trajectory(xyz, 'XYZ', 'w', symbols=sym)
+        x = numpy.array([], dtype=numpy.float)
+        self.assertRaises(RuntimeError, traj.write, x, comment)
+        x = numpy.array([crd, crd], dtype=numpy.float)
+        self.assertRaises(RuntimeError, traj.write, x, comment)
+        del traj
