@@ -160,16 +160,16 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 //   PyObject *py_resn = NULL;;
 
     static char *kwlist[] = {
-        "filename",
-        "format", "mode", "units",
-        "symbols", NULL };
+        "filename", "mode", "symbols",
+        "format", "units",
+        NULL };
         //"symbols", "resids", "resnames", NULL };
 
     //if(!PyArg_ParseTupleAndKeywords(args, kwds, "s|sssO!O!O!", kwlist,
-    if(!PyArg_ParseTupleAndKeywords(args, kwds, "s|sssO!", kwlist,
-            &filename,
-            &str_type, &mode, &units,
-            &PyList_Type, &py_sym))
+    if(!PyArg_ParseTupleAndKeywords(args, kwds, "s|sO!ss", kwlist,
+            &filename, &mode,
+            &PyList_Type, &py_sym,
+            &str_type, &units))
 //            &PyArray_Type, &py_resid,
 //            &PyList_Type, &py_resn))
         return -1;

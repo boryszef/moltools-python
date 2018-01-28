@@ -125,31 +125,49 @@ class TestTrajectoryXYZ(unittest.TestCase):
 
 
     def test_initExceptions(self):
+
         self.assertRaises(TypeError, mt.Trajectory)
         self.assertRaises(FileNotFoundError, mt.Trajectory, 'nonexistent.xyz')
+
         denied = self.tmpDir+"/denied.xyz"
         open(denied, "w").close()
         os.chmod(denied, 0)
         self.assertRaises(PermissionError, mt.Trajectory, denied)
         os.chmod(denied, stat.S_IRWXU)
+
         xyz = self.tmpDir+"/angs.xyz"
-        self.assertRaises(ValueError, mt.Trajectory, xyz, 'x')
-        self.assertRaises(ValueError, mt.Trajectory, xyz, format='x')
-        self.assertRaises(ValueError, mt.Trajectory, xyz, 'XYZ', 'x')
-        self.assertRaises(ValueError, mt.Trajectory, xyz, mode='x')
-        self.assertRaises(ValueError, mt.Trajectory, xyz, 'XYZ', 'r', 'x')
-        self.assertRaises(ValueError, mt.Trajectory, xyz, units='x')
-        self.assertRaises(ValueError, mt.Trajectory, xyz, mode='r', symbols=[])
-        self.assertRaises(FileExistsError, mt.Trajectory, xyz, mode='w')
+        # Wrong format
+        self.assertRaises(ValueError, mt.Trajectory, xyz, format='fmt')
+        # Wrong mode
+        self.assertRaises(ValueError, mt.Trajectory, xyz, 'mode')
+        self.assertRaises(ValueError, mt.Trajectory, xyz, mode='mode')
+        # Wrong units
+        self.assertRaises(ValueError, mt.Trajectory, xyz, units='units')
+        # Symbols in 'read' mode
+        self.assertRaises(ValueError, mt.Trajectory, xyz, 'r', [])
+        self.assertRaises(ValueError, mt.Trajectory, xyz, 'r', symbols=[])
+        # 'append' mode but no symbols
+        self.assertRaises(ValueError, mt.Trajectory, xyz, 'a')
         self.assertRaises(ValueError, mt.Trajectory, xyz, mode='a')
+
         empty = self.tmpDir+"/empty"
         open(empty, "w").close()
+        # Empty file and no format given
         self.assertRaises(OSError, mt.Trajectory, empty)
+
         nonempty = self.tmpDir+"/nonempty"
         f = open(nonempty, "w")
         f.write("x\n")
         f.close()
+        # Guessing format fails
         self.assertRaises(RuntimeError, mt.Trajectory, nonempty)
+        self.assertRaises(RuntimeError, mt.Trajectory, nonempty, 'a', [])
+        # Writing to an existing file
+        self.assertRaises(FileExistsError, mt.Trajectory, nonempty, 'w', [], 'XYZ')
+        # Wrong format
+        self.assertRaises(ValueError, mt.Trajectory, nonempty, 'a', [], 'fmt')
+        # Wrong units
+        self.assertRaises(ValueError, mt.Trajectory, nonempty, 'a', [], 'XYZ', 'units')
         
 
     def test_WriteXYZ(self):
@@ -163,7 +181,7 @@ class TestTrajectoryXYZ(unittest.TestCase):
 
             x = numpy.array([crd], dtype=dtype)
             xyz = self.tmpDir+"/out.xyz"
-            traj = mt.Trajectory(xyz, 'XYZ', 'w', 'angs', sym)
+            traj = mt.Trajectory(xyz, 'w', sym, 'XYZ', 'angs')
             traj.write(x, comment)
             del traj
 
@@ -190,12 +208,20 @@ class TestTrajectoryXYZ(unittest.TestCase):
         comment = 'blah'
         crd = [1,2,3]
         xyz = self.tmpDir+"/out.xyz"
-        self.assertRaises(ValueError, mt.Trajectory, xyz, 'XYZ', 'w')
-        traj = mt.Trajectory(xyz, 'XYZ', 'w', symbols=sym)
+        # No symbols given
+        self.assertRaises(ValueError, mt.Trajectory, xyz, 'w', format='XYZ')
+        self.assertRaises(ValueError, mt.Trajectory, xyz, mode='w', format='XYZ')
+        traj = mt.Trajectory(xyz, 'w', sym, 'XYZ')
+        # Wrong shape of the matrix
         x = numpy.array([], dtype=numpy.float)
         self.assertRaises(RuntimeError, traj.write, x, comment)
+        x = numpy.array([[[]]], dtype=numpy.float)
+        self.assertRaises(RuntimeError, traj.write, x, comment)
+        # Wrong dimensions of the matrix
         x = numpy.array([crd, crd], dtype=numpy.float)
         self.assertRaises(RuntimeError, traj.write, x, comment)
+        # Try to read in write mode
+        self.assertRaises(RuntimeError, traj.read)
         del traj
 
     def test_writeMultiple(self):
@@ -206,7 +232,7 @@ class TestTrajectoryXYZ(unittest.TestCase):
         crd = [[1,2,3], [4,5,6]]
         x = numpy.array(crd, dtype=numpy.float)
         xyz = self.tmpDir+"/out.xyz"
-        traj = mt.Trajectory(xyz, 'XYZ', 'w', 'angs', sym)
+        traj = mt.Trajectory(xyz, 'w', sym, 'XYZ', 'angs')
         for i in range(nFrames):
             traj.write(x, str(i))
         del traj
