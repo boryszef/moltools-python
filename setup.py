@@ -7,32 +7,33 @@ from setuptools import setup, Extension
 from numpy.distutils.misc_util import get_info
 import glob
 import unittest
-#import subprocess
+import subprocess
 
-#def extraPackagePresent(pkg):
-#    if subprocess.call(['pkg-config', '--exists', pkg]):
-#        return False
-#    else:
-#        return True
+def extraPackagePresent(pkg):
+    if subprocess.call(['pkg-config', '--exists', pkg]): return False
+    else: return True
 
-#def getPackageFlags(pkg):
-#    cflags = subprocess.check_output(['pkg-config', '--cflags', pkg])
-#    libs = subprocess.check_output(['pkg-config', '--libs', pkg])
-#    return cflags.strip(), libs.strip()
+def getPackageFlags(pkg):
+    cflags = subprocess.check_output(['pkg-config', '--cflags', pkg])
+    cflags = cflags.decode('ASCII')
+    libs = subprocess.check_output(['pkg-config', '--libs', pkg])
+    libs = libs.decode('ASCII')
+    return cflags.strip(), libs.strip()
 
 extraCFlags = [ "-O3 -march=native" ]
 #extraCFlags = [ "-O0 -g" ]
 extraLFlags = []
 #extraLFlags = [ "-O0 -g" ]
 
-# Check if gromacs is present
-#if extraPackagePresent('libgromacs'):
-#    cflags, libs = getPackageFlags('libgromacs')
-#    extraCFlags.append('-DHAVE_GROMACS')
-#    extraCFlags.append(cflags)
-#    extraLFlags.append(libs)
-
 npymathInfo = get_info('npymath')
+
+# Check if gromacs is present
+if extraPackagePresent('libgromacs'):
+    cflags, libs = getPackageFlags('libgromacs')
+    extraCFlags.append('-DHAVE_GROMACS')
+    extraCFlags.append(cflags)
+    extraLFlags.append(libs)
+
 mdarray = Extension(
     'mdarray',
     sources = glob.glob('mdarray/*.c'),

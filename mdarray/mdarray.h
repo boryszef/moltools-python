@@ -37,10 +37,10 @@
 #include <numpy/npy_math.h>
 #include <numpy/halffloat.h>
 
-//#ifdef HAVE_GROMACS
-//	#include <gromacs/utility/smalloc.h>
-//	#include <gromacs/fileio/xtcio.h>
-//#endif
+#ifdef HAVE_GROMACS
+	#include <gromacs/utility/smalloc.h>
+	#include <gromacs/fileio/xtcio.h>
+#endif
 
 #define BOHRTOANGS 0.529177209
 

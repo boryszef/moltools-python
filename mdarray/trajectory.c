@@ -68,18 +68,18 @@ static void Trajectory_dealloc(Trajectory* self)
         case GRO:
             if (self->fd != NULL) fclose(self->fd);
             break;
-/*#ifdef HAVE_GROMACS
+#ifdef HAVE_GROMACS
         case XTC:
             if (self->xd != NULL) close_xtc(self->xd);
             break;
-#endif*/
+#endif
         case GUESS:
         default:
             break;
     }
-/*#ifdef HAVE_GROMACS
+#ifdef HAVE_GROMACS
     sfree(self->xtcCoord);
-#endif*/
+#endif
     Py_TYPE(self)->tp_free((PyObject*)self);
 }
 
@@ -98,10 +98,10 @@ static PyObject *Trajectory_new(PyTypeObject *type, PyObject *args, PyObject *kw
         self->mode = 'r';
         self->fileName = NULL;
         self->fd = NULL;
-/*#ifdef HAVE_GROMACS
+#ifdef HAVE_GROMACS
         self->xd = NULL;
         self->xtcCoord = NULL;
-#endif*/
+#endif
         self->filePosition1 = -1;
         self->filePosition2 = -1;
         //self->moldenStyle = MLUNKNOWN;
@@ -148,12 +148,12 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 	 size_t buflen = 0;
     char *mode = NULL;
     char *units = NULL;
-/*#ifdef HAVE_GROMACS
+#ifdef HAVE_GROMACS
     int step;
     real time, prec;
     matrix box;
     gmx_bool bOK;
-#endif*/
+#endif
 
 	PyObject *py_sym = NULL;
 	PyObject *py_resid = NULL;
@@ -190,7 +190,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
         if      ( !strcmp(str_type,    "XYZ") ) self->type = XYZ;
 //        else if ( !strcmp(str_type, "MOLDEN") ) self->type = MOLDEN;
         else if ( !strcmp(str_type,    "GRO") ) self->type = GRO;
-//        else if ( !strcmp(str_type,    "XTC") ) self->type = XTC;
+        else if ( !strcmp(str_type,    "XTC") ) self->type = XTC;
         else if ( !strcmp(str_type,  "GUESS") ) self->type = GUESS;
 		else {
 	        PyErr_SetString(PyExc_ValueError, "Incorrect format specification");
@@ -203,7 +203,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
         strcpy(ext, filename + strlen(filename) - 4);
         if      ( !strcmp(ext, ".xyz") ) self->type = XYZ;
         else if ( !strcmp(ext, ".gro") ) self->type = GRO;
-//        else if ( !strcmp(ext, ".xtc") ) self->type = XTC;
+        else if ( !strcmp(ext, ".xtc") ) self->type = XTC;
         else if (self->mode == 'r' || self->mode == 'a') {
             /* Extract the first line */
             if ( (test = fopen(filename, "r")) == NULL ) {
@@ -236,7 +236,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
                 self->units = ANGS;
                 break;
             case GRO:
-            //case XTC:
+            case XTC:
                 self->units = NM;
                 break;
             case GUESS:
@@ -299,7 +299,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
                     return -1; }
                 break;
 //            case MOLDEN:
-//            case XTC:
+            case XTC:
             default:
                 PyErr_SetString(PyExc_NotImplementedError,
                                 "Writing in this format is not implemented");
@@ -324,7 +324,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
                     return -1; }
                 Py_DECREF(self->moldenSections);
                 self->moldenSections = read_molden_sections(self->fd);
-                break;
+                break;*/
             case XTC:
 #ifdef HAVE_GROMACS
                 if( (self->xd = open_xtc(filename, "r")) == NULL) {
@@ -332,10 +332,10 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
                     return -1; }
 #else
                 PyErr_SetString(PyExc_SystemError,
-                    "The module has to be compiled with gromacs support to handle XTC files");
+                    "mdarray has to be compiled with gromacs support to handle XTC files");
                 return -1;
 #endif
-                break;*/
+                break;
             case GUESS:
             default:
                 PyErr_SetString(PyExc_RuntimeError, "Should not be here");
@@ -364,7 +364,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
                 self->filePosition1 = ftell(self->fd);
                 self->filePosition2 = self->filePosition1;
                 break;
-/*            case XTC:
+            case XTC:
 #ifdef HAVE_GROMACS
                 if (!read_first_xtc(self->xd, &(self->nAtoms), &step, &time,
                                     box, &(self->xtcCoord), &prec, &bOK) && bOK) {
@@ -373,7 +373,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
                 close_xtc(self->xd);
                 self->xd = open_xtc(filename, "r");
 #endif
-                break;*/
+                break;
             /* If the file format is GUESS or different,
                it means we've failed to guess :-(        */
             case GUESS:
@@ -418,14 +418,14 @@ static PyObject *Trajectory_read(Trajectory *self) {
             else
                 py_result = read_frame_from_molden_geometries(self);
             if (py_result == Py_None) return py_result;
-            break;
+            break;*/
 
 #ifdef HAVE_GROMACS
         case XTC:
             py_result = read_frame_from_xtc(self);
             break;
 #endif
-*/
+
         default:
             break;
     }
@@ -532,12 +532,12 @@ static PyObject* Trajectory_repr(Trajectory *self) {
     switch(self->type) {
         case XYZ:
             strcpy(format,    "XYZ"); break;
+/*        case MOLDEN:
+            strcpy(format, "MOLDEN"); break;*/
         case GRO:
             strcpy(format,    "GRO"); break;
-/*        case MOLDEN:
-            strcpy(format, "MOLDEN"); break;
         case XTC:
-            strcpy(format,    "XTC"); break;*/
+            strcpy(format,    "XTC"); break;
         default:
             strcpy(format,       ""); break;
     }
@@ -577,8 +577,6 @@ static PyMemberDef Trajectory_members[] = {
      "A list of residue names"},
     {"nAtoms", T_INT, offsetof(Trajectory, nAtoms), READONLY,
      "Number of atoms (int)"},
-    /*{"nOfFrames", T_INT, offsetof(Trajectory, nOfFrames), READONLY,
-     "Number of frames (int)"},*/
     {"lastFrame", T_INT, offsetof(Trajectory, lastFrame), READONLY,
      "Index of the last frame read or written; starts with 0, "
 	 "lastFrame = -1 means that none has been read/written."},
@@ -1510,7 +1508,7 @@ static PyObject *read_frame_from_xtc(Trajectory *self) {
 
     PyObject *py_dict, *val, *key, *py_coord, *py_box;
     matrix mbox;
-    float *box, *xyz;
+    ARRAY_REAL *box, *xyz;
     float time, prec;
     npy_intp dims[2];
     gmx_bool bOK;
@@ -1541,47 +1539,47 @@ static PyObject *read_frame_from_xtc(Trajectory *self) {
     Py_DECREF(key);
     Py_DECREF(val);
 
-    box = (float*) malloc(9 * sizeof(float));
+    box = (ARRAY_REAL*) malloc(9 * sizeof(ARRAY_REAL));
     if(box == NULL) {
         PyErr_SetFromErrno(PyExc_MemoryError);
         return NULL; }
 
     /* Only orthogonal boxes; implement other later */
-    box[0] = (float)mbox[0][0];
-    box[1] = (float)mbox[0][1];
-    box[2] = (float)mbox[0][2];
-    box[3] = (float)mbox[1][0];
-    box[4] = (float)mbox[1][1];
-    box[5] = (float)mbox[1][2];
-    box[6] = (float)mbox[2][0];
-    box[7] = (float)mbox[2][1];
-    box[8] = (float)mbox[2][2];
+    box[0] = (ARRAY_REAL)mbox[0][0];
+    box[1] = (ARRAY_REAL)mbox[0][1];
+    box[2] = (ARRAY_REAL)mbox[0][2];
+    box[3] = (ARRAY_REAL)mbox[1][0];
+    box[4] = (ARRAY_REAL)mbox[1][1];
+    box[5] = (ARRAY_REAL)mbox[1][2];
+    box[6] = (ARRAY_REAL)mbox[2][0];
+    box[7] = (ARRAY_REAL)mbox[2][1];
+    box[8] = (ARRAY_REAL)mbox[2][2];
 
     dims[0] = 3;
     dims[1] = 3;
-    py_box = PyArray_SimpleNewFromData(2, dims, NPY_FLOAT, (float*) box);
+    py_box = PyArray_SimpleNewFromData(2, dims, NPY_ARRAY_REAL, (ARRAY_REAL*) box);
     key = PyUnicode_FromString("box");
     PyDict_SetItem(py_dict, key, py_box);
     Py_DECREF(key);
     Py_DECREF(py_box);
 
     /* Set-up the raw arrays for coordinates */
-    xyz = (float*) malloc(3 * self->nAtoms * sizeof(float));
+    xyz = (ARRAY_REAL*) malloc(3 * self->nAtoms * sizeof(ARRAY_REAL));
     if(xyz == NULL) {
         PyErr_SetFromErrno(PyExc_MemoryError);
         return NULL; }
 
     for (i = 0; i < self->nAtoms; i++) {
         /* Times 10, because converting from nm */
-        xyz[i*3    ] = (float)(self->xtcCoord[i][0] * 10.0);
-        xyz[i*3 + 1] = (float)(self->xtcCoord[i][1] * 10.0);
-        xyz[i*3 + 2] = (float)(self->xtcCoord[i][2] * 10.0);
+        xyz[i*3    ] = (ARRAY_REAL)(self->xtcCoord[i][0] * 10.0);
+        xyz[i*3 + 1] = (ARRAY_REAL)(self->xtcCoord[i][1] * 10.0);
+        xyz[i*3 + 2] = (ARRAY_REAL)(self->xtcCoord[i][2] * 10.0);
     }
 
     /* Add coordinates to the dictionary */
     dims[0] = self->nAtoms;
     dims[1] = 3;
-    py_coord = PyArray_SimpleNewFromData(2, dims, NPY_FLOAT, (float*) xyz);
+    py_coord = PyArray_SimpleNewFromData(2, dims, NPY_ARRAY_REAL, (ARRAY_REAL*) xyz);
     /***************************************************************
      * Do not free the raw array! It will be still used by Python! *
      ***************************************************************/

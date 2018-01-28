@@ -34,7 +34,7 @@ typedef struct {
 
 	PyObject_HEAD
 
-	enum { GUESS, XYZ, GRO } type;
+	enum { GUESS, XYZ, GRO, XTC } type;
 	//enum { GUESS, XYZ, MOLDEN, GRO, XTC } type;
 	enum { ANGS, BOHR, NM } units;
 	char mode;
@@ -43,10 +43,10 @@ typedef struct {
 	/* Used for keeping track of the position in the file while reading     *
 	 * frames. Two variables are needed, because some formats, like Molden, *
 	 * store geometries and energies in different parts of the file.        */
-//#ifdef HAVE_GROMACS
-//	t_fileio *xd;
-//	rvec *xtcCoord;
-//#endif
+#ifdef HAVE_GROMACS
+	t_fileio *xd;
+	rvec *xtcCoord;
+#endif
 	long filePosition1;
 	long filePosition2;
 //	enum { MLGEOMETRY, MLATOMS, MLUNKNOWN } moldenStyle;
@@ -70,9 +70,9 @@ static PyObject *read_frame_from_xyz(Trajectory *self);
 //static PyObject *read_frame_from_molden_atoms(Trajectory *self);
 //static PyObject *read_frame_from_molden_geometries(Trajectory *self);
 static PyObject *read_frame_from_gro(Trajectory *self);
-//#ifdef HAVE_GROMACS
-//static PyObject *read_frame_from_xtc(Trajectory *self);
-//#endif
+#ifdef HAVE_GROMACS
+static PyObject *read_frame_from_xtc(Trajectory *self);
+#endif
 static int write_frame_to_xyz(Trajectory *self, PyObject *py_coords, char *comment);
 static int write_frame_to_gro(Trajectory *self, PyObject *py_coords,
 				PyObject *py_vel, PyObject *py_box, char *comment);
