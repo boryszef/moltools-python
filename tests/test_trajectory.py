@@ -109,7 +109,7 @@ class TestTrajectoryXYZ(unittest.TestCase):
             for a in range(self.data[i]['nAtoms']):
                 self.assertEqual(traj.symbols[a], symbols[a])
                 m = atomicMasses[symbols[a]]
-                self.assertEqual(traj.masses[a], m[1])
+                self.assertAlmostEqual(traj.masses[a], m[1])
                 self.assertEqual(traj.aNumbers[a], m[0])
 
     def test_readXYZ(self):
