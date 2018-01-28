@@ -532,10 +532,10 @@ static PyObject* Trajectory_repr(Trajectory *self) {
     switch(self->type) {
         case XYZ:
             strcpy(format,    "XYZ"); break;
-/*        case MOLDEN:
-            strcpy(format, "MOLDEN"); break;
         case GRO:
             strcpy(format,    "GRO"); break;
+/*        case MOLDEN:
+            strcpy(format, "MOLDEN"); break;
         case XTC:
             strcpy(format,    "XTC"); break;*/
         default:

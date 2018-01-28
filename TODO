@@ -1,5 +1,5 @@
 Things that need to be done:
 
-* In read_topo_from_xyz, capitalize symbols before getting atomic number
 * Let the user read topology and coordinates from separate files
+* In read_topo_from_xyz, capitalize symbols before getting atomic number
 * Update all internal docs
