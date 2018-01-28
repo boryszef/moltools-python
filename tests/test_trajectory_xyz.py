@@ -90,12 +90,11 @@ class TestTrajectoryXYZ(unittest.TestCase):
     def tearDown(self):
 
         # Remove files
-        #for f in os.listdir(self.tmpDir):
-        #    if not f.startswith("."): os.remove(self.tmpDir+"/"+f)
+        for f in os.listdir(self.tmpDir):
+            if not f.startswith("."): os.remove(self.tmpDir+"/"+f)
 
         # Remove directory
-        #os.rmdir(self.tmpDir)
-        pass
+        os.rmdir(self.tmpDir)
 
 
     def test_initResult(self):
@@ -179,11 +178,11 @@ class TestTrajectoryXYZ(unittest.TestCase):
         self.assertRaises(RuntimeError, mt.Trajectory, nonempty)
         self.assertRaises(RuntimeError, mt.Trajectory, nonempty, 'a', [])
         # Writing to an existing file
-        self.assertRaises(FileExistsError, mt.Trajectory, nonempty, 'w', [], 'XYZ')
+        self.assertRaises(FileExistsError, mt.Trajectory, nonempty, 'w', [], format='XYZ')
         # Wrong format
-        self.assertRaises(ValueError, mt.Trajectory, nonempty, 'a', [], 'fmt')
+        self.assertRaises(ValueError, mt.Trajectory, nonempty, 'a', [], format='fmt')
         # Wrong units
-        self.assertRaises(ValueError, mt.Trajectory, nonempty, 'a', [], 'XYZ', 'units')
+        self.assertRaises(ValueError, mt.Trajectory, nonempty, 'a', [], format='XYZ', units='units')
         
 
     def test_WriteXYZ(self):
@@ -197,8 +196,8 @@ class TestTrajectoryXYZ(unittest.TestCase):
 
             x = numpy.array([crd], dtype=dtype)
             xyz = self.tmpDir+"/out.xyz"
-            traj = mt.Trajectory(xyz, 'w', sym, 'XYZ', 'angs')
-            traj.write(x, comment)
+            traj = mt.Trajectory(xyz, 'w', sym, format='XYZ', units='angs')
+            traj.write(x, comment=comment)
             del traj
 
             traj = mt.Trajectory(xyz)
@@ -227,15 +226,15 @@ class TestTrajectoryXYZ(unittest.TestCase):
         # No symbols given
         self.assertRaises(ValueError, mt.Trajectory, xyz, 'w', format='XYZ')
         self.assertRaises(ValueError, mt.Trajectory, xyz, mode='w', format='XYZ')
-        traj = mt.Trajectory(xyz, 'w', sym, 'XYZ')
+        traj = mt.Trajectory(xyz, 'w', sym, format='XYZ')
         # Wrong shape of the matrix
         x = numpy.array([], dtype=numpy.float)
-        self.assertRaises(RuntimeError, traj.write, x, comment)
+        self.assertRaises(RuntimeError, traj.write, x, comment=comment)
         x = numpy.array([[[]]], dtype=numpy.float)
-        self.assertRaises(RuntimeError, traj.write, x, comment)
+        self.assertRaises(RuntimeError, traj.write, x, comment=comment)
         # Wrong dimensions of the matrix
         x = numpy.array([crd, crd], dtype=numpy.float)
-        self.assertRaises(RuntimeError, traj.write, x, comment)
+        self.assertRaises(RuntimeError, traj.write, x, comment=comment)
         # Try to read in write mode
         self.assertRaises(RuntimeError, traj.read)
         del traj
@@ -248,9 +247,9 @@ class TestTrajectoryXYZ(unittest.TestCase):
         crd = [[1,2,3], [4,5,6]]
         x = numpy.array(crd, dtype=numpy.float)
         xyz = self.tmpDir+"/out.xyz"
-        traj = mt.Trajectory(xyz, 'w', sym, 'XYZ', 'angs')
+        traj = mt.Trajectory(xyz, 'w', sym, format='XYZ', units='angs')
         for i in range(nFrames):
-            traj.write(x, str(i))
+            traj.write(x, comment=str(i))
         del traj
 
         traj = mt.Trajectory(xyz)

@@ -111,7 +111,7 @@ void testBYSYMBOL(void) {
 		int id;
 	} symbols[] = {
 		{ "H", 0 }, { "He", 1 }, { "C", 5 }, { "Zn", 29 },
-		{ "Uus", 116 }, { "Uuo", 117 }, { "", -1 }, { "Xyz", -1 }};
+		{ "Ts", 116 }, { "Og", 117 }, { "", -1 }, { "Xyz", -1 }};
 	int i, result;
 	
 	for (i = 0; i < 8; i++) {

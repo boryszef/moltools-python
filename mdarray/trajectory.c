@@ -571,10 +571,10 @@ static PyMemberDef Trajectory_members[] = {
      "An ndarray with atomic numbers"},
     {"masses", T_OBJECT_EX, offsetof(Trajectory, masses), READONLY,
      "An ndarray with atomic masses"},
-    /*{"resIDs", T_OBJECT_EX, offsetof(Trajectory, resIDs), READONLY,
+    {"resids", T_OBJECT_EX, offsetof(Trajectory, resids), READONLY,
      "An ndarray with residue numbers - one number per atom"},
     {"resNames", T_OBJECT_EX, offsetof(Trajectory, resNames), READONLY,
-     "A list of residue names"},*/
+     "A list of residue names"},
     {"nAtoms", T_INT, offsetof(Trajectory, nAtoms), READONLY,
      "Number of atoms (int)"},
     /*{"nOfFrames", T_INT, offsetof(Trajectory, nOfFrames), READONLY,
@@ -1368,7 +1368,7 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
 static PyObject *read_frame_from_gro(Trajectory *self) {
 
     int nat, pos;
-    char *buffer;
+    char *buffer = NULL;
 	size_t buflen;
     ARRAY_REAL *xyz, *vel, *box;
     unsigned short int velocities_present = 0;
