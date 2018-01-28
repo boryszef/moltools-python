@@ -41,13 +41,13 @@ static void Trajectory_dealloc(Trajectory* self)
     self->symbols = NULL;
     Py_XDECREF(tmp);
 
-/*    tmp = self->resIDs;
-    self->resIDs = NULL;
+    tmp = self->resids;
+    self->resids = NULL;
     Py_XDECREF(tmp);
 
     tmp = self->resNames;
     self->resNames = NULL;
-    Py_XDECREF(tmp);*/
+    Py_XDECREF(tmp);
 
     tmp = self->aNumbers;
     self->aNumbers = NULL;
@@ -65,7 +65,7 @@ static void Trajectory_dealloc(Trajectory* self)
     switch(self->type) {
         case XYZ:
 //        case MOLDEN:
-//        case GRO:
+        case GRO:
             if (self->fd != NULL) fclose(self->fd);
             break;
 /*#ifdef HAVE_GROMACS
@@ -118,11 +118,11 @@ static PyObject *Trajectory_new(PyTypeObject *type, PyObject *args, PyObject *kw
         Py_INCREF(Py_None);
         self->masses = Py_None;
         
-        /*Py_INCREF(Py_None);
-        self->resIDs = Py_None;
+        Py_INCREF(Py_None);
+        self->resids = Py_None;
         
         Py_INCREF(Py_None);
-        self->resNames = Py_None;*/
+        self->resNames = Py_None;
         
         //Py_INCREF(Py_None);
         //self->moldenSections = Py_None;
@@ -155,23 +155,21 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
     gmx_bool bOK;
 #endif*/
 
-    PyObject *py_sym = NULL;
-//    PyObject *py_resid = NULL;
-//   PyObject *py_resn = NULL;;
+	PyObject *py_sym = NULL;
+	PyObject *py_resid = NULL;
+	PyObject *py_resn = NULL;;
 
     static char *kwlist[] = {
-        "filename", "mode", "symbols",
+        "filename", "mode", "symbols", "resids", "resnames",
         "format", "units",
         NULL };
-        //"symbols", "resids", "resnames", NULL };
 
-    //if(!PyArg_ParseTupleAndKeywords(args, kwds, "s|sssO!O!O!", kwlist,
-    if(!PyArg_ParseTupleAndKeywords(args, kwds, "s|sO!ss", kwlist,
+    if(!PyArg_ParseTupleAndKeywords(args, kwds, "s|sO!O!O!ss", kwlist,
             &filename, &mode,
             &PyList_Type, &py_sym,
+            &PyArray_Type, &py_resid,
+            &PyList_Type, &py_resn,
             &str_type, &units))
-//            &PyArray_Type, &py_resid,
-//            &PyList_Type, &py_resn))
         return -1;
 
     self->fileName = (char*) malloc((strlen(filename)+1) * sizeof(char));
@@ -191,7 +189,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
     if ( str_type != NULL ) {
         if      ( !strcmp(str_type,    "XYZ") ) self->type = XYZ;
 //        else if ( !strcmp(str_type, "MOLDEN") ) self->type = MOLDEN;
-//        else if ( !strcmp(str_type,    "GRO") ) self->type = GRO;
+        else if ( !strcmp(str_type,    "GRO") ) self->type = GRO;
 //        else if ( !strcmp(str_type,    "XTC") ) self->type = XTC;
         else if ( !strcmp(str_type,  "GUESS") ) self->type = GUESS;
 		else {
@@ -204,7 +202,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
     if ( self->type == GUESS ) {
         strcpy(ext, filename + strlen(filename) - 4);
         if      ( !strcmp(ext, ".xyz") ) self->type = XYZ;
-//        else if ( !strcmp(ext, ".gro") ) self->type = GRO;
+        else if ( !strcmp(ext, ".gro") ) self->type = GRO;
 //        else if ( !strcmp(ext, ".xtc") ) self->type = XTC;
         else if (self->mode == 'r' || self->mode == 'a') {
             /* Extract the first line */
@@ -237,10 +235,10 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
             //case MOLDEN:
                 self->units = ANGS;
                 break;
-            /*case GRO:
-            case XTC:
+            case GRO:
+            //case XTC:
                 self->units = NM;
-                break;*/
+                break;
             case GUESS:
             default:
                 PyErr_SetString(PyExc_RuntimeError, "Should not be here");
@@ -268,17 +266,17 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
         Py_INCREF(self->symbols);
     }
 
-/*    if (py_resid != NULL) {
-        Py_DECREF(self->resIDs);
-        self->resIDs = py_resid;
-        Py_INCREF(self->resIDs);
+    if (py_resid != NULL) {
+        Py_DECREF(self->resids);
+        self->resids = py_resid;
+        Py_INCREF(self->resids);
     }
 
     if (py_resn != NULL) {
         Py_DECREF(self->resNames);
         self->resNames = py_resn;
         Py_INCREF(self->resNames);
-    }*/
+    }
 
     if (self->mode == 'w' || self->mode == 'a') {
 
@@ -295,7 +293,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
         /* Open the coordinate file */
         switch(self->type) {
             case XYZ:
-//            case GRO:
+            case GRO:
                 if ( (self->fd = fopen(filename, mode)) == NULL ) {
                     PyErr_SetFromErrno(PyExc_IOError);
                     return -1; }
@@ -315,7 +313,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
         /* Open the coordinate file */
         switch(self->type) {
             case XYZ:
-//            case GRO:
+            case GRO:
                 if ( (self->fd = fopen(filename, "r")) == NULL ) {
                     PyErr_SetFromErrno(PyExc_IOError);
                     return -1; }
@@ -359,14 +357,14 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
                 // read_topo_from_molden sets file position accordingly 
                 self->filePosition1 = ftell(self->fd);
                 self->filePosition2 = self->filePosition1;
-                break;
+                break;*/
             case GRO:
                 if (read_topo_from_gro(self) == -1) return -1;
                 rewind(self->fd);
                 self->filePosition1 = ftell(self->fd);
                 self->filePosition2 = self->filePosition1;
                 break;
-            case XTC:
+/*            case XTC:
 #ifdef HAVE_GROMACS
                 if (!read_first_xtc(self->xd, &(self->nAtoms), &step, &time,
                                     box, &(self->xtcCoord), &prec, &bOK) && bOK) {
@@ -407,14 +405,14 @@ static PyObject *Trajectory_read(Trajectory *self) {
             self->filePosition1 = self->filePosition2;
             break;
 
-/*        case GRO:
+        case GRO:
             py_result = read_frame_from_gro(self);
             if (py_result == Py_None) return py_result;
             self->filePosition1 = ftell(self->fd);
             self->filePosition1 = self->filePosition2;
             break;
 
-        case MOLDEN:
+/*        case MOLDEN:
             if (self->moldenStyle == MLATOMS)
                 py_result = read_frame_from_molden_atoms(self);
             else
@@ -443,40 +441,59 @@ static PyObject *Trajectory_read(Trajectory *self) {
 static PyObject *Trajectory_write(Trajectory *self, PyObject *args, PyObject *kwds) {
 
 	PyObject *py_coords = NULL;
-	//PyObject *py_vel = NULL;
-	//PyObject *py_box = NULL;
+	PyObject *py_vel = NULL;
+	PyObject *py_box = NULL;
 	char *comment = NULL;;
 	int out;
 	npy_intp *dims;
 
 	static char *kwlist[] = {
-		"coordinates", "comment", NULL };
-		//"coordinates", "velocities", "box", "comment", NULL };
+		"coordinates", "velocities", "box", "comment", NULL };
 
-	//if(!PyArg_ParseTupleAndKeywords(args, kwds, "O!|O!O!s", kwlist,
-	if(!PyArg_ParseTupleAndKeywords(args, kwds, "O!|s", kwlist,
+	if(!PyArg_ParseTupleAndKeywords(args, kwds, "O!|O!O!s", kwlist,
 			&PyArray_Type, &py_coords,
-			//&PyArray_Type, &py_vel,
-			//&PyArray_Type, &py_box,
+			&PyArray_Type, &py_vel,
+			&PyArray_Type, &py_box,
 			&comment))
 		return NULL;
 
 
 	// Perform checks.
-	//
+
 	// Mode must be w/a
 	if (self->mode != 'a' && self->mode != 'w') {
 		PyErr_SetString(PyExc_RuntimeError, "Trying to write in read mode");
 		return NULL; }
-	// Array must be 2D:
+
+	// Arrays must be 2D:
 	if (PyArray_NDIM((PyArrayObject*)py_coords) != 2) {
-        PyErr_SetString(PyExc_RuntimeError, "Array must be 2D");
+        PyErr_SetString(PyExc_RuntimeError, "Coordinate array must be 2D");
 		return NULL; }
+	if (py_vel != NULL && PyArray_NDIM((PyArrayObject*)py_vel) != 2) {
+        PyErr_SetString(PyExc_RuntimeError, "Velocities array must be 2D");
+		return NULL; }
+	if (py_box != NULL && PyArray_NDIM((PyArrayObject*)py_box) != 2) {
+        PyErr_SetString(PyExc_RuntimeError, "Box array must be 2D");
+		return NULL; }
+
 	// dims should be (nAtoms,3)
 	dims = PyArray_DIMS((PyArrayObject*)py_coords);
 	if (dims[0] != self->nAtoms || dims[1] != 3) {
-        PyErr_SetString(PyExc_RuntimeError, "Shape of the array must be (nAtoms, 3)");
+        PyErr_SetString(PyExc_RuntimeError, "Shape of the coordinates array must be (nAtoms, 3)");
 		return NULL; }
+	if (py_vel != NULL) {
+		dims = PyArray_DIMS((PyArrayObject*)py_vel);
+		if (dims[0] != self->nAtoms || dims[1] != 3) {
+    	    PyErr_SetString(PyExc_RuntimeError, "Shape of the velocities array must be (nAtoms, 3)");
+			return NULL; }
+	}
+	if (py_box != NULL) {
+		dims = PyArray_DIMS((PyArrayObject*)py_box);
+		if (dims[0] != 3 || dims[1] != 3) {
+    	    PyErr_SetString(PyExc_RuntimeError, "Shape of the box array must be (3, 3)");
+			return NULL; }
+	}
+
 	// Symbols must be a sequence
 	if (!PyList_Check(self->symbols)) {
         PyErr_SetString(PyExc_RuntimeError, "Trajectory instance must contain a list of symbols");
@@ -487,12 +504,12 @@ static PyObject *Trajectory_write(Trajectory *self, PyObject *args, PyObject *kw
 			out = write_frame_to_xyz(self, py_coords, comment);
 			if (out != 0) return NULL;
 			break;
-		/*case GRO:
-			if (traj_write_gro(self, py_coords, py_vel, py_box, comment)) {
+		case GRO:
+			if (write_frame_to_gro(self, py_coords, py_vel, py_box, comment)) {
 				PyErr_SetString(PyExc_RuntimeError, "Could not write");
 				return NULL;
 			}
-			break;*/
+			break;
 
 		default:
 			break;
@@ -594,8 +611,8 @@ static PyMethodDef Trajectory_methods[] = {
 		"Trajectory.write(coordinates, [ comment ])\n"
 		"\n"
 		"coordinates (ndarray)\n"
-//		"velocities (ndarray)\n"
-//		"box (ndarray)\n"
+		"velocities (ndarray)\n"
+		"box (ndarray)\n"
 		"comment (string)\n"
 		"\n" },
 
@@ -711,10 +728,10 @@ static int read_topo_from_xyz(Trajectory *self) {
 
     int nofatoms, pos, idx;
     char *buffer = NULL;
-	 char *buffpos, *token;
-	 size_t buflen = 0;
+	char *buffpos, *token;
+	size_t buflen = 0;
     int *anum;
-	 ARRAY_REAL *masses;
+	ARRAY_REAL *masses;
     extern Element element_table[];
 
     npy_intp dims[2];
@@ -991,24 +1008,25 @@ static int read_topo_from_xyz(Trajectory *self) {
 
 
 
-/*static int read_topo_from_gro(Trajectory *self) {
+static int read_topo_from_gro(Trajectory *self) {
 
     Py_ssize_t pos;
     int nofatoms;
-    char *buffer;
+    char *buffer = NULL;
+	size_t buflen;
     char symbuf[100];
     int *resid;
     npy_intp dims[2];
     PyObject *val;
 
     // Read the comment line 
-    if((buffer = readline(self->fd)) == NULL) {
+    if(getline(&buffer, &buflen, self->fd) == -1) {
         return -1; }
     buffer[strlen(buffer)-1] = '\0';
     stripline(buffer);
 
     // Read number of atoms 
-    if( (buffer = readline(self->fd)) == NULL) {
+    if( getline(&buffer, &buflen, self->fd) == -1) {
         return -1; }
     if( sscanf(buffer, "%d", &nofatoms) != 1 ) {
         PyErr_SetString(PyExc_IOError, "Incorrect atom number");
@@ -1031,7 +1049,7 @@ static int read_topo_from_xyz(Trajectory *self) {
     for(pos = 0; pos < nofatoms; pos++) {
 
         // Get the whole line 
-        if((buffer = readline(self->fd)) == NULL) {
+        if(getline(&buffer, &buflen, self->fd) == -1) {
             return -1; }
 
         // Read residue id 
@@ -1053,22 +1071,22 @@ static int read_topo_from_xyz(Trajectory *self) {
         stripline(symbuf);
         val = Py_BuildValue("s", symbuf);
         PyList_SetItem(self->symbols, pos, val);
-
-        // Free the line buffer 
-        free(buffer);
     }
+
+    // Free the line buffer 
+    free(buffer);
 
     // Add residue IDs to the dictionary 
     dims[0] = nofatoms;
     dims[1] = 1;
-    Py_DECREF(self->resIDs);
-    self->resIDs = PyArray_SimpleNewFromData(1, dims, NPY_INT, resid);
+    Py_DECREF(self->resids);
+    self->resids = PyArray_SimpleNewFromData(1, dims, NPY_INT, resid);
     // **************************************************************
     // Do not free the raw array! It will be still used by Python! *
     // **************************************************************
 
     return 0;
-}*/
+}
 
 
 
@@ -1081,10 +1099,10 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
 
     PyObject *py_result, *py_coord;
 	PyObject *py_extra;
-	 PyObject *val, *key;
+	PyObject *val, *key;
     char *buffer = NULL;
-	 char *buffpos, *token;
-	 size_t buflen;
+	char *buffpos, *token;
+	size_t buflen;
     int pos, nat;
     float factor;
     ARRAY_REAL *xyz;
@@ -1347,10 +1365,11 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
 
 
 
-/*atic PyObject *read_frame_from_gro(Trajectory *self) {
+static PyObject *read_frame_from_gro(Trajectory *self) {
 
     int nat, pos;
     char *buffer;
+	size_t buflen;
     ARRAY_REAL *xyz, *vel, *box;
     unsigned short int velocities_present = 0;
 
@@ -1363,7 +1382,7 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
     py_result = PyDict_New();
 
     // Read the comment line 
-    if((buffer = readline(self->fd)) == NULL) {
+    if(getline(&buffer, &buflen, self->fd) == -1) {
         PyErr_SetFromErrno(PyExc_IOError);
         return NULL; }
 
@@ -1377,21 +1396,18 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
     stripline(buffer);
 
     val = Py_BuildValue("s", buffer);
-    free(buffer);
     key = PyUnicode_FromString("comment");
     PyDict_SetItem(py_result, key, val);
     Py_DECREF(key);
     Py_DECREF(val);
 
     // Read number of atoms 
-    if( (buffer = readline(self->fd)) == NULL) {
+    if( getline(&buffer, &buflen, self->fd) == -1) {
         PyErr_SetFromErrno(PyExc_IOError);
         return NULL; }
     if( sscanf(buffer, "%d", &nat) != 1 || nat != self->nAtoms) {
         PyErr_SetString(PyExc_IOError, "Incorrect atom number");
         return NULL; }
-    free(buffer);
-
 
     // Set-up the raw arrays for coordinates and charges 
     xyz = (ARRAY_REAL*) malloc(3 * self->nAtoms * sizeof(ARRAY_REAL));
@@ -1411,7 +1427,7 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
     for(pos = 0; pos < self->nAtoms; pos++) {
 
         // Get the whole line 
-        if((buffer = readline(self->fd)) == NULL) {
+        if(getline(&buffer, &buflen, self->fd) == -1) {
             PyErr_SetFromErrno(PyExc_IOError);
             return NULL; }
         if(pos == 0 && strlen(buffer) > 50) velocities_present = 1;
@@ -1427,13 +1443,10 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
             vel[3*pos + 1] = strPartFloat(buffer, 52, 8);
             vel[3*pos + 2] = strPartFloat(buffer, 60, 8);
         }
-
-        // Free the line buffer 
-        free(buffer);
     }
 
     // Get the cell line 
-    if((buffer = readline(self->fd)) == NULL) {
+    if(getline(&buffer, &buflen, self->fd) == -1) {
         PyErr_SetFromErrno(PyExc_IOError);
         return NULL; }
     box[3*0 + 0] = strPartFloat(buffer,  0, 10) * 10.0;
@@ -1457,9 +1470,7 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
     dims[0] = self->nAtoms;
     dims[1] = 3;
     py_coord = PyArray_SimpleNewFromData(2, dims, NPY_ARRAY_REAL, (ARRAY_REAL*) xyz);
-    // **************************************************************
-    // Do not free the raw array! It will be still used by Python! *
-    // *************************************************************
+    // Do not free the raw array! It will be still used by Python!
 
     key = PyUnicode_FromString("coordinates");
     PyDict_SetItem(py_result, key, py_coord);
@@ -1470,9 +1481,7 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
     // Add velocities to the dictionary 
     if(velocities_present) {
         py_vel = PyArray_SimpleNewFromData(2, dims, NPY_ARRAY_REAL, (ARRAY_REAL*) vel);
-        // **************************************************************
-        // Do not free the raw array! It will be still used by Python! *
-        // *************************************************************
+        // Do not free the raw array! It will be still used by Python!
 
         key = PyUnicode_FromString("velocities");
         PyDict_SetItem(py_result, key, py_vel);
@@ -1491,7 +1500,7 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
 
     return py_result;
 
-}*/
+}
 
 
 
@@ -1591,7 +1600,8 @@ static PyObject *read_frame_from_xtc(Trajectory *self) {
 static int write_frame_to_xyz(Trajectory *self, PyObject *py_coords, char *comment) {
 	int type;
 	int at;
-	ARRAY_REAL x, y, z;
+	// Double should be accurate enough for writing
+	double x, y, z;
 	char *sym;
 
 	fprintf(self->fd, "%d\n", self->nAtoms);
@@ -1604,14 +1614,88 @@ static int write_frame_to_xyz(Trajectory *self, PyObject *py_coords, char *comme
 
 	for (at = 0; at < self->nAtoms; at++) {
 		sym = PyUnicode_AsUTF8(PyList_GetItem(self->symbols, at));
-		x = getFromArray2D(py_coords, type, at, 0);
-		y = getFromArray2D(py_coords, type, at, 1);
-		z = getFromArray2D(py_coords, type, at, 2);
+		x = (double)getFromArray2D(py_coords, type, at, 0);
+		y = (double)getFromArray2D(py_coords, type, at, 1);
+		z = (double)getFromArray2D(py_coords, type, at, 2);
 		fprintf(self->fd, "%s % 12.8f % 12.8f % 12.8f\n", sym, x, y, z);
 	}
 	
 	return 0;
 }
+
+
+
+static int write_frame_to_gro(Trajectory *self, PyObject *py_coords,
+				PyObject *py_vel, PyObject *py_box, char *comment) {
+
+	int i, resid, type, vtype;
+	// Using float here, since the accuracy of gro is low anyway
+	float x, y, z, vx, vy, vz;
+	float box[9];
+	char *sym, *resnam;
+	char empty[1] = "";
+	int box_order[9][2] = { {0,0}, {1,1}, {2,2}, {0,1}, {0,2}, {1,0}, {1,2}, {2,0}, {2,1} };
+	npy_intp *dims;
+
+	if( comment != NULL )
+        fprintf(self->fd, "%s\n", comment);
+    else
+        fprintf(self->fd, "\n");
+    fprintf(self->fd, "%5d\n", self->nAtoms);
+
+	type = PyArray_TYPE((PyArrayObject*)py_coords);
+	if (py_vel != NULL)
+		vtype = PyArray_TYPE((PyArrayObject*)py_vel);
+
+    for (i = 0; i < self->nAtoms; i++) {
+
+		if (self->resids != Py_None)
+			resid = *((int*) PyArray_GETPTR1((PyArrayObject*)self->resids, i));
+		else
+			resid = 1;
+
+		if (self->resNames != Py_None)
+			resnam = PyUnicode_AsUTF8(PyList_GetItem(self->resNames, i));
+		else
+			resnam = empty;
+
+        sym = PyUnicode_AsUTF8(PyList_GetItem(self->symbols, i));
+
+		x = (float)getFromArray2D(py_coords, type, i, 0) / 10.0;
+		y = (float)getFromArray2D(py_coords, type, i, 1) / 10.0;
+		z = (float)getFromArray2D(py_coords, type, i, 2) / 10.0;
+
+		if (py_vel != NULL) {
+			vx = (float)getFromArray2D(py_vel, vtype, i, 0);
+			vy = (float)getFromArray2D(py_vel, vtype, i, 1);
+			vz = (float)getFromArray2D(py_vel, vtype, i, 2);
+       		fprintf(self->fd, "%5d%-5s%5s%5d%8.3f%8.3f%8.3f%8.4f%8.4f%8.4f\n",
+				resid, resnam, sym, i+1, x, y, z, vx, vy, vz);
+		} else {
+        	fprintf(self->fd, "%5d%-5s%5s%5d%8.3f%8.3f%8.3f\n",
+				resid, resnam, sym, i+1, x, y, z);
+		}
+    }
+	/* Do some testing on the array */
+	if (py_box != NULL) {
+		type = PyArray_TYPE((PyArrayObject*)py_box);
+		for (i = 0; i < 9; i++) {
+			box[i] = (float)getFromArray2D(py_box, type,
+						box_order[i][0], box_order[i][1]) / 10.0;
+		}
+		for (i = 0; i < 3; i++)
+			fprintf(self->fd, "%10.5f", box[i]);
+		if (fabs(box[3]) > 1e-6 || fabs(box[4]) > 1e-6 || fabs(box[5]) > 1e-6 ||
+		    fabs(box[6]) > 1e-6 || fabs(box[7]) > 1e-6 || fabs(box[8]) > 1e-6)
+			for (i = 3; i < 9; i++)
+				fprintf(self->fd, "%10.5f", box[i]);
+		fprintf(self->fd, "\n");
+	} else
+		fprintf(self->fd, "%10.5f%10.5f%10.5f\n", 0.0, 0.0, 0.0);
+
+	return 0;
+}
+
 
 
 /* End of helper functions */

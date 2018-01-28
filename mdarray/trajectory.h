@@ -34,7 +34,7 @@ typedef struct {
 
 	PyObject_HEAD
 
-	enum { GUESS, XYZ } type;
+	enum { GUESS, XYZ, GRO } type;
 	//enum { GUESS, XYZ, MOLDEN, GRO, XTC } type;
 	enum { ANGS, BOHR, NM } units;
 	char mode;
@@ -55,8 +55,8 @@ typedef struct {
 	int lastFrame;
 	PyObject *symbols; /* list of symbols */
 	PyObject *aNumbers; /* atomic numbers */
-//	PyObject *resIDs; /* residue numbers */
-//	PyObject *resNames; /* residue names */
+	PyObject *resids; /* residue numbers */
+	PyObject *resNames; /* residue names */
 	PyObject *masses; /* atomic Masses */
 
 	//PyObject *moldenSections; /* Sections in Molden file and offsets */
@@ -65,14 +65,16 @@ typedef struct {
 
 static int read_topo_from_xyz(Trajectory *self);
 //static int read_topo_from_molden(Trajectory *self);
-//static int read_topo_from_gro(Trajectory *self);
+static int read_topo_from_gro(Trajectory *self);
 static PyObject *read_frame_from_xyz(Trajectory *self);
 //static PyObject *read_frame_from_molden_atoms(Trajectory *self);
 //static PyObject *read_frame_from_molden_geometries(Trajectory *self);
-//static PyObject *read_frame_from_gro(Trajectory *self);
+static PyObject *read_frame_from_gro(Trajectory *self);
 //#ifdef HAVE_GROMACS
 //static PyObject *read_frame_from_xtc(Trajectory *self);
 //#endif
 static int write_frame_to_xyz(Trajectory *self, PyObject *py_coords, char *comment);
+static int write_frame_to_gro(Trajectory *self, PyObject *py_coords,
+				PyObject *py_vel, PyObject *py_box, char *comment);
 
 #endif /* __TRAJECTORY_H__ */
