@@ -1,1 +1,5 @@
 build
+__pycache__
+mdarray.cpython-35m-x86_64-linux-gnu.so
+mdarray.egg-info
+**/*.o
