@@ -29,6 +29,7 @@ class TestTrajectoryXYZ(unittest.TestCase):
         # Keep for comparison
         self.data = []
 
+        # Write ten, very messy xyz files
         self.nFiles = 10
         for i in range(self.nFiles):
 
@@ -75,6 +76,16 @@ class TestTrajectoryXYZ(unittest.TestCase):
                 xyz.write("He %.7f %.7f %.7f\n" % tuple(self.units_crd[a,:]/f))
             xyz.close()
 
+        # Write file with extra data
+        nAtoms = 10
+        crd = numpy.random.uniform(-10, 10, (nAtoms, 4))
+        self.extra_data = crd[:,3]
+        xyz = open("%s/extra.xyz" % self.tmpDir, "w")
+        xyz.write("%d\n\n" % nAtoms)
+        for a in range(nAtoms):
+            xyz.write("Ar %.3f %.3f %.3f %.6f\n" % tuple(crd[a,:]))
+        xyz.close()
+
 
     def tearDown(self):
 
@@ -101,6 +112,11 @@ class TestTrajectoryXYZ(unittest.TestCase):
                 self.assertEqual(traj.masses[a], m[1])
                 self.assertEqual(traj.aNumbers[a], m[0])
 
+    def test_readXYZ(self):
+
+        for i in range(self.nFiles):
+            absolute = "%s/%d.xyz" % (self.tmpDir, i)
+            traj = mt.Trajectory(absolute)
             frameNo = 0
             frame = traj.read()
             while frame:
@@ -245,3 +261,12 @@ class TestTrajectoryXYZ(unittest.TestCase):
             count += 1
             frame = traj.read()
         self.assertEqual(traj.lastFrame, nFrames-1)
+
+    def test_readExtraData(self):
+        traj = mt.Trajectory(self.tmpDir+"/extra.xyz")
+        frame = traj.read()
+        self.assertTrue('extra' in frame)
+        diff = frame['extra'] - self.extra_data
+        maxDiff = numpy.max(numpy.abs(diff))
+        epsilon = max(1e-6, numpy.finfo(numpy.float).resolution)
+        self.assertTrue(maxDiff <= epsilon)

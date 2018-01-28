@@ -139,12 +139,12 @@ Element element_table[] = {
 { 110,  -1.0        ,  "Ds",  "Darmstadtium", -1.0 },
 { 111,  -1.0        ,  "Rg",   "Roentgenium", -1.0 },
 { 112,  -1.0        ,  "Cn",   "Copernicium", -1.0 },
-{ 113,  -1.0        , "Uut",     "Ununtrium", -1.0 },
-{ 114,  -1.0        , "Uuq",   "Ununquadium", -1.0 },
-{ 115,  -1.0        , "Uup",   "Ununpentium", -1.0 },
-{ 116,  -1.0        , "Uuh",    "Ununhexium", -1.0 },
-{ 117,  -1.0        , "Uus",   "Ununseptium", -1.0 },
-{ 118,  -1.0        , "Uuo",    "Ununoctium", -1.0 },
+{ 113,  -1.0        ,  "Nh",      "Nihonium", -1.0 },
+{ 114,  -1.0        ,  "Fl",     "Flerovium", -1.0 },
+{ 115,  -1.0        ,  "Mc",     "Moscovium", -1.0 },
+{ 116,  -1.0        ,  "Lv",   "Livermorium", -1.0 },
+{ 117,  -1.0        ,  "Ts",    "Tennessine", -1.0 },
+{ 118,  -1.0        ,  "Og",     "Oganesson", -1.0 },
 /*           SENTINEL           */
 {  -1,  -1.0        ,  NULL,              "", -1.0 },
 };

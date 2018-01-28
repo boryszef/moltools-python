@@ -24,6 +24,8 @@
 /* This header contains basic declarations, should come first */
 #include "mdarray.h"
 
+#include "constants.h"
+
 
 
 
@@ -51,6 +53,9 @@ PyMODINIT_FUNC PyInit_mdarray(void)
 {
 	PyObject *md;
 	extern PyTypeObject TrajectoryType;
+	PyObject *exposed_atom_symbols, *exposed_atom_names;
+	PyObject *exposed_atom_masses, *exposed_symbol2number;
+	PyObject *exposed_covalentradii;
 
 	/* Use system-wide locale, but make sure that decimal point is a point! */
 	setlocale(LC_ALL, "");
@@ -64,6 +69,17 @@ PyMODINIT_FUNC PyInit_mdarray(void)
 
 	Py_INCREF(&TrajectoryType);
 	PyModule_AddObject(md, "Trajectory", (PyObject *)&TrajectoryType);
+
+	if( build_tables(&exposed_atom_symbols, &exposed_atom_names,
+		&exposed_atom_masses, &exposed_symbol2number,
+		&exposed_covalentradii) ) return NULL;
+
+	/* Add the lists to the module */
+	PyModule_AddObject(md, "AtomicSymbols", exposed_atom_symbols);
+	PyModule_AddObject(md, "AtomicNames", exposed_atom_names);
+	PyModule_AddObject(md, "AtomicMasses" , exposed_atom_masses);
+	PyModule_AddObject(md, "AtomicNumbers" , exposed_symbol2number);
+	PyModule_AddObject(md, "CovalentRadii" , exposed_covalentradii);
 
 	import_array();
 
