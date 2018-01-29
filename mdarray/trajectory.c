@@ -400,14 +400,12 @@ static PyObject *Trajectory_read(Trajectory *self) {
 
         case XYZ:
             py_result = read_frame_from_xyz(self);
-            if (py_result == Py_None) return py_result;
             self->filePosition1 = ftell(self->fd);
             self->filePosition1 = self->filePosition2;
             break;
 
         case GRO:
             py_result = read_frame_from_gro(self);
-            if (py_result == Py_None) return py_result;
             self->filePosition1 = ftell(self->fd);
             self->filePosition1 = self->filePosition2;
             break;
@@ -430,6 +428,8 @@ static PyObject *Trajectory_read(Trajectory *self) {
             break;
     }
 
+	if (py_result == NULL) return NULL;
+    if (py_result == Py_None) return py_result;
     self->lastFrame += 1;
     return py_result;
 
