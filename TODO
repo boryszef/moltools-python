@@ -3,3 +3,4 @@ Things that need to be done:
 * Let the user read topology and coordinates from separate files
 * In read_topo_from_xyz, capitalize symbols before getting atomic number
 * Update all internal docs
+* In findBonds: change dictionary to list; add entry for atoms with no bonds
