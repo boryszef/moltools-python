@@ -1,4 +1,3 @@
-/***************************************************************************
 
     mdarray
 
@@ -18,7 +17,6 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
- ***************************************************************************/
 
 
 **mdarray** is a Python module for (mostly) reading trajectories from
@@ -45,8 +43,8 @@ supported in XYZ and GRO formats.
 Simple reading examples:
 
 ```Python
-import mdarray
-traj = mdarray.Trajectory('meoh.xyz')
+>>> import mdarray
+>>> traj = mdarray.Trajectory('meoh.xyz')
 ```
 
 This will determine the type of the file and read all topology information
@@ -80,29 +78,32 @@ To read single frame from file, call `read()` method:
 
 In case of formats that support multiple frames, such as XYZ and XTC, reading
 is done sequentially, since this is more economic and faster. Each call to
-read() reads just a single frame. The method will return None if there are no
-more frames to read:
-
+`read()` reads just a single frame. The method will return None if there are
+no more frames to read:
+```Python
 >>> frame = traj.read()
 >>> print(frame)
 None
+```
 
 Reading GRO file is similar:
-
+```Python
 >>> import mdarray
 >>> traj = mdarray.Trajectory('gas.gro')
+```
 
 GRO files contain additional topology information:
-
+```Python
 >>> traj.resids
 array([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], dtype=int32)
 >>> traj.resNames
 ['CHL', 'CHL', 'CHL', 'CHL', 'CHL', 'CHL', 'CHL', 'CHL', 'CHL', 'CHL']
 >>> traj.symbols
 ['CA', 'HA1', 'HA2', 'OA', 'HA3', 'CB', 'HB1', 'HB2', 'OB', 'HB3']
+```
 
 Reading frame from GRO is exactly like from XYZ:
-
+```Python
 >>> frame = traj.read()
 >>> print(frame)
 {'comment': 'Gas phase', 'box': array([[ 35.0909996 ,   0.        ,   0.        ],
@@ -117,15 +118,16 @@ Reading frame from GRO is exactly like from XYZ:
        [ 10.        ,  12.92999983,  13.20000052],
        [ 10.06000042,  14.8300004 ,  12.84999967],
        [ 10.34999967,  14.50999975,  12.13999987]])}
-
+```
 Note that GRO format has information about PBC, hence the dictionary has the
-'box' key with (3,3) array.
+`box` key with (3,3) array.
 
-mdarray always converts coordinates to Angstroms. It is assumed that XYZ files
-are in Angstroms, while GRO and XTC formats are in nm. However, it is possible
-to set input units (angs, nm, bohr) like this:
-
+**mdarray** always converts coordinates to Angstroms. It is assumed that XYZ
+files are in Angstroms, while GRO and XTC formats are in nm. However, it is
+possible to set input units (angs, nm, bohr) like this:
+```Python
 >>> traj = mdarray.Trajectory('meoh.xyz', units="bohr")
+```
 
 This will convert atomic units into Angstroms while reading.
 
@@ -133,28 +135,40 @@ Writing will be illustrated with the following example: let's take coordinates
 from GRO file, shift all atoms by a vector (10, -10, 0) and save to XYZ.
 
 Import mdarray and numpy as well - for vector operations:
+```Python
 >>> import mdarray
 >>> import numpy
+```
 
 Load input trajectory and read a frame:
+```Python
 >>> traj = mdarray.Trajectory('gas.gro')
 >>> frame = traj.read()
+```
 
 Translate coordinates by a vector:
+```Python
 >>> crd = frame['coordinates']
 >>> vec = numpy.array([10, -10, 0])
 >>> crd += vec
+```
 
 Open new file for writing ('w' mode); symbols must be specified if XYZ format
 is used - we'll take them from GRO trajectory:
+```Python
 >>> out = mdarray.Trajectory('out.xyz', 'w', symbols=traj.symbols)
+```
 
 Write out the modified coordinates with original comment line from GRO file:
+```Python
 >>> out.write(crd, comment=frame['comment'])
+```
 
-Since the write() method can be called several times, in order to save
+Since the `write()` method can be called several times, in order to save
 subsequent frames, the file is not being closed at once. The class keeps the
 file open until the instance is destroyed. Because of that, when you write
 to a file, better delete the instance as soon as you don't need it anymore:
+```Python
 >>> del out
+```
 
