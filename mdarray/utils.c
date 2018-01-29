@@ -23,7 +23,6 @@
 
 
 
-#include "mdarray.h"
 #include "utils.h"
 #include "periodic_table.h"
 

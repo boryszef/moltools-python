@@ -21,8 +21,8 @@
  ***************************************************************************/
 
 
-#ifndef __CONSTANTS_H__
-#define __CONSTANTS_H__
+#ifndef __TOPOLOGY_H__
+#define __TOPOLOGY_H__
 
 /* This should come before other Numpy-related declarations in every *
  * file that does not define the module's init function              */
@@ -31,8 +31,12 @@
 /* Make sure the general declarations are made first */
 #include "mdarray.h"
 
-int build_tables(PyObject **list_symbols, PyObject **list_names,
-                 PyObject **list_masses, PyObject **symbol2number,
-                 PyObject **dict_radii);
+/*typedef struct {
+	int len;
+	int *idx;
+} Group;*/
 
-#endif /* __CONSTANTS_H__ */
+//PyObject *find_molecules(PyObject *self, PyObject *args, PyObject *kwds);
+PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds);
+
+#endif /* __TOPOLOGY_H__ */

@@ -23,13 +23,25 @@
 
 /* This header contains basic declarations, should come first */
 #include "mdarray.h"
-
 #include "constants.h"
+#include "topology.h"
 
 
 
 
 static PyMethodDef mdarrayMethods[] = {
+	{"findBonds", (PyCFunction)find_bonds, METH_VARARGS | METH_KEYWORDS,
+		"\n"
+		"findBonds(symbols, coordinates, factor=1.3, format=list)\n"
+		"\n"
+		"Finds connections between atoms. 'symbols' is a list of atomic "
+		"types, 'coordinates' is a numpy array of coordinates and factor "
+		"is a factor used to multiply the covalent radii. Depending on the "
+		"optional parameter 'format', returns either a dictionary of "
+		"indices { <center> : (<center1>, <center2>, ... ) ... } for every "
+		"atom or a list of unique bonds as tuples [ (center1, center2), "
+		"(center1, center3), ... ]"
+		"\n" },
     {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 

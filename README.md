@@ -19,6 +19,8 @@
 
 
 
+# Introduction
+
 **mdarray** is a Python module for (mostly) reading trajectories from
 Molecular Dynamics. The central part of the module is Trajectory class that
 reads coordinates from the trajectory (plus some other data), which can be
@@ -39,6 +41,8 @@ allow fast manipulation of arrays.
 The `Trajectory` class currently supports reading XYZ, GRO and XTC formats, the
 latter one only if gromacs library is available in the system. Writting is
 supported in XYZ and GRO formats.
+
+# Usage
 
 Simple reading examples:
 
@@ -172,3 +176,14 @@ to a file, better delete the instance as soon as you don't need it anymore:
 >>> del out
 ```
 
+# Installation
+
+To install the package, simply type
+```
+python setup.py install
+```
+To install as a regular user, add `--user` flag.
+
+Note: the module supports only Python 3 and requires Numpy package. To use XTC
+files, the module uses libgromacs shared library, which is automatically
+detected using `pkg-config`.

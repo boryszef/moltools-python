@@ -18,7 +18,7 @@ def getPackageFlags(pkg):
     out = { k : [] for k in flagMap.values() }
     out['extra'] = []
     flags = subprocess.check_output(['pkg-config', '--cflags', '--libs', pkg])
-    for token in flags.decode('ASCII').split()
+    for token in flags.decode('ASCII').split():
         if token[:2] in flagMap: key = flagMap[token[:2]]
         else: key = 'extra'
         out[key].append(token[2:])
@@ -83,7 +83,7 @@ setup(
     version = '0.1.2',
     description = 'Python module for manipulation of atomic coordinates and trajectories',
     keywords = 'molecular dynamics modeling modelling trajectory xyz',
-    long_description = open('README').read(),
+    long_description = open('README.md').read(),
     author = 'Borys Szefczyk',
     author_email = 'boryszef@gmail.com',
     url = 'https://github.com/boryszef/mdarray',

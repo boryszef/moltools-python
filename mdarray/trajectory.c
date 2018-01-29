@@ -22,7 +22,6 @@
 
 
 #include <unistd.h>
-#include "mdarray.h"
 #include "trajectory.h"
 #include "utils.h"
 #include "periodic_table.h"
