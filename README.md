@@ -21,47 +21,53 @@
  ***************************************************************************/
 
 
-mdarray is a Python module for (mostly) reading trajectories from Molecular
-Dynamics. The central part of the module is Trajectory class that reads
-coordinates from the trajectory (plus some other data), which can be further
-processed in Python scripts. The module has been developed with two
+**mdarray** is a Python module for (mostly) reading trajectories from
+Molecular Dynamics. The central part of the module is Trajectory class that
+reads coordinates from the trajectory (plus some other data), which can be
+further processed in Python scripts. The module has been developed with two
 assumptions in mind:
 * it should be fast and easy to use
 * the data should be stored using standard types, so that the user can
   easily build own programs on top of it.
-Because of that, each frame read is returned as dictionary with items such
-as coordinates, velocities, box, etc. Arrays of numbers are stored using
-ndarray type provided by the Numpy package. The choice of Numpy is dictated
-by the fact, that the data stored in array can be built directly in C code
-as a contiguous C array and is not further transformed by Numpy, but only
+Because of that, each frame read is returned as dictionary with items such as
+coordinates, velocities, box, etc. Arrays of numbers are stored using ndarray
+type provided by the Numpy package. The choice of Numpy is dictated by the
+fact, that the data stored in array can be built directly in C code as a
+contiguous C array and is not further transformed by Numpy, but only
 interfaced in Python. As a result, reading and processing the data is fast.
-Also, Numpy is a versatile package with dozens of functions and operators
-that allow fast manipulation of arrays.
+Also, Numpy is a versatile package with dozens of functions and operators that
+allow fast manipulation of arrays.
 
-The Trajectory class currently supports reading XYZ, GRO and XTC formats,
-the latter one only if gromacs library is available in the system. Writting
-is supported in XYZ and GRO formats.
+The `Trajectory` class currently supports reading XYZ, GRO and XTC formats, the
+latter one only if gromacs library is available in the system. Writting is
+supported in XYZ and GRO formats.
 
 Simple reading examples:
 
->>> import mdarray
->>> traj = mdarray.Trajectory('meoh.xyz')
+```Python
+import mdarray
+traj = mdarray.Trajectory('meoh.xyz')
+```
 
 This will determine the type of the file and read all topology information
-- whatever is available in the provided format. In case of xyz file that
-means atomic symbols only:
+- whatever is available in the provided format. In case of xyz file that means
+atomic symbols only:
 
+```Python
 >>> print(traj.nAtoms)
 6
 >>> print(traj.symbols)
 ['C', 'H', 'H', 'H', 'O', 'H']
+```
 
 The instance contains also standard atomic masses:
+```Python
 >>> print(traj.masses)
 [ 12.011   1.008   1.008   1.008  15.999   1.008]
+```
 
-To read single frame from file, call read() method:
-
+To read single frame from file, call `read()` method:
+```Python
 >>> frame = traj.read()
 >>> print(frame)
 {'coordinates': array([[ 0.   ,  0.   ,  0.   ],
@@ -70,6 +76,7 @@ To read single frame from file, call read() method:
        [-0.513, -0.889, -0.363],
        [-0.66 ,  1.143, -0.467],
        [-0.66 ,  1.143, -1.414]]), 'comment': 'Methanol molecule'}
+```
 
 In case of formats that support multiple frames, such as XYZ and XTC, reading
 is done sequentially, since this is more economic and faster. Each call to
