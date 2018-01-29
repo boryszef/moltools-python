@@ -1,0 +1,43 @@
+/***************************************************************************
+
+    mdarray
+
+    Python module for manipulation of atomic coordinates
+    Copyright (C) 2012, Borys Szefczyk
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+ ***************************************************************************/
+
+
+mdarray is a Python module for (mostly) reading trajectories from Molecular
+Dynamics. The central part of the module is Trajectory class that reads
+coordinates from the trajectory (plus some other data), which can be further
+processed in Python scripts. The module has been developed with two
+assumptions in mind:
+* it should be fast and easy to use
+* the data should be stored using standard types, so that the user can
+  easily build own programs on top of it.
+Because of that, each frame read is returned as dictionary with items such
+as coordinates, velocities, box, etc. Arrays of numbers are stored using
+ndarray type provided by the Numpy package. The choice of Numpy is dictated
+by the fact, that the data stored in array can be built directly in C code
+as a contiguous C array and is not further transformed by Numpy, but only
+interfaced in Python. As a result, reading and processing the data is fast.
+Also, Numpy is a versatile package with dozens of functions and operators
+that allow fast manipulation of arrays.
+
+The Trajectory class currently supports reading XYZ, GRO and XTC formats,
+the latter one only if gromacs library is available in the system. Writting
+is supported in XYZ and GRO formats.

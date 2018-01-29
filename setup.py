@@ -14,32 +14,62 @@ def extraPackagePresent(pkg):
     else: return True
 
 def getPackageFlags(pkg):
-    cflags = subprocess.check_output(['pkg-config', '--cflags', pkg])
-    cflags = cflags.decode('ASCII')
-    libs = subprocess.check_output(['pkg-config', '--libs', pkg])
-    libs = libs.decode('ASCII')
-    return cflags.strip(), libs.strip()
+    flagMap = { '-I' : 'inc_dirs', '-L' : 'lib_dirs', '-l' : 'libs', '-D' : 'define' }
+    out = { k : [] for k in flagMap.values() }
+    out['extra'] = []
+    flags = subprocess.check_output(['pkg-config', '--cflags', '--libs', pkg])
+    for token in flags.decode('ASCII').split()
+        if token[:2] in flagMap: key = flagMap[token[:2]]
+        else: key = 'extra'
+        out[key].append(token[2:])
+    # Convert '=' in define's into tuples
+    tmp = []
+    for token in out['define']:
+        if '=' in token: tmp.append(token.split('='))
+        else: tmp.append((token, None))
+    out['define'] = tmp
+    return out
 
-extraCFlags = [ "-O3 -march=native" ]
-#extraCFlags = [ "-O0 -g" ]
+inc_dirs = []
+lib_dirs = []
+libs = []
+define = []
+
+extraCFlags = [ "-O3", "-march=native" ]
+#extraCFlags = [ "-O0", "-g" ]
 extraLFlags = []
-#extraLFlags = [ "-O0 -g" ]
+#extraLFlags = [ "-O0", "-g" ]
 
 npymathInfo = get_info('npymath')
+inc_dirs.extend(npymathInfo['include_dirs'])
+lib_dirs.extend(npymathInfo['library_dirs'])
+libs.extend(npymathInfo['libraries'])
 
 # Check if gromacs is present
 if extraPackagePresent('libgromacs'):
-    cflags, libs = getPackageFlags('libgromacs')
-    extraCFlags.append('-DHAVE_GROMACS')
-    extraCFlags.append(cflags)
-    extraLFlags.append(libs)
+    flags = getPackageFlags('libgromacs')
+    inc_dirs.extend(flags['inc_dirs'])
+    lib_dirs.extend(flags['lib_dirs'])
+    libs.extend(flags['libs'])
+    define.extend(flags['define'])
+    define.append(('HAVE_GROMACS', None))
+    extraCFlags.extend(flags['extra'])
+    extraLFlags.extend(flags['extra'])
+
+print("INC_DIRS:", inc_dirs)
+print("LIB_DIRS:", lib_dirs)
+print("LIBS:", libs)
+print("DEFINE:", define)
+print("EXTRA C FLAGS:", extraCFlags)
+print("EXTRA LINK FLAGS:", extraLFlags)
 
 mdarray = Extension(
     'mdarray',
-    sources = glob.glob('mdarray/*.c'),
-    include_dirs = npymathInfo['include_dirs'],
-    library_dirs = npymathInfo['library_dirs'],
-    libraries = npymathInfo['libraries'],
+    glob.glob('mdarray/*.c'),
+    include_dirs = inc_dirs,
+    library_dirs = lib_dirs,
+    libraries = libs,
+    define_macros = define,
     extra_compile_args = extraCFlags,
     extra_link_args=extraLFlags)
 
@@ -53,6 +83,7 @@ setup(
     version = '0.1.2',
     description = 'Python module for manipulation of atomic coordinates and trajectories',
     keywords = 'molecular dynamics modeling modelling trajectory xyz',
+    long_description = open('README').read(),
     author = 'Borys Szefczyk',
     author_email = 'boryszef@gmail.com',
     url = 'https://github.com/boryszef/mdarray',
