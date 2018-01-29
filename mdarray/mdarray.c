@@ -49,9 +49,32 @@ static struct PyModuleDef mdarrayModule = {
 };
 
 
+static PyObject* collectConfig(void) {
+	PyObject *dict, *key, *val;
+
+	dict = PyDict_New();
+
+	key = PyUnicode_FromString("realType");
+    val = PyUnicode_FromString(TYPE_NAME(ARRAY_REAL));
+	PyDict_SetItem(dict, key, val);
+	Py_DECREF(key);
+	Py_DECREF(val);
+
+	key = PyUnicode_FromString("gromacs");
+#ifdef HAVE_GROMACS
+    PyDict_SetItem(dict, key, Py_True);
+#else
+    PyDict_SetItem(dict, key, Py_False);
+#endif
+
+	return dict;
+}
+
+
 PyMODINIT_FUNC PyInit_mdarray(void)
 {
 	PyObject *md;
+	PyObject *config;
 	extern PyTypeObject TrajectoryType;
 	PyObject *exposed_atom_symbols, *exposed_atom_names;
 	PyObject *exposed_atom_masses, *exposed_symbol2number;
@@ -80,6 +103,9 @@ PyMODINIT_FUNC PyInit_mdarray(void)
 	PyModule_AddObject(md, "AtomicMasses" , exposed_atom_masses);
 	PyModule_AddObject(md, "AtomicNumbers" , exposed_symbol2number);
 	PyModule_AddObject(md, "CovalentRadii" , exposed_covalentradii);
+
+	config = collectConfig();
+	PyModule_AddObject(md, "__config__" , config);
 
 	import_array();
 

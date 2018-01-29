@@ -46,6 +46,8 @@
 
 #define ARRAY_REAL double
 #define NPY_ARRAY_REAL NPY_DOUBLE
+#define TYPE_NAME(t) __TYPE_NAME(t)
+#define __TYPE_NAME(t) #t
 
 
 #endif /* __MDARRAY_H__ */
