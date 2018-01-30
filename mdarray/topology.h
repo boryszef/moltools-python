@@ -31,12 +31,12 @@
 /* Make sure the general declarations are made first */
 #include "mdarray.h"
 
-/*typedef struct {
+typedef struct {
 	int len;
 	int *idx;
-} Group;*/
+} Group;
 
-//PyObject *find_molecules(PyObject *self, PyObject *args, PyObject *kwds);
+PyObject *find_molecules(PyObject *self, PyObject *args, PyObject *kwds);
 PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds);
 
 #endif /* __TOPOLOGY_H__ */

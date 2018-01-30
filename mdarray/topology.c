@@ -26,7 +26,9 @@
 #include "utils.h"
 
 
-/*static int groupOverlap(Group a, Group b) {
+// Check if two groups have at least one atom in common
+//
+static int groupOverlap(Group a, Group b) {
 	int i, j;
 
 	for (i = 0; i < a.len; i++) {
@@ -36,6 +38,8 @@
 	return 0;
 }
 
+// Append atoms from group b to the end of a
+//
 static void groupMerge(Group *a, Group b) {
 	int i, j, k, newLen;
 	int duplicate;
@@ -44,6 +48,7 @@ static void groupMerge(Group *a, Group b) {
 	a->idx = (int*)realloc(a->idx, newLen * sizeof(int));
 	for (i = a->len, j = 0; j < b.len; j++) {
 		duplicate = 0;
+		// Serch a for duplicates of b[j]
 		for (k = 0; k < a->len; k++)
 			if ( (a->idx)[k] == b.idx[j] ) {
 				duplicate = 1;
@@ -52,17 +57,22 @@ static void groupMerge(Group *a, Group b) {
 		if (!duplicate)
 			(a->idx)[i++] = b.idx[j];
 	}
+	// Truncate the pre-allocated array (if there were duplicates)
 	newLen = i;
 	a->idx = (int*)realloc(a->idx, newLen * sizeof(int));
 	a->len = newLen;
 }
 
+// Clean-up group
+//
 static void groupDelete(Group *a) {
 	free(a->idx);
 	a->idx = NULL;
 	a->len = 0;
 }
 
+// Remove empty groups and recalculate their count
+//
 static void groupPurge(int *n, Group *g) {
 	int i, j;
 
@@ -73,7 +83,7 @@ static void groupPurge(int *n, Group *g) {
 			*n -= 1;
 		} else i++;
 	}
-}*/
+}
 
 
 PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds) {
@@ -195,7 +205,9 @@ PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds) {
 }
 
 
-/*PyObject *find_molecules(PyObject *self, PyObject *args, PyObject *kwds) {
+// This function uses data from findBonds to assemble atoms into molecules
+//
+PyObject *find_molecules(PyObject *self, PyObject *args, PyObject *kwds) {
 	int merged, nbonds, i, j, nmols;
 	unsigned int natoms;
 	long int idx1, idx2;
@@ -215,16 +227,15 @@ PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds) {
 
 	nbonds = PyList_Size(py_bonds);
 	nmols = nbonds;
-	checkTable = (int*) malloc(natoms * sizeof(int));
-	for (i = 0; i < natoms; i++) checkTable[i] = 0;
 
+	// Makes preliminary single group (molecule) for each bond
 	groups = (Group*) malloc(nmols * sizeof(Group));
 	for (i = 0; i < nmols; i++) {
 		bond = PyList_GetItem(py_bonds, i); // borrowed
 		atomIdx = PyTuple_GetItem(bond, 0);
-		idx1 = PyInt_AsLong(atomIdx);
+		idx1 = PyLong_AsLong(atomIdx);
 		atomIdx = PyTuple_GetItem(bond, 1);
-		idx2 = PyInt_AsLong(atomIdx);
+		idx2 = PyLong_AsLong(atomIdx);
 		if (!PyTuple_Check(bond)) {
 			PyErr_SetString(PyExc_RuntimeError, "List of bonds should contain tuples.");
 			return NULL; }
@@ -239,6 +250,7 @@ PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds) {
 		
 	py_result = PyList_New(0);
 
+	// Loop through the groups until there is nothing to merge
 	do {
 		merged = 0;
 		for (i = 0; i < nmols; i++) {
@@ -252,26 +264,32 @@ PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds) {
 		}
 		groupPurge(&nmols, groups);
 	} while(merged);
-		
+
+	checkTable = (int*) malloc(natoms * sizeof(int));
+	for (i = 0; i < natoms; i++) checkTable[i] = 0;
+
+	// Make list for each molecule and mark atoms which are part of
+	// something bigger
 	for (i = 0; i < nmols; i++) {
 		mol = PyList_New(groups[i].len);
 		for(j = 0; j < groups[i].len; j++) {
-			PyList_SetItem(mol, j, PyInt_FromLong(groups[i].idx[j]));
+			PyList_SetItem(mol, j, PyLong_FromLong(groups[i].idx[j]));
 			checkTable[groups[i].idx[j]] = 1;
 		}
 		PyList_Append(py_result, mol);
 		Py_DECREF(mol);
 	}
 
+	// For each unassigned atom, create a list with this single member
 	for (i = 0; i < natoms; i++) {
 		if (!checkTable[i]) {
 			mol = PyList_New(1);
-			PyList_SetItem(mol, 0, PyInt_FromLong(i));
+			PyList_SetItem(mol, 0, PyLong_FromLong(i));
 			PyList_Append(py_result, mol);
 			Py_DECREF(mol);
 		}
 	}
 
 	return py_result;
-}*/
+}
 

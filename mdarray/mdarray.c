@@ -42,6 +42,13 @@ static PyMethodDef mdarrayMethods[] = {
 		"atom or a list of unique bonds as tuples [ (center1, center2), "
 		"(center1, center3), ... ]"
 		"\n" },
+	{"findMolecules", (PyCFunction)find_molecules, METH_VARARGS | METH_KEYWORDS,
+		"\n"
+		"findMolecules(numberOfAtoms, bonds)\n"
+		"\n"
+		"Given a list of bonds as tuples, find sets of topologically\n"
+		"connected atoms (molecules).\n"
+		"\n" },
     {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 
