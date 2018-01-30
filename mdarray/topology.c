@@ -101,9 +101,9 @@ PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds) {
 			&format))
 		return NULL;
 
-	if(format != NULL && !strcmp(format, "list"))
+	if(format != NULL && !strcmp(format, "bonds"))
 		fmt = FMT_LIST;
-	else if (format != NULL && !strcmp(format, "dict"))
+	else if (format != NULL && !strcmp(format, "atoms"))
 		fmt = FMT_DICT;
 	else if (format != NULL) {
 		PyErr_SetString(PyExc_RuntimeError, "Unrecognized format.");
@@ -119,11 +119,7 @@ PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds) {
 
 	type = PyArray_TYPE((PyArrayObject*)py_coords);
 
-	if (fmt == FMT_DICT) {
-		py_result = PyDict_New();
-	} else {
-		py_result = PyList_New(0);
-	}
+	py_result = PyList_New(0);
 
 	for (i = 0; i < nat; i++) {
 
@@ -142,7 +138,8 @@ PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds) {
 			PyErr_SetString(PyExc_RuntimeError, "Covalent radius undefined.");
 			return NULL; }
 
-		tmp_list = PyList_New(0); // new
+		if (fmt == FMT_DICT)
+			tmp_list = PyList_New(0); // new
 		val1 = PyLong_FromLong(i); // new
 
 		if (fmt == FMT_DICT) start = 0;
@@ -188,11 +185,10 @@ PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds) {
 				Py_DECREF(val2);
 			}
 		}
-		if (fmt == FMT_DICT)
-			if (PyList_Size(tmp_list))
-				PyDict_SetItem(py_result, val1, tmp_list);
-		Py_DECREF(val1);
-		Py_DECREF(tmp_list);
+		if (fmt == FMT_DICT) {
+			PyList_Append(py_result, tmp_list);
+			Py_DECREF(tmp_list);
+		}
 	}
 
 	return py_result;
