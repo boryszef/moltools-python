@@ -149,7 +149,8 @@ PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds) {
 			return NULL; }
 
 		if (fmt == FMT_DICT)
-			tmp_list = PyList_New(0); // new
+			//tmp_list = PyList_New(0); // new
+			tmp_list = PySet_New(NULL); // new
 		val1 = PyLong_FromLong(i); // new
 
 		if (fmt == FMT_DICT) start = 0;
@@ -182,7 +183,8 @@ PyObject *find_bonds(PyObject *self, PyObject *args, PyObject *kwds) {
 				val2 = PyLong_FromLong(j); // new
 
 				if (fmt == FMT_DICT)
-					PyList_Append(tmp_list, val2);
+					//PyList_Append(tmp_list, val2);
+					PySet_Add(tmp_list, val2);
 				else {
 					tmptup = PyTuple_New(2);
 					PyTuple_SetItem(tmptup, 0, val1); // steals reference
@@ -217,7 +219,7 @@ PyObject *find_molecules(PyObject *self, PyObject *args, PyObject *kwds) {
 	static char *kwlist[] = {
 		"natoms", "bonds", NULL };
 
-	PyObject *bond, *mol, *atomIdx;
+	PyObject *bond, *mol, *atomIdx, *num;
 	PyObject *py_bonds;
 	PyObject *py_result = NULL;
 
@@ -271,9 +273,13 @@ PyObject *find_molecules(PyObject *self, PyObject *args, PyObject *kwds) {
 	// Make list for each molecule and mark atoms which are part of
 	// something bigger
 	for (i = 0; i < nmols; i++) {
-		mol = PyList_New(groups[i].len);
+		//mol = PyList_New(groups[i].len);
+		mol = PySet_New(NULL);
 		for(j = 0; j < groups[i].len; j++) {
-			PyList_SetItem(mol, j, PyLong_FromLong(groups[i].idx[j]));
+			//PyList_SetItem(mol, j, PyLong_FromLong(groups[i].idx[j]));
+			num = PyLong_FromLong(groups[i].idx[j]);
+			PySet_Add(mol, num);
+			Py_DECREF(num);
 			checkTable[groups[i].idx[j]] = 1;
 		}
 		PyList_Append(py_result, mol);
@@ -283,8 +289,12 @@ PyObject *find_molecules(PyObject *self, PyObject *args, PyObject *kwds) {
 	// For each unassigned atom, create a list with this single member
 	for (i = 0; i < natoms; i++) {
 		if (!checkTable[i]) {
-			mol = PyList_New(1);
-			PyList_SetItem(mol, 0, PyLong_FromLong(i));
+			//mol = PyList_New(1);
+			mol = PySet_New(NULL);
+			//PyList_SetItem(mol, 0, PyLong_FromLong(i));
+			num = PyLong_FromLong(i);
+			PySet_Add(mol, num);
+			Py_DECREF(num);
 			PyList_Append(py_result, mol);
 			Py_DECREF(mol);
 		}

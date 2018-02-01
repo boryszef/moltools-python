@@ -1,5 +1,10 @@
 Things that need to be done:
 
-* Let the user read topology and coordinates from separate files
+* Let the user read topology and coordinates from separate files - or
+  maybe not?
 * In read_topo_from_xyz, capitalize symbols before getting atomic number
 * Update all internal docs
+* Add analyse=True/False to .read()
+* If analyse==True, then calculate 'massweighted' coordinates and 'com'
+  - center of mass; it's a common operation, not very expensive in C,
+  but more expensive in Numpy.
