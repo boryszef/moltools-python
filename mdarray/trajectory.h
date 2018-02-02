@@ -30,12 +30,14 @@
 /* Make sure the general declarations are made first */
 #include "mdarray.h"
 
+typedef enum __moldenStyle {
+	MLATOMS, MLGEOCONV, MLFREQ, MLUNK } MoldenStyle;
+
 typedef struct {
 
 	PyObject_HEAD
 
-	enum { GUESS, XYZ, GRO, XTC } type;
-	//enum { GUESS, XYZ, MOLDEN, GRO, XTC } type;
+	enum { GUESS, XYZ, MOLDEN, GRO, XTC } type;
 	enum { ANGS, BOHR, NM } units;
 	char mode;
 	char *fileName; /* Used while opening the file and for __repr__ */
@@ -49,9 +51,8 @@ typedef struct {
 #endif
 	long filePosition1;
 	long filePosition2;
-//	enum { MLGEOMETRY, MLATOMS, MLUNKNOWN } moldenStyle;
+	MoldenStyle moldenStyle;
 	int nAtoms;
-//	int nOfFrames;
 	int lastFrame;
 	PyObject *symbols; /* list of symbols */
 	PyObject *aNumbers; /* atomic numbers */
@@ -59,22 +60,42 @@ typedef struct {
 	PyObject *resNames; /* residue names */
 	PyObject *masses; /* atomic Masses */
 
-	//PyObject *moldenSections; /* Sections in Molden file and offsets */
+	/* Sections in Molden file and offsets */
+	struct {
+		long offset;
+		char name[];
+	} moldenSect[] = {
+		{ -1, "atoms" },      // ATOMS
+		{ -1, "geoconv" },    // GEOCONV
+		{ -1, "geometries" }, // GEOMETRIES
+		{ -1, "freq" },       // FREQ
+		{ -1, "fr-coord" }    // FR-COORD
+	};
 
 } Trajectory;
 
+#define MLSEC_ATOMS       0
+#define MLSEC_GEOCONV     1
+#define MLSEC_GEOMETRIES  2
+#define MLSEC_FREQ        3
+#define MLSEC_FR_COORD    4
+
 static int read_topo_from_xyz(Trajectory *self);
-//static int read_topo_from_molden(Trajectory *self);
 static int read_topo_from_gro(Trajectory *self);
 static PyObject *read_frame_from_xyz(Trajectory *self);
-//static PyObject *read_frame_from_molden_atoms(Trajectory *self);
-//static PyObject *read_frame_from_molden_geometries(Trajectory *self);
+static int write_frame_to_xyz(Trajectory *self, PyObject *py_coords, char *comment);
+
 static PyObject *read_frame_from_gro(Trajectory *self);
+static int write_frame_to_gro(Trajectory *self, PyObject *py_coords,
+				PyObject *py_vel, PyObject *py_box, char *comment);
 #ifdef HAVE_GROMACS
 static PyObject *read_frame_from_xtc(Trajectory *self);
 #endif
-static int write_frame_to_xyz(Trajectory *self, PyObject *py_coords, char *comment);
-static int write_frame_to_gro(Trajectory *self, PyObject *py_coords,
-				PyObject *py_vel, PyObject *py_box, char *comment);
+
+static int read_molden_sections(Trajectory *self);
+static MoldenStyle get_molden_style(Trajectory *self);
+//static int read_topo_from_molden(Trajectory *self);
+//static PyObject *read_frame_from_molden_atoms(Trajectory *self);
+//static PyObject *read_frame_from_molden_geometries(Trajectory *self);
 
 #endif /* __TRAJECTORY_H__ */

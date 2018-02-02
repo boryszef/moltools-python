@@ -6,6 +6,8 @@ Things that need to be done:
 * In read_topo_from_xyz, capitalize symbols before getting atomic number
 * Update all internal docs
 * Perhaps add support for DCD format?
+* Add totalMass to Trajectory
+* Add checking if mass == -1 -> None
 * Add analyse=True/False to .read()
 * If analyse==True, then calculate 'massweighted' coordinates and 'com'
   - center of mass; it's a common operation, not very expensive in C,
@@ -16,4 +18,6 @@ Things that need to be done:
   quaternion fit,
   findHBonds,
   moments of inertia,
-
+* Add fixed_width flag, to indicate that XYZ has fixed width format,
+  then block reading could be used with index offsets to extract data;
+  that would speed up reading.
