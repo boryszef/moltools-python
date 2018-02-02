@@ -1,10 +1,19 @@
 Things that need to be done:
 
+* Add masses of artificial elements?
 * Let the user read topology and coordinates from separate files - or
   maybe not?
 * In read_topo_from_xyz, capitalize symbols before getting atomic number
 * Update all internal docs
+* Perhaps add support for DCD format?
 * Add analyse=True/False to .read()
 * If analyse==True, then calculate 'massweighted' coordinates and 'com'
   - center of mass; it's a common operation, not very expensive in C,
   but more expensive in Numpy.
+* Stuff to possibly port from previous version:
+  Molden format support,
+  distanceMatrix (with PBC),
+  quaternion fit,
+  findHBonds,
+  moments of inertia,
+
