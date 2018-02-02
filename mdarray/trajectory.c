@@ -56,14 +56,10 @@ static void Trajectory_dealloc(Trajectory* self)
     self->masses = NULL;
     Py_XDECREF(tmp);
 
-    //tmp = self->moldenSections;
-    //self->moldenSections = NULL;
-    //Py_XDECREF(tmp);
-
     free(self->fileName);
     switch(self->type) {
         case XYZ:
-//        case MOLDEN:
+        case MOLDEN:
         case GRO:
             if (self->fd != NULL) fclose(self->fd);
             break;
@@ -103,9 +99,8 @@ static PyObject *Trajectory_new(PyTypeObject *type, PyObject *args, PyObject *kw
 #endif
         self->filePosition1 = -1;
         self->filePosition2 = -1;
-        //self->moldenStyle = MLUNKNOWN;
+        self->moldenStyle = MLUNK; // Unknown format
         self->nAtoms = 0;
-//        self->nOfFrames = 0;
         self->lastFrame = -1;
 
         Py_INCREF(Py_None);
@@ -123,8 +118,6 @@ static PyObject *Trajectory_new(PyTypeObject *type, PyObject *args, PyObject *kw
         Py_INCREF(Py_None);
         self->resNames = Py_None;
         
-        //Py_INCREF(Py_None);
-        //self->moldenSections = Py_None;
     }
 
     return (PyObject *)self;
@@ -187,7 +180,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
     /* Set the enum symbol of the file format */
     if ( str_type != NULL ) {
         if      ( !strcmp(str_type,    "XYZ") ) self->type = XYZ;
-//        else if ( !strcmp(str_type, "MOLDEN") ) self->type = MOLDEN;
+        else if ( !strcmp(str_type, "MOLDEN") ) self->type = MOLDEN;
         else if ( !strcmp(str_type,    "GRO") ) self->type = GRO;
         else if ( !strcmp(str_type,    "XTC") ) self->type = XTC;
         else if ( !strcmp(str_type,  "GUESS") ) self->type = GUESS;
@@ -216,7 +209,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
             fclose(test);
 
             /* Perhaps it's Molden format? */
-//            if ( !strcmp(line, "[molden format]") ) self->type = MOLDEN;
+            if ( !strcmp(line, "[molden format]") ) self->type = MOLDEN;
 
             free(line);
 				line == NULL;
@@ -231,7 +224,9 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
     if (units == NULL) {
         switch(self->type) {
             case XYZ:
-            //case MOLDEN:
+				// For Molden format this is just preliminary; could be a.u.
+				// as well and will be determined during topology read
+            case MOLDEN:
                 self->units = ANGS;
                 break;
             case GRO:
@@ -297,7 +292,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
                     PyErr_SetFromErrno(PyExc_IOError);
                     return -1; }
                 break;
-//            case MOLDEN:
+            case MOLDEN:
             case XTC:
             default:
                 PyErr_SetString(PyExc_NotImplementedError,
@@ -317,13 +312,20 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
                     PyErr_SetFromErrno(PyExc_IOError);
                     return -1; }
                 break;
-/*            case MOLDEN:
+            case MOLDEN:
                 if ( (self->fd = fopen(filename, "r")) == NULL ) {
                     PyErr_SetFromErrno(PyExc_IOError);
                     return -1; }
-                Py_DECREF(self->moldenSections);
-                self->moldenSections = read_molden_sections(self->fd);
-                break;*/
+                if (read_molden_sections(self->fd) == -1) {
+                	PyErr_SetString(PyExc_SystemError, "Could not read Molden sections");
+					 	return -1;
+					}
+					 self->moldenStyle = get_molden_style(self);
+					 if (self->moldenStyle == MLUNK) {
+                	PyErr_SetString(PyExc_SystemError, "Molden style unknown");
+					 	return -1;
+					 }
+                break;
             case XTC:
 #ifdef HAVE_GROMACS
                 if( (self->xd = open_xtc(filename, "r")) == NULL) {
@@ -347,21 +349,21 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
             case XYZ:
                 if (read_topo_from_xyz(self) == -1) return -1;
                 rewind(self->fd);
-                self->filePosition1 = ftell(self->fd);
-                self->filePosition2 = self->filePosition1;
+                //self->filePosition1 = ftell(self->fd);
+                //self->filePosition2 = self->filePosition1;
                 break;
-            /*case MOLDEN:
+            case MOLDEN:
                 if (read_topo_from_molden(self) == -1) return -1;
                 rewind(self->fd);
                 // read_topo_from_molden sets file position accordingly 
-                self->filePosition1 = ftell(self->fd);
-                self->filePosition2 = self->filePosition1;
-                break;*/
+                //self->filePosition1 = ftell(self->fd);
+                //self->filePosition2 = self->filePosition1;
+                break;
             case GRO:
                 if (read_topo_from_gro(self) == -1) return -1;
                 rewind(self->fd);
-                self->filePosition1 = ftell(self->fd);
-                self->filePosition2 = self->filePosition1;
+                //self->filePosition1 = ftell(self->fd);
+                //self->filePosition2 = self->filePosition1;
                 break;
             case XTC:
 #ifdef HAVE_GROMACS
@@ -399,14 +401,14 @@ static PyObject *Trajectory_read(Trajectory *self) {
 
         case XYZ:
             py_result = read_frame_from_xyz(self);
-            self->filePosition1 = ftell(self->fd);
-            self->filePosition1 = self->filePosition2;
+            //self->filePosition1 = ftell(self->fd);
+            //self->filePosition1 = self->filePosition2;
             break;
 
         case GRO:
             py_result = read_frame_from_gro(self);
-            self->filePosition1 = ftell(self->fd);
-            self->filePosition1 = self->filePosition2;
+            //self->filePosition1 = ftell(self->fd);
+            //self->filePosition1 = self->filePosition2;
             break;
 
 /*        case MOLDEN:
@@ -802,23 +804,22 @@ static int read_topo_from_xyz(Trajectory *self) {
 
 
 
-/* Read MOLDEN file and get the sections present. Store offset to the    *
- * particular section too. Returns a python dictionary or NULL on error. */
+/* Read MOLDEN file and get the sections present. Store offset to the *
+ * particular section too. Returns number of sections parsed or -1 on *
+ * error. */
 
-/*PyObject* read_molden_sections(FILE *fd) {
+static int read_molden_sections(Trajectory *self) {
 
     long filepos;
     char *strptr, *line;
+	 size_t llen;
     char buffer[256];
-    int len;
-    PyObject *dict, *key, *val;
-
-    dict = PyDict_New();
+    int i, len, nsec = 0;
 
     rewind(fd);
 
     filepos = ftell(fd);
-    if ((line = readline(fd)) == NULL) return NULL;
+    if (getline(&line, &llen, fd) == -1) return -1;
     stripline(line);
     make_lowercase(line);
 
@@ -833,18 +834,18 @@ static int read_topo_from_xyz(Trajectory *self) {
             strncpy(buffer, line+1, len);
             buffer[len] = '\0';
 
-            // Put the name and position in list 
-            key = PyUnicode_FromString(buffer);
-            val = Py_BuildValue("i", filepos);
-            PyDict_SetItem(dict, key, val);
-            Py_DECREF(key);
-            Py_DECREF(val);
+				for (i = MLSEC_ATOMS; i <= MLSEC_FR_COORD; i++) {
+					if (!strcmp(buffer, self->moldenSect[i].name)) {
+						self->moldenSect[i].offset = filepos;
+						nsec += 1;
+						break;
+					}
+				}
 
         }
         
-        free(line);
         filepos = ftell(fd);
-        if ((line = readline(fd)) == NULL) return NULL;
+        if (readline(&line, &llen, fd) == -1) return -1;
         stripline(line);
         make_lowercase(line);
 
@@ -853,49 +854,50 @@ static int read_topo_from_xyz(Trajectory *self) {
 
     rewind(fd);
 
-    return dict;
-}*/
+    return nsec;
+}
 
 
 
-/*static int read_topo_from_molden(Trajectory *self) {
+static int read_topo_from_molden(Trajectory *self) {
 
-    char *line = NULL;
-    char *buffpos, *token;
-    char **line_store;
-    int i, nat;
-    int *anum;
-    long filepos;
+	char *line = NULL;
+	size_t llen;
+	char buffer[1000];
+	char *buffpos, *token;
+	int i, nat;
+	int *anum;
 
-    npy_intp dims[2];
-    PyObject *val;
-    PyObject *keyGeo, *keyAtom, *keyN, *keyConv;
+	npy_intp dims[2];
+	PyObject *val;
 
-    keyGeo = PyUnicode_FromString("geometries");
-    keyAtom = PyUnicode_FromString("atoms");
-    keyN = PyUnicode_FromString("n_geo");
-    keyConv = PyUnicode_FromString("geoconv");
+	// Make sure that the sections are done 
+	if (self->moldenStyle == MLUNK) {
+		PyErr_SetString(PyExc_RuntimeError, "Unidentified Molden style");
+		return -1;
+	}
 
-    // Make sure that the sections are done 
-    if (self->moldenSections == NULL) {
-        PyErr_SetString(PyExc_RuntimeError, "Molden sections have not been read");
-        return -1;
-    }
+	// Determine the style of this file 
+	switch(self->moldenStyle) {
 
-    // Determine the style of this file 
-    if (PyDict_Contains(self->moldenSections, keyGeo)) {
+	 	case MLGEOCONV:
 
-        filepos = PyLong_AsLong(PyDict_GetItem(self->moldenSections, keyGeo));
-        fseek(self->fd, filepos, SEEK_SET);
+        fseek(self->fd, self->moldenSect[MLSEC_GEOCONV].offset, SEEK_SET);
         if ((line = readline(self->fd)) == NULL) return -1;
-        free(line);
-        self->filePosition1 = ftell(self->fd);
-        self->moldenStyle = MLGEOMETRY;
+        stripline(line);
+        make_lowercase(line);
+			token = strstr(line, "zmat");
+			if (token != NULL ) {
+				PyErr_SetString(PyExc_RuntimeError, "Z-mat not supported");
+				return -1;
+			}
+        //self->filePosition1 = ftell(self->fd);
         read_topo_from_xyz(self);
+		  break;
 
-    } else if (PyDict_Contains(self->moldenSections, keyAtom)) {
-        filepos = PyLong_AsLong(PyDict_GetItem(self->moldenSections, keyAtom));
-        fseek(self->fd, filepos, SEEK_SET);
+	 	case MLATOMS:
+
+        fseek(self->fd, self->moldenSect[MLSEC_ATOMS].offset, SEEK_SET);
         if ((line = readline(self->fd)) == NULL) return -1;
         stripline(line);
         make_lowercase(line);
@@ -906,30 +908,16 @@ static int read_topo_from_xyz(Trajectory *self) {
         else {
             PyErr_SetString(PyExc_RuntimeError, "Unrecognized units");
             return -1; }
-        free(line);
-        self->filePosition1 = ftell(self->fd);
-        self->moldenStyle = MLATOMS;
-        // We don't know how many atoms are there, so we have to
-           store the lines. 
-        nat = 0;
-        line_store = (char**) malloc(10 * sizeof(char*));
-        if ( line_store == NULL ) {
-            PyErr_NoMemory();
-            return -1; }
-            if ((line = readline(self->fd)) == NULL) return -1;
-            while ( line[0] != '[' ) {
-                line_store[nat++] = line;
-                if ( nat % 10 == 0 ) {
-                    line_store = realloc(line_store, (nat + 10) * sizeof(char*));
-                    if( line_store == NULL ) {
-                        PyErr_NoMemory();
-                    return -1; }
-                }
-                if ( (line = readline(self->fd)) == NULL ) return -1;
-                stripline(line);
-            }
-            free(line);
 
+        self->filePosition1 = ftell(self->fd);
+        // We don't know how many atoms are there, so we have to store the lines. 
+        nat = 0;
+			while (getline(&line, &llen, self->fd) != -1) {
+   	   	stripline(line);
+				if (line[0] == '[') break;
+				nat += 1;
+			}
+			rewind(self->filePosition1);
         self->nAtoms = nat;
 
         // Get rid of Py_None in self->symbols 
@@ -943,9 +931,12 @@ static int read_topo_from_xyz(Trajectory *self) {
 
         // Loop over atoms 
         for ( i = 0; i < nat; i++ ) {
+				if (getline(&line, &llen, self->fd) != -1) {
+	            PyErr_SetFromErrno(PyExc_MemoryError);
+   	         return -1; }
 
-            buffpos = line_store[i];
-            token = strtok(buffpos, " \t");
+            strcpy(buffer, line);
+            token = strtok(buffer, " \t");
             val = Py_BuildValue("s", token);
             PyList_SetItem(self->symbols, i, val);
 
@@ -955,13 +946,7 @@ static int read_topo_from_xyz(Trajectory *self) {
             token = strtok(NULL, " \t");
             anum[i] = atoi(token);
 
-            // Get rid of the line. 
-            free(line_store[i]);
-
         }
-
-        // Free the stored line pointers. 
-        free(line_store);
 
         // Add atomic numbers to the dictionary 
         dims[0] = nat;
@@ -998,9 +983,10 @@ static int read_topo_from_xyz(Trajectory *self) {
     Py_DECREF(keyAtom);
     Py_DECREF(keyN);
     Py_DECREF(keyConv);
+    free(line);
 
     return 0;
-}*/
+}
 
 
 
@@ -1691,6 +1677,27 @@ static int write_frame_to_gro(Trajectory *self, PyObject *py_coords,
 		fprintf(self->fd, "%10.5f%10.5f%10.5f\n", 0.0, 0.0, 0.0);
 
 	return 0;
+}
+
+
+
+static MoldenStyle get_molden_style(Trajectory *self) {
+	int select = -1;
+
+	if (self->moldenSect[MLSEC_ATOMS][0] >= 0) {
+		select = MLATOMS;
+	} else if (self->moldenSect[MLSEC_GEOMETRIES][0] >= 0) {
+		if (select >= 0) // Mutually exclusive sections
+			return -1;
+		select = MLGEOCONV;
+	} else if (self->moldenSect[MLSEC_FR_COORD][0] >= 0) {
+		if (select >= 0) // Mutually exclusive sections
+			return -1;
+		select = MLFREQ;
+	}
+
+	// Nothing found
+	return -1;
 }
 
 
