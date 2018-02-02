@@ -33,6 +33,12 @@
 typedef enum __moldenStyle {
 	MLATOMS, MLGEOCONV, MLFREQ, MLUNK } MoldenStyle;
 
+typedef struct __moldenSection {
+		long offset;
+		char name[20];
+	} MoldenSection;
+#define MAX_MOLDEN_SECTIONS 50
+
 typedef struct {
 
 	PyObject_HEAD
@@ -61,16 +67,7 @@ typedef struct {
 	PyObject *masses; /* atomic Masses */
 
 	/* Sections in Molden file and offsets */
-	struct {
-		long offset;
-		char name[];
-	} moldenSect[] = {
-		{ -1, "atoms" },      // ATOMS
-		{ -1, "geoconv" },    // GEOCONV
-		{ -1, "geometries" }, // GEOMETRIES
-		{ -1, "freq" },       // FREQ
-		{ -1, "fr-coord" }    // FR-COORD
-	};
+	MoldenSection moldenSect[MAX_MOLDEN_SECTIONS];
 
 } Trajectory;
 
@@ -93,8 +90,8 @@ static PyObject *read_frame_from_xtc(Trajectory *self);
 #endif
 
 static int read_molden_sections(Trajectory *self);
-static MoldenStyle get_molden_style(Trajectory *self);
-//static int read_topo_from_molden(Trajectory *self);
+static int get_section_idx(Trajectory *self, const char name[]);
+static int read_topo_from_molden(Trajectory *self);
 //static PyObject *read_frame_from_molden_atoms(Trajectory *self);
 //static PyObject *read_frame_from_molden_geometries(Trajectory *self);
 

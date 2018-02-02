@@ -316,15 +316,14 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
                 if ( (self->fd = fopen(filename, "r")) == NULL ) {
                     PyErr_SetFromErrno(PyExc_IOError);
                     return -1; }
-                if (read_molden_sections(self->fd) == -1) {
+                if (read_molden_sections(self) == -1) {
                 	PyErr_SetString(PyExc_SystemError, "Could not read Molden sections");
 					 	return -1;
 					}
-					 self->moldenStyle = get_molden_style(self);
-					 if (self->moldenStyle == MLUNK) {
-                	PyErr_SetString(PyExc_SystemError, "Molden style unknown");
+					if (self->moldenStyle == MLUNK) {
+                		PyErr_SetString(PyExc_SystemError, "Molden style unknown");
 					 	return -1;
-					 }
+					}
                 break;
             case XTC:
 #ifdef HAVE_GROMACS
@@ -812,18 +811,22 @@ static int read_molden_sections(Trajectory *self) {
 
     long filepos;
     char *strptr, *line;
-	 size_t llen;
+	size_t llen;
     char buffer[256];
     int i, len, nsec = 0;
 
-    rewind(fd);
+	for (i = 0; i < MAX_MOLDEN_SECTIONS; i++) {
+		self->moldenSect[i].offset = -1;
+		strcpy(self->moldenSect[i].name, "");
+	}
 
-    filepos = ftell(fd);
-    if (getline(&line, &llen, fd) == -1) return -1;
-    stripline(line);
-    make_lowercase(line);
+    rewind(self->fd);
 
-    do {
+    filepos = ftell(self->fd);
+    while (getline(&line, &llen, self->fd) != -1) {
+
+	    stripline(line);
+    	make_lowercase(line);
 
         // Start of a section 
         if(line[0] == '[') {
@@ -834,29 +837,39 @@ static int read_molden_sections(Trajectory *self) {
             strncpy(buffer, line+1, len);
             buffer[len] = '\0';
 
-				for (i = MLSEC_ATOMS; i <= MLSEC_FR_COORD; i++) {
-					if (!strcmp(buffer, self->moldenSect[i].name)) {
-						self->moldenSect[i].offset = filepos;
-						nsec += 1;
-						break;
-					}
+			self->moldenSect[nsec].offset = filepos;
+			strcpy(self->moldenSect[nsec].name, buffer);
+
+			if (self->moldenStyle == MLUNK) {
+				if (!strcmp(buffer, "atoms")) {
+					self->moldenStyle = MLATOMS;
+				} else if (!strcmp(buffer, "geoconv")) {
+					self->moldenStyle = MLGEOCONV;
+				} else if (!strcmp(buffer, "freq")) {
+					self->moldenStyle = MLFREQ;
 				}
+			}
+			if (++nsec > MAX_MOLDEN_SECTIONS) return -1;
 
         }
         
-        filepos = ftell(fd);
-        if (readline(&line, &llen, fd) == -1) return -1;
-        stripline(line);
-        make_lowercase(line);
-
-    } while (line[0] != '\0');
+        filepos = ftell(self->fd);
+    }
     free(line);
 
-    rewind(fd);
+    rewind(self->fd);
 
     return nsec;
 }
 
+
+static int get_section_idx(Trajectory *self, const char name[]) {
+	int idx;
+
+	for (idx = 0; idx < MAX_MOLDEN_SECTIONS; idx++)
+		if (!strcmp(self->moldenSect[idx].name, name)) return idx;
+	return -1;
+}
 
 
 static int read_topo_from_molden(Trajectory *self) {
@@ -882,107 +895,116 @@ static int read_topo_from_molden(Trajectory *self) {
 
 	 	case MLGEOCONV:
 
-        fseek(self->fd, self->moldenSect[MLSEC_GEOCONV].offset, SEEK_SET);
-        if ((line = readline(self->fd)) == NULL) return -1;
-        stripline(line);
-        make_lowercase(line);
+			if ((i = get_section_idx(self, "geometries")) == -1) {
+				PyErr_SetString(PyExc_RuntimeError, "Could not find section");
+				return -1; }
+	        fseek(self->fd, self->moldenSect[i].offset, SEEK_SET);
+    	    if (getline(&line, &llen, self->fd) == -1) {
+        	    PyErr_SetFromErrno(PyExc_IOError);
+				return -1; }
+	        stripline(line);
+    	    make_lowercase(line);
 			token = strstr(line, "zmat");
 			if (token != NULL ) {
 				PyErr_SetString(PyExc_RuntimeError, "Z-mat not supported");
 				return -1;
 			}
-        //self->filePosition1 = ftell(self->fd);
-        read_topo_from_xyz(self);
-		  break;
+	        //self->filePosition1 = ftell(self->fd);
+    	    read_topo_from_xyz(self);
+			break;
 
 	 	case MLATOMS:
 
-        fseek(self->fd, self->moldenSect[MLSEC_ATOMS].offset, SEEK_SET);
-        if ((line = readline(self->fd)) == NULL) return -1;
-        stripline(line);
-        make_lowercase(line);
-        if ( !strcmp(line, "[atoms] angs") )
-            self->units = ANGS;
-        else if ( !strcmp(line, "[atoms] au") )
-            self->units = BOHR;
-        else {
-            PyErr_SetString(PyExc_RuntimeError, "Unrecognized units");
-            return -1; }
+			if ((i = get_section_idx(self, "atoms")) == -1) {
+				PyErr_SetString(PyExc_RuntimeError, "Could not find section");
+				return -1; }
+	        fseek(self->fd, self->moldenSect[i].offset, SEEK_SET);
+    	    if (getline(&line, &llen, self->fd) == -1) {
+        	    PyErr_SetFromErrno(PyExc_IOError);
+				return -1; }
+	        stripline(line);
+    	    make_lowercase(line);
+	        if ( !strcmp(line, "[atoms] angs") )
+    	        self->units = ANGS;
+	        else if ( !strcmp(line, "[atoms] au") )
+    	        self->units = BOHR;
+	        else {
+    	        PyErr_SetString(PyExc_RuntimeError, "Unrecognized units");
+        	    return -1; }
 
-        self->filePosition1 = ftell(self->fd);
-        // We don't know how many atoms are there, so we have to store the lines. 
-        nat = 0;
+	        self->filePosition1 = ftell(self->fd);
+    	    // We don't know how many atoms are there, so we have to store the lines. 
+	        nat = 0;
 			while (getline(&line, &llen, self->fd) != -1) {
-   	   	stripline(line);
+		   	   	stripline(line);
 				if (line[0] == '[') break;
 				nat += 1;
 			}
-			rewind(self->filePosition1);
-        self->nAtoms = nat;
+    		fseek(self->fd, self->filePosition1, SEEK_SET);
+	        self->nAtoms = nat;
 
-        // Get rid of Py_None in self->symbols 
-        Py_DECREF(self->symbols);
-        self->symbols = PyList_New(nat);
+	        // Get rid of Py_None in self->symbols 
+    	    Py_DECREF(self->symbols);
+        	self->symbols = PyList_New(nat);
 
-        anum = (int*) malloc(nat * sizeof(int));
-        if(anum == NULL) {
-            PyErr_SetFromErrno(PyExc_MemoryError);
-            return -1; }
+	        anum = (int*) malloc(nat * sizeof(int));
+    	    if(anum == NULL) {
+        	    PyErr_SetFromErrno(PyExc_MemoryError);
+	            return -1; }
 
-        // Loop over atoms 
-        for ( i = 0; i < nat; i++ ) {
-				if (getline(&line, &llen, self->fd) != -1) {
-	            PyErr_SetFromErrno(PyExc_MemoryError);
-   	         return -1; }
+	        // Loop over atoms 
+    	    for ( i = 0; i < nat; i++ ) {
+				if (getline(&line, &llen, self->fd) == -1) {
+		            PyErr_SetFromErrno(PyExc_IOError);
+   			        return -1; }
 
-            strcpy(buffer, line);
-            token = strtok(buffer, " \t");
-            val = Py_BuildValue("s", token);
-            PyList_SetItem(self->symbols, i, val);
+	            strcpy(buffer, line);
+    	        token = strtok(buffer, " \t");
+        	    val = Py_BuildValue("s", token);
+            	PyList_SetItem(self->symbols, i, val);
 
-            token = strtok(NULL, " \t");
-            // not used 
+	            token = strtok(NULL, " \t");
+    	        // not used 
 
-            token = strtok(NULL, " \t");
-            anum[i] = atoi(token);
+	            token = strtok(NULL, " \t");
+    	        anum[i] = atoi(token);
 
-        }
+        	}
 
-        // Add atomic numbers to the dictionary 
-        dims[0] = nat;
-        dims[1] = 1;
-        Py_DECREF(self->aNumbers);
-        self->aNumbers = PyArray_SimpleNewFromData(1, dims, NPY_INT, anum);
+	        // Add atomic numbers to the dictionary 
+    	    dims[0] = nat;
+        	dims[1] = 1;
+	        Py_DECREF(self->aNumbers);
+	        self->aNumbers = PyArray_SimpleNewFromData(1, dims, NPY_INT, anum);
+			break;
 
-    } else {
+	 	case MLFREQ:
 
-        PyErr_SetString(PyExc_RuntimeError, "geometry/atom section missing");
-        return -1; }
+			if ((i = get_section_idx(self, "freq")) == -1) {
+				PyErr_SetString(PyExc_RuntimeError, "Could not find section");
+				return -1; }
+	        fseek(self->fd, self->moldenSect[i].offset, SEEK_SET);
+
+	        self->filePosition1 = ftell(self->fd);
+    	    // We don't know how many atoms are there, so we have to store the lines. 
+	        nat = 0;
+			while (getline(&line, &llen, self->fd) != -1) {
+		   	   	stripline(line);
+				if (line[0] == '[') break;
+				nat += 1;
+			}
+    		fseek(self->fd, self->filePosition1, SEEK_SET);
+	        self->nAtoms = nat;
+
+    	    read_topo_from_xyz(self);
+			break;
+
+	    default:
+
+	        PyErr_SetString(PyExc_RuntimeError, "geometry/atom section missing");
+    	    return -1;
+	}
     
-    if (PyDict_Contains(self->moldenSections, keyN)) {
-        filepos = PyLong_AsLong(PyDict_GetItem(self->moldenSections, keyN));
-        fseek(self->fd, filepos, SEEK_SET);
-        if ((line = readline(self->fd)) == NULL) return -1;
-        free(line);
-        if ((line = readline(self->fd)) == NULL) return -1;
-        stripline(line);
-        self->nOfFrames = atoi(line);
-        free(line);
-    }
-
-    if (PyDict_Contains(self->moldenSections, keyConv)) {
-        filepos = PyLong_AsLong(PyDict_GetItem(self->moldenSections, keyConv));
-        fseek(self->fd, filepos, SEEK_SET);
-        if ((line = readline(self->fd)) == NULL) return -1;
-        free(line);
-        if ((line = readline(self->fd)) == NULL) return -1;
-        free(line);
-        self->filePosition2 = ftell(self->fd);
-    }
-    Py_DECREF(keyGeo);
-    Py_DECREF(keyAtom);
-    Py_DECREF(keyN);
-    Py_DECREF(keyConv);
     free(line);
 
     return 0;
@@ -1677,27 +1699,6 @@ static int write_frame_to_gro(Trajectory *self, PyObject *py_coords,
 		fprintf(self->fd, "%10.5f%10.5f%10.5f\n", 0.0, 0.0, 0.0);
 
 	return 0;
-}
-
-
-
-static MoldenStyle get_molden_style(Trajectory *self) {
-	int select = -1;
-
-	if (self->moldenSect[MLSEC_ATOMS][0] >= 0) {
-		select = MLATOMS;
-	} else if (self->moldenSect[MLSEC_GEOMETRIES][0] >= 0) {
-		if (select >= 0) // Mutually exclusive sections
-			return -1;
-		select = MLGEOCONV;
-	} else if (self->moldenSect[MLSEC_FR_COORD][0] >= 0) {
-		if (select >= 0) // Mutually exclusive sections
-			return -1;
-		select = MLFREQ;
-	}
-
-	// Nothing found
-	return -1;
 }
 
 
