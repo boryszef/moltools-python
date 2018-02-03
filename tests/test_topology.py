@@ -41,12 +41,10 @@ class TestTopology(unittest.TestCase):
 
         for k, v in self.systems.items():
             bonds = mdarray.findBonds(v['symbols'], v['crd'])
-            print(k, bonds)
             self.assertEqual(bonds, self.expected[k][0])
 
             bonds = mdarray.findBonds(v['symbols'],
                 v['crd'], format="atoms")
-            print(k, bonds)
             self.assertEqual(bonds, self.expected[k][1])
 
     def test_findMolecules(self):

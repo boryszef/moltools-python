@@ -201,9 +201,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
             if ( (test = fopen(filename, "r")) == NULL ) {
                 PyErr_SetFromErrno(PyExc_IOError);
                 return -1; }
-            if ( getline(&line, &buflen, test) == -1 ) {
-	        	PyErr_SetString(PyExc_IOError, "Empty file");
-                return -1; }
+            if ( _getline(&line, &buflen, test) == -1 ) return -1;
             make_lowercase(line);
             stripline(line);
             fclose(test);
@@ -391,36 +389,45 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 static PyObject *Trajectory_read(Trajectory *self) {
 
     PyObject *py_result = NULL;
+	char *buffer = NULL;
+	size_t buflen;
+	long offset;
+	int status;
 
     if (self->mode != 'r') {
         PyErr_SetString(PyExc_RuntimeError, "Trying to read in write mode");
         return NULL; }
 
+	// Before really reading a frame, make sure that there is something
+	// to read. Get the next line, see if it makes sense and then rewind.
+	//
+	if (self->type != XTC) {
+		offset = ftell(self->fd);
+	    status = getline(&buffer, &buflen, self->fd);
+		if (status == -1) Py_RETURN_NONE;
+		stripline(buffer);
+		if (self->type == MOLDEN && buffer[0] == '[') Py_RETURN_NONE;
+	    fseek(self->fd, offset, SEEK_SET);
+		free(buffer);
+		buffer = NULL;
+	}
+
     switch(self->type) {
 
         case XYZ:
+        case MOLDEN:
             py_result = read_frame_from_xyz(self);
-            //self->filePosition1 = ftell(self->fd);
-            //self->filePosition1 = self->filePosition2;
             break;
 
         case GRO:
             py_result = read_frame_from_gro(self);
-            //self->filePosition1 = ftell(self->fd);
-            //self->filePosition1 = self->filePosition2;
             break;
-
-/*        case MOLDEN:
-            if (self->moldenStyle == MLATOMS)
-                py_result = read_frame_from_molden_atoms(self);
-            else
-                py_result = read_frame_from_molden_geometries(self);
-            if (py_result == Py_None) return py_result;
-            break;*/
 
 #ifdef HAVE_GROMACS
         case XTC:
             py_result = read_frame_from_xtc(self);
+			// Checking for the EOF is done inside the function
+			if (py_result == Py_None) return py_result;
             break;
 #endif
 
@@ -429,7 +436,6 @@ static PyObject *Trajectory_read(Trajectory *self) {
     }
 
 	if (py_result == NULL) return NULL;
-    if (py_result == Py_None) return py_result;
     self->lastFrame += 1;
     return py_result;
 
@@ -736,15 +742,13 @@ static int read_topo_from_xyz(Trajectory *self) {
     PyObject *val;
 
     /* Read number of atoms */
-    if (getline(&buffer, &buflen, self->fd) == -1) {
-        return -1; }
+    if (_getline(&buffer, &buflen, self->fd) == -1) return -1;
     if (sscanf(buffer, "%d", &nofatoms) != 1 ) {
         PyErr_SetString(PyExc_IOError, "Incorrect atom number");
         return -1; }
 
     /* Read the comment line */
-    if (getline(&buffer, &buflen, self->fd) == -1) {
-        return -1; }
+    if (_getline(&buffer, &buflen, self->fd) == -1) return -1;
 
     /* Get rid of Py_None in self->symbols */
     Py_DECREF(self->symbols);
@@ -764,8 +768,7 @@ static int read_topo_from_xyz(Trajectory *self) {
     for(pos = 0; pos < nofatoms; pos++) {
 
         /* Get the whole line */
-        if(getline(&buffer, &buflen, self->fd) == -1) {
-            return -1; }
+        if(_getline(&buffer, &buflen, self->fd) == -1) return -1;
         buffer[strlen(buffer)-1] = '\0';
         buffpos = buffer;
 
@@ -919,9 +922,7 @@ static int read_topo_from_molden(Trajectory *self) {
 
         //self->filePosition1 = ftell(self->fd);
         // Read [section] to reach atoms
-	    if (getline(&line, &llen, self->fd) == -1) {
-   		    PyErr_SetFromErrno(PyExc_IOError);
-			return -1; }
+	    if (_getline(&line, &llen, self->fd) == -1) return -1;
 
         nat = 0;
 		while (getline(&line, &llen, self->fd) != -1) {
@@ -936,9 +937,7 @@ static int read_topo_from_molden(Trajectory *self) {
 
 	// Seek to section and read the atoms
     fseek(self->fd, offset, SEEK_SET);
-    if (getline(&line, &llen, self->fd) == -1) {
-   	    PyErr_SetFromErrno(PyExc_IOError);
-		return -1; }
+    if (_getline(&line, &llen, self->fd) == -1) return -1;
     stripline(line);
     make_lowercase(line);
 
@@ -980,9 +979,7 @@ static int read_topo_from_molden(Trajectory *self) {
 
 	        // Loop over atoms 
     	    for ( i = 0; i < nat; i++ ) {
-				if (getline(&line, &llen, self->fd) == -1) {
-		            PyErr_SetFromErrno(PyExc_IOError);
-   			        return -1; }
+				if (_getline(&line, &llen, self->fd) == -1) return -1;
 
 	            strcpy(buffer, line);
     	        token = strtok(buffer, " \t");
@@ -1038,14 +1035,12 @@ static int read_topo_from_gro(Trajectory *self) {
     PyObject *val;
 
     // Read the comment line 
-    if(getline(&buffer, &buflen, self->fd) == -1) {
-        return -1; }
+    if(_getline(&buffer, &buflen, self->fd) == -1) return -1;
     buffer[strlen(buffer)-1] = '\0';
     stripline(buffer);
 
     // Read number of atoms 
-    if( getline(&buffer, &buflen, self->fd) == -1) {
-        return -1; }
+    if (_getline(&buffer, &buflen, self->fd) == -1) return -1;
     if( sscanf(buffer, "%d", &nofatoms) != 1 ) {
         PyErr_SetString(PyExc_IOError, "Incorrect atom number");
         return -1; }
@@ -1067,8 +1062,7 @@ static int read_topo_from_gro(Trajectory *self) {
     for(pos = 0; pos < nofatoms; pos++) {
 
         // Get the whole line 
-        if(getline(&buffer, &buflen, self->fd) == -1) {
-            return -1; }
+        if (_getline(&buffer, &buflen, self->fd) == -1) return -1;
 
         // Read residue id 
         strncpy(symbuf, buffer, 5);
@@ -1109,9 +1103,10 @@ static int read_topo_from_gro(Trajectory *self) {
 
 
 
-/* This function is used by other readers, like    *
- * read_frame_from_molden_geometries for instance, *
- * so be careful with implementation.              */
+/* 
+ * WARNING: This function is used by other format than XYZ,
+ * like Molden for instance, so be careful with implementation.
+ */
 
 static PyObject *read_frame_from_xyz(Trajectory *self) {
 
@@ -1136,38 +1131,43 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
     /* Create the dictionary that will be returned */
     py_result = PyDict_New();
 
-    /* Read number of atoms */
-    if( getline(&buffer, &buflen, self->fd) == -1) {
-        /* Could this be the end of the file? */
-        free(buffer);
-        Py_DECREF(py_result);
-        Py_RETURN_NONE;
+	// Number of atoms and comment are present only in these
+	// types & flavours
+	if (self->type == XYZ ||
+		(self->type == MOLDEN && self->moldenStyle == MLGEOCONV)) {
+
+	    /* Read number of atoms */
+	    if (_getline(&buffer, &buflen, self->fd) == -1) {
+	        Py_DECREF(py_result);
+    	    return NULL;
+		}
+
+	    if (sscanf(buffer, "%d", &nat) != 1) {
+        	PyErr_SetFromErrno(PyExc_IOError);
+	        Py_DECREF(py_result);
+    	    return NULL;
+	    }
+
+	    if (nat != self->nAtoms) {
+    	    PyErr_SetString(PyExc_RuntimeError,
+				"Number of atoms different than expected");
+        	Py_DECREF(py_result);
+	        return NULL; }
+
+	    /* Read the comment line */
+    	if (_getline(&buffer, &buflen, self->fd) == -1) {
+	        Py_DECREF(py_result);
+    	    return NULL; }
+
+	    buffer[strlen(buffer)-1] = '\0';
+
+	    val = Py_BuildValue("s", buffer);
+    	key = PyUnicode_FromString("comment");
+	    PyDict_SetItem(py_result, key, val);
+    	Py_DECREF(key);
+	    Py_DECREF(val);
+
 	}
-
-    if (sscanf(buffer, "%d", &nat) != 1) {
-        /* Possibly end of file */
-        free(buffer);
-        Py_DECREF(py_result);
-        Py_RETURN_NONE;
-    }
-
-    if (nat != self->nAtoms) {
-        PyErr_SetString(PyExc_IOError, "Error reading number of atoms");
-        Py_DECREF(py_result);
-        return NULL; }
-
-    /* Read the comment line */
-    if (getline(&buffer, &buflen, self->fd) == -1) {
-        PyErr_SetFromErrno(PyExc_IOError);
-        Py_DECREF(py_result);
-        return NULL; }
-    buffer[strlen(buffer)-1] = '\0';
-
-    val = Py_BuildValue("s", buffer);
-    key = PyUnicode_FromString("comment");
-    PyDict_SetItem(py_result, key, val);
-    Py_DECREF(key);
-    Py_DECREF(val);
 
     /* Set-up the raw arrays for coordinates and extra data */
     xyz = (ARRAY_REAL*) malloc(3 * self->nAtoms * sizeof(ARRAY_REAL));
@@ -1186,15 +1186,20 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
     for(pos = 0; pos < self->nAtoms; pos++) {
 
         /* Get the whole line */
-        if (getline(&buffer, &buflen, self->fd) == -1) {
-            PyErr_SetFromErrno(PyExc_IOError);
-        Py_DECREF(py_result);
+        if (_getline(&buffer, &buflen, self->fd) == -1) {
+	        Py_DECREF(py_result);
             return NULL; }
         buffer[strlen(buffer)-1] = '\0';
         buffpos = buffer;
 
         /* Read symbol */
         token = strtok(buffpos, " \t");
+
+		// This style has two additional entries
+		if (self->type == MOLDEN && self->moldenStyle == MLATOMS) {
+	        token = strtok(buffpos, " \t");
+    	    token = strtok(buffpos, " \t");
+		}
 
         /* Read coordinates */
         if ( (token = strtok(NULL, " \t")) == NULL) {
@@ -1272,117 +1277,6 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
 
 
 
-/*static PyObject *read_frame_from_molden_atoms(Trajectory *self) {
-
-    char *line;
-    char *token, *buffpos;
-    int i;
-    ARRAY_REAL *xyz;
-    npy_intp dims[2];
-    PyObject *py_result, *key, *py_geom;
-
-    // Prepare dictionary 
-
-    py_result = PyDict_New();
-
-    xyz = (ARRAY_REAL*) malloc(3 * self->nAtoms * sizeof(ARRAY_REAL));
-    if(xyz == NULL) {
-        PyErr_SetFromErrno(PyExc_MemoryError);
-        return NULL; }
-
-    // Loop over the lines 
-    fseek(self->fd, self->filePosition1, SEEK_SET);
-    for (i = 0; i < self->nAtoms; i++ ) {
-
-        line = readline(self->fd);
-        stripline(line);
-
-        // If not a letter, then we have run out of frames 
-        if (!isalpha(line[0])) {
-            Py_DECREF(py_result);
-            free(xyz);
-            free(line);
-            Py_RETURN_NONE;
-        }
-
-        buffpos = line;
-        token = strtok(buffpos, " \t");
-
-        token = strtok(NULL, " \t");
-        // not used 
-
-        token = strtok(NULL, " \t");
-        // atomic number - not used here 
-
-        token = strtok(NULL, " \t");
-        xyz[3*i+0] = atof(token);
-
-        token = strtok(NULL, " \t");
-        xyz[3*i+1] = atof(token);
-
-        token = strtok(NULL, " \t");
-        xyz[3*i+2] = atof(token);
-
-        if (self->units == BOHR) {
-            xyz[3*i+0] *= BOHRTOANGS;
-            xyz[3*i+1] *= BOHRTOANGS;
-            xyz[3*i+2] *= BOHRTOANGS;
-        }
-
-        free(line);
-
-    }
-    self->filePosition1 = ftell(self->fd);
-
-    // Add coordinates to the dictionary 
-    dims[0] = self->nAtoms;
-    dims[1] = 3;
-    py_geom = PyArray_SimpleNewFromData(2, dims, NPY_ARRAY_REAL, xyz);
-    key = PyUnicode_FromString("coordinates");
-    PyDict_SetItem(py_result, key, py_geom);
-    Py_DECREF(key);
-    Py_DECREF(py_geom);
-
-    return py_result;
-
-}*/
-
-
-
-
-/*static PyObject *read_frame_from_molden_geometries(Trajectory *self) {
-
-    char *line;
-    PyObject *py_result, *key, *val;
-
-    fseek(self->fd, self->filePosition1, SEEK_SET);
-    py_result = read_frame_from_xyz(self);
-    if (py_result == Py_None) {
-        return py_result;
-    }
-    self->filePosition1 = ftell(self->fd);
-
-    // If filePosition2 == -1, the GEOCONV section was not found 
-    if (self->filePosition2 >= 0) {
-        fseek(self->fd, self->filePosition2, SEEK_SET);
-        line = readline(self->fd);
-        stripline(line);
-        key = PyUnicode_FromString("energy");
-        val = Py_BuildValue("d", atof(line));
-        PyDict_SetItem(py_result, key, val);
-        Py_DECREF(key);
-        Py_DECREF(val);
-        free(line);
-        self->filePosition2 = ftell(self->fd);
-    }
-
-    return py_result;
-
-}*/
-
-
-
-
 static PyObject *read_frame_from_gro(Trajectory *self) {
 
     int nat, pos;
@@ -1400,15 +1294,11 @@ static PyObject *read_frame_from_gro(Trajectory *self) {
     py_result = PyDict_New();
 
     // Read the comment line 
-    if(getline(&buffer, &buflen, self->fd) == -1) {
-        PyErr_SetFromErrno(PyExc_IOError);
-        return NULL; }
+    if (_getline(&buffer, &buflen, self->fd) == -1) return NULL;
 
     if (buffer[0] == '\0') {
-        // EOF reached 
         free(buffer);
-        Py_RETURN_NONE;
-    }
+        return NULL; }
     
     buffer[strlen(buffer)-1] = '\0';
     stripline(buffer);
@@ -1420,11 +1310,10 @@ static PyObject *read_frame_from_gro(Trajectory *self) {
     Py_DECREF(val);
 
     // Read number of atoms 
-    if( getline(&buffer, &buflen, self->fd) == -1) {
-        PyErr_SetFromErrno(PyExc_IOError);
-        return NULL; }
+    if (_getline(&buffer, &buflen, self->fd) == -1) return NULL;
     if( sscanf(buffer, "%d", &nat) != 1 || nat != self->nAtoms) {
         PyErr_SetString(PyExc_IOError, "Incorrect atom number");
+        free(buffer);
         return NULL; }
 
     // Set-up the raw arrays for coordinates and charges 
@@ -1445,9 +1334,7 @@ static PyObject *read_frame_from_gro(Trajectory *self) {
     for(pos = 0; pos < self->nAtoms; pos++) {
 
         // Get the whole line 
-        if(getline(&buffer, &buflen, self->fd) == -1) {
-            PyErr_SetFromErrno(PyExc_IOError);
-            return NULL; }
+        if (_getline(&buffer, &buflen, self->fd) == -1) return NULL;
         if(pos == 0 && strlen(buffer) > 50) velocities_present = 1;
 
         // Read coordinates 
@@ -1464,9 +1351,7 @@ static PyObject *read_frame_from_gro(Trajectory *self) {
     }
 
     // Get the cell line 
-    if(getline(&buffer, &buflen, self->fd) == -1) {
-        PyErr_SetFromErrno(PyExc_IOError);
-        return NULL; }
+    if (_getline(&buffer, &buflen, self->fd) == -1) return NULL;
     box[3*0 + 0] = strPartFloat(buffer,  0, 10) * 10.0;
     box[3*1 + 1] = strPartFloat(buffer, 10, 10) * 10.0;
     box[3*2 + 2] = strPartFloat(buffer, 20, 10) * 10.0;

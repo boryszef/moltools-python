@@ -224,3 +224,20 @@ ARRAY_REAL getFromArray2D(PyObject *arr, int type, int i, int j) {
 			break;
 	}
 }
+
+/*
+ * This is a wrapper around getline that raises Exception and
+ * frees the buffer when getline returns -1 (most likely at the end of file).
+ * To be used in situations when program expects the line to be present.
+ */
+ssize_t _getline(char **lineptr, size_t *n, FILE *stream) {
+	ssize_t stat;
+
+	stat = getline(lineptr, n, stream);
+	if (stat == -1) {
+		PyErr_SetString(PyExc_IOError,
+			"getline returned -1, probably end of file");
+		free(*lineptr);
+	}
+	return stat;
+}
