@@ -810,7 +810,8 @@ static int read_topo_from_xyz(Trajectory *self) {
 static int read_molden_sections(Trajectory *self) {
 
     long filepos;
-    char *strptr, *line;
+    char *strptr;
+	char *line = NULL;
 	size_t llen;
     char buffer[256];
     int i, len, nsec = 0;
@@ -858,6 +859,7 @@ static int read_molden_sections(Trajectory *self) {
     free(line);
 
     rewind(self->fd);
+	printf("Molden style = %d\n", self->moldenStyle);
 
     return nsec;
 }
@@ -877,9 +879,11 @@ static int read_topo_from_molden(Trajectory *self) {
 	char *line = NULL;
 	size_t llen;
 	char buffer[1000];
-	char *buffpos, *token;
-	int i, nat;
+	char *token;
+	int i, nat, idx;
 	int *anum;
+	long offset;
+    extern Element element_table[];
 
 	npy_intp dims[2];
 	PyObject *val;
@@ -890,20 +894,58 @@ static int read_topo_from_molden(Trajectory *self) {
 		return -1;
 	}
 
-	// Determine the style of this file 
+	// Find the right section with coordinates
+	switch(self->moldenStyle) {
+	 	case MLGEOCONV:
+			idx = get_section_idx(self, "geometries");
+			break;
+		case MLATOMS:
+			idx = get_section_idx(self, "atoms");
+			break;
+		case MLFREQ:
+			idx = get_section_idx(self, "fr-coord");
+			break;
+	}
+	if (idx == -1) {
+		PyErr_SetString(PyExc_RuntimeError, "Could not find section");
+		return -1; }
+	offset = self->moldenSect[idx].offset;
+
+    // In these styles we don't know how many atoms are there,
+    // so we have to count atoms first.
+	if (self->moldenStyle == MLATOMS || self->moldenStyle == MLFREQ) {
+
+        fseek(self->fd, offset, SEEK_SET);
+
+        //self->filePosition1 = ftell(self->fd);
+        // Read [section] to reach atoms
+	    if (getline(&line, &llen, self->fd) == -1) {
+   		    PyErr_SetFromErrno(PyExc_IOError);
+			return -1; }
+
+        nat = 0;
+		while (getline(&line, &llen, self->fd) != -1) {
+	   	   	stripline(line);
+			if (line[0] == '[') break;
+			nat += 1;
+		}
+   		//fseek(self->fd, self->filePosition1, SEEK_SET);
+        self->nAtoms = nat;
+	printf("nat = %d\n", nat);
+	}
+
+	// Seek to section and read the atoms
+    fseek(self->fd, offset, SEEK_SET);
+    if (getline(&line, &llen, self->fd) == -1) {
+   	    PyErr_SetFromErrno(PyExc_IOError);
+		return -1; }
+    stripline(line);
+    make_lowercase(line);
+
 	switch(self->moldenStyle) {
 
 	 	case MLGEOCONV:
 
-			if ((i = get_section_idx(self, "geometries")) == -1) {
-				PyErr_SetString(PyExc_RuntimeError, "Could not find section");
-				return -1; }
-	        fseek(self->fd, self->moldenSect[i].offset, SEEK_SET);
-    	    if (getline(&line, &llen, self->fd) == -1) {
-        	    PyErr_SetFromErrno(PyExc_IOError);
-				return -1; }
-	        stripline(line);
-    	    make_lowercase(line);
 			token = strstr(line, "zmat");
 			if (token != NULL ) {
 				PyErr_SetString(PyExc_RuntimeError, "Z-mat not supported");
@@ -915,15 +957,6 @@ static int read_topo_from_molden(Trajectory *self) {
 
 	 	case MLATOMS:
 
-			if ((i = get_section_idx(self, "atoms")) == -1) {
-				PyErr_SetString(PyExc_RuntimeError, "Could not find section");
-				return -1; }
-	        fseek(self->fd, self->moldenSect[i].offset, SEEK_SET);
-    	    if (getline(&line, &llen, self->fd) == -1) {
-        	    PyErr_SetFromErrno(PyExc_IOError);
-				return -1; }
-	        stripline(line);
-    	    make_lowercase(line);
 	        if ( !strcmp(line, "[atoms] angs") )
     	        self->units = ANGS;
 	        else if ( !strcmp(line, "[atoms] au") )
@@ -932,16 +965,9 @@ static int read_topo_from_molden(Trajectory *self) {
     	        PyErr_SetString(PyExc_RuntimeError, "Unrecognized units");
         	    return -1; }
 
-	        self->filePosition1 = ftell(self->fd);
-    	    // We don't know how many atoms are there, so we have to store the lines. 
-	        nat = 0;
-			while (getline(&line, &llen, self->fd) != -1) {
-		   	   	stripline(line);
-				if (line[0] == '[') break;
-				nat += 1;
-			}
-    		fseek(self->fd, self->filePosition1, SEEK_SET);
-	        self->nAtoms = nat;
+			// No 'break' here! The next part is common for MLATOMS and MLFREQ
+
+	 	case MLFREQ:
 
 	        // Get rid of Py_None in self->symbols 
     	    Py_DECREF(self->symbols);
@@ -963,11 +989,19 @@ static int read_topo_from_molden(Trajectory *self) {
         	    val = Py_BuildValue("s", token);
             	PyList_SetItem(self->symbols, i, val);
 
-	            token = strtok(NULL, " \t");
-    	        // not used 
+   		        // not used 
+				if (self->moldenStyle == MLATOMS)
+		            token = strtok(NULL, " \t");
 
-	            token = strtok(NULL, " \t");
-    	        anum[i] = atoi(token);
+				if (self->moldenStyle == MLATOMS) {
+		            token = strtok(NULL, " \t");
+	    	        anum[i] = atoi(token);
+				} else {
+			        idx = getElementIndexBySymbol(token);
+					if (idx == -1) anum[i] = -1;
+					else
+				        anum[i] = element_table[idx].number;
+				}
 
         	}
 
@@ -976,27 +1010,6 @@ static int read_topo_from_molden(Trajectory *self) {
         	dims[1] = 1;
 	        Py_DECREF(self->aNumbers);
 	        self->aNumbers = PyArray_SimpleNewFromData(1, dims, NPY_INT, anum);
-			break;
-
-	 	case MLFREQ:
-
-			if ((i = get_section_idx(self, "freq")) == -1) {
-				PyErr_SetString(PyExc_RuntimeError, "Could not find section");
-				return -1; }
-	        fseek(self->fd, self->moldenSect[i].offset, SEEK_SET);
-
-	        self->filePosition1 = ftell(self->fd);
-    	    // We don't know how many atoms are there, so we have to store the lines. 
-	        nat = 0;
-			while (getline(&line, &llen, self->fd) != -1) {
-		   	   	stripline(line);
-				if (line[0] == '[') break;
-				nat += 1;
-			}
-    		fseek(self->fd, self->filePosition1, SEEK_SET);
-	        self->nAtoms = nat;
-
-    	    read_topo_from_xyz(self);
 			break;
 
 	    default:
