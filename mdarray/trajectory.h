@@ -31,7 +31,7 @@
 #include "mdarray.h"
 
 typedef enum __moldenStyle {
-	MLATOMS, MLGEOCONV, MLFREQ, MLUNK } MoldenStyle;
+	MLATOMS, MLGEOM, MLFREQ, MLUNK } MoldenStyle;
 
 typedef struct __moldenSection {
 		long offset;

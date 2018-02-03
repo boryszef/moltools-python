@@ -1,6 +1,5 @@
 Things that need to be done:
 
-* Add masses of artificial elements?
 * Let the user read topology and coordinates from separate files - or
   maybe not?
 * In read_topo_from_xyz, capitalize symbols before getting atomic number

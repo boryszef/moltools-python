@@ -351,8 +351,7 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
                 break;
             case MOLDEN:
                 if (read_topo_from_molden(self) == -1) return -1;
-                rewind(self->fd);
-                // read_topo_from_molden sets file position accordingly 
+                fseek(self->fd, self->filePosition1, SEEK_SET);
                 //self->filePosition1 = ftell(self->fd);
                 //self->filePosition2 = self->filePosition1;
                 break;
@@ -414,8 +413,8 @@ static PyObject *Trajectory_read(Trajectory *self) {
 
     switch(self->type) {
 
-        case XYZ:
         case MOLDEN:
+        case XYZ:
             py_result = read_frame_from_xyz(self);
             break;
 
@@ -844,14 +843,20 @@ static int read_molden_sections(Trajectory *self) {
 			self->moldenSect[nsec].offset = filepos;
 			strcpy(self->moldenSect[nsec].name, buffer);
 
-			if (self->moldenStyle == MLUNK) {
-				if (!strcmp(buffer, "atoms")) {
-					self->moldenStyle = MLATOMS;
-				} else if (!strcmp(buffer, "geoconv")) {
-					self->moldenStyle = MLGEOCONV;
-				} else if (!strcmp(buffer, "freq")) {
+			// Out of three sections that provide coordinates,
+			// if more than one is present, the order of preference
+			// should be:
+			// GEOMETRIES, ATOMS, FR-COORD
+			if (!strcmp(buffer, "geometries")) {
+				self->moldenStyle = MLGEOM;
+			} else if (self->moldenStyle != MLGEOM && !strcmp(buffer, "atoms")) {
+				self->moldenStyle = MLATOMS;
+			} else if (self->moldenStyle != MLGEOM &&
+			           self->moldenStyle != MLATOMS && !strcmp(buffer, "fr-coord")) {
 					self->moldenStyle = MLFREQ;
-				}
+					// Set default units for this style - maybe not perfect
+					// place to do it...
+    	        	self->units = BOHR;
 			}
 			if (++nsec > MAX_MOLDEN_SECTIONS) return -1;
 
@@ -862,7 +867,6 @@ static int read_molden_sections(Trajectory *self) {
     free(line);
 
     rewind(self->fd);
-	printf("Molden style = %d\n", self->moldenStyle);
 
     return nsec;
 }
@@ -899,7 +903,7 @@ static int read_topo_from_molden(Trajectory *self) {
 
 	// Find the right section with coordinates
 	switch(self->moldenStyle) {
-	 	case MLGEOCONV:
+	 	case MLGEOM:
 			idx = get_section_idx(self, "geometries");
 			break;
 		case MLATOMS:
@@ -932,7 +936,6 @@ static int read_topo_from_molden(Trajectory *self) {
 		}
    		//fseek(self->fd, self->filePosition1, SEEK_SET);
         self->nAtoms = nat;
-	printf("nat = %d\n", nat);
 	}
 
 	// Seek to section and read the atoms
@@ -941,9 +944,12 @@ static int read_topo_from_molden(Trajectory *self) {
     stripline(line);
     make_lowercase(line);
 
+	// Store the position where coordinates begin
+    self->filePosition1 = ftell(self->fd);
+
 	switch(self->moldenStyle) {
 
-	 	case MLGEOCONV:
+	 	case MLGEOM:
 
 			token = strstr(line, "zmat");
 			if (token != NULL ) {
@@ -1134,7 +1140,7 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
 	// Number of atoms and comment are present only in these
 	// types & flavours
 	if (self->type == XYZ ||
-		(self->type == MOLDEN && self->moldenStyle == MLGEOCONV)) {
+		(self->type == MOLDEN && self->moldenStyle == MLGEOM)) {
 
 	    /* Read number of atoms */
 	    if (_getline(&buffer, &buflen, self->fd) == -1) {
@@ -1197,8 +1203,8 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
 
 		// This style has two additional entries
 		if (self->type == MOLDEN && self->moldenStyle == MLATOMS) {
-	        token = strtok(buffpos, " \t");
-    	    token = strtok(buffpos, " \t");
+	        token = strtok(NULL, " \t");
+    	    token = strtok(NULL, " \t");
 		}
 
         /* Read coordinates */
