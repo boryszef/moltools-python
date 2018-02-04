@@ -1,6 +1,6 @@
 /***************************************************************************
 
-    moltools-python
+    mdarray
 
     Python module for manipulation of atomic coordinates
     Copyright (C) 2012, Borys Szefczyk

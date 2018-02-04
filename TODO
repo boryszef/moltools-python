@@ -12,7 +12,6 @@ Things that need to be done:
   - center of mass; it's a common operation, not very expensive in C,
   but more expensive in Numpy.
 * Stuff to possibly port from previous version:
-  Molden format support,
   distanceMatrix (with PBC),
   quaternion fit,
   findHBonds,
