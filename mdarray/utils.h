@@ -44,6 +44,7 @@ int getElementIndexBySymbol(const char *symbol);
 //double distanceSquare(double p[3], double q[3]);
 //void copyPoint(double dst[3], double src[3]);
 ARRAY_REAL getFromArray2D(PyObject *arr, int type, int i, int j);
+ARRAY_REAL getFromVector(PyObject *vec, int type, int pos);
 ssize_t _getline(char **lineptr, size_t *n, FILE *stream);
 
 #endif /* __UTILS_H__ */

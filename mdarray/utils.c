@@ -225,6 +225,43 @@ ARRAY_REAL getFromArray2D(PyObject *arr, int type, int i, int j) {
 	}
 }
 
+
+
+/* Get number from vector, respecting the type         *
+ * and casting to ARRAY_REAL type used by the module. */
+ARRAY_REAL getFromVector(PyObject *vec, int type, int pos) {
+	npy_half hx;
+	float fx;
+	double dx;
+	long double lx;
+	void *ptr;
+
+	ptr = PyArray_GETPTR1((PyArrayObject*)vec, pos);
+	switch(type) {
+		case NPY_HALF:
+			hx = *( (npy_half*) ptr);
+			fx = npy_half_to_float(hx);
+			return (ARRAY_REAL)fx;
+			break;
+		case NPY_FLOAT:
+			fx = *( (float*) ptr);
+			return (ARRAY_REAL)fx;
+			break;
+		case NPY_DOUBLE:
+			dx = *( (double*) ptr);
+			return (ARRAY_REAL)dx;
+			break;
+		case NPY_LONGDOUBLE:
+			lx = *( (long double*) ptr);
+			return (ARRAY_REAL)lx;
+			break;
+		default:
+			PyErr_SetString(PyExc_ValueError, "Incorrect type of coordinate array");
+			return NAN;
+			break;
+	}
+}
+
 /*
  * This is a wrapper around getline that raises Exception and
  * frees the buffer when getline returns -1 (most likely at the end of file).

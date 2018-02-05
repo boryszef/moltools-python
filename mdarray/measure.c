@@ -25,19 +25,40 @@
 
 
 
+// Wrap atoms in a contiguous array of size n
+//
 void wrapPBC(ARRAY_REAL *xyz, const int n, const ARRAY_REAL box[3]) {
-	int idx, i, sign, nt;
+	int idx, i, nt;
+	ARRAY_REAL v;
 
 	for (idx = 0; idx < n*3; idx += 3) {
 		for (i = 0; i < 3; i++, idx++) {
-			if (xyz[idx] < 0) sign = -1;
-			else sign = 1;
-			nt = (int)(xyz[idx]/box[i]);
+			v = xyz[idx];
+			nt = (int)(v/box[i]);
 			xyz[idx] -= box[i]*nt;
-			if (sign < 0) xyz[idx] += box[i];
+			if (v < 0) xyz[idx] += box[i];
 		}
 	}
 }
+
+
+
+// Wrap a single atom
+//
+void wrapPBCsingle(ARRAY_REAL *xyz, const ARRAY_REAL box[3]) {
+	int i, nt;
+	ARRAY_REAL v;
+
+	for (i = 0; i < 3; i++) {
+		v = xyz[i];
+		nt = (int)(v/box[i]);
+		xyz[i] -= box[i]*nt;
+		if (v < 0) xyz[i] += box[i];
+	}
+}
+
+
+
 
 /*int lookupStringInList(char *needle, char **stack, int len) {
 	int i;

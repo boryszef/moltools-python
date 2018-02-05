@@ -385,17 +385,42 @@ static int Trajectory_init(Trajectory *self, PyObject *args, PyObject *kwds) {
 
 
 
-static PyObject *Trajectory_read(Trajectory *self) {
+static PyObject *Trajectory_read(Trajectory *self, PyObject *args,
+							PyObject *kwds) {
 
     PyObject *py_result = NULL;
 	char *buffer = NULL;
 	size_t buflen;
 	long offset;
 	int status;
+	int doWrap = 0;
+	ARRAY_REAL box[3];
+	int type;
+
+	PyObject *py_box = NULL;
+
+    static char *kwlist[] = {
+        "wrap", "box", NULL };
 
     if (self->mode != 'r') {
         PyErr_SetString(PyExc_RuntimeError, "Trying to read in write mode");
         return NULL; }
+
+    if(!PyArg_ParseTupleAndKeywords(args, kwds, "|pO!", kwlist,
+			doWrap, &PyArray_Type, &py_box))
+        return NULL;
+
+	if(doWrap) {
+		// If the box is specified - use it to wrap atoms.
+		// Otherwise apply information from filetypes that
+		// support PBC or fail in other cases.
+		if (py_box != NULL) {
+			type = PyArray_TYPE((PyArrayObject*)py_box);
+			box[0] = (ARRAY_REAL)getFromVector(py_box, type, 0);
+			box[1] = (ARRAY_REAL)getFromVector(py_box, type, 1);
+			box[2] = (ARRAY_REAL)getFromVector(py_box, type, 2);
+		}
+	}
 
 	// Before really reading a frame, make sure that there is something
 	// to read. Get the next line, see if it makes sense and then rewind.
