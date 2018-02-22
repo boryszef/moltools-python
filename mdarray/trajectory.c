@@ -25,6 +25,7 @@
 #include "trajectory.h"
 #include "utils.h"
 #include "periodic_table.h"
+#include "measure.h"
 
 
 
@@ -395,6 +396,7 @@ static PyObject *Trajectory_read(Trajectory *self, PyObject *args,
 	int status;
 	int doWrap = 0;
 	ARRAY_REAL box[3];
+	ARRAY_REAL *boxptr = NULL;
 	int type;
 
 	PyObject *py_box = NULL;
@@ -419,6 +421,14 @@ static PyObject *Trajectory_read(Trajectory *self, PyObject *args,
 			box[0] = (ARRAY_REAL)getFromVector(py_box, type, 0);
 			box[1] = (ARRAY_REAL)getFromVector(py_box, type, 1);
 			box[2] = (ARRAY_REAL)getFromVector(py_box, type, 2);
+			boxptr = box;
+		}
+
+		if (py_box != NULL && self->type == XTC) {
+			PyErr_WarnEx(PyExc_RuntimeWarning,
+				"File type is XTC and box was supplied;"
+				" it will be ignored and box from the file"
+				" will be used.", 1);
 		}
 	}
 
@@ -440,16 +450,16 @@ static PyObject *Trajectory_read(Trajectory *self, PyObject *args,
 
         case MOLDEN:
         case XYZ:
-            py_result = read_frame_from_xyz(self);
+            py_result = read_frame_from_xyz(self, doWrap, boxptr);
             break;
 
         case GRO:
-            py_result = read_frame_from_gro(self);
+            py_result = read_frame_from_gro(self, doWrap, boxptr);
             break;
 
 #ifdef HAVE_GROMACS
         case XTC:
-            py_result = read_frame_from_xtc(self);
+            py_result = read_frame_from_xtc(self, doWrap, boxptr);
 			// Checking for the EOF is done inside the function
 			if (py_result == Py_None) return py_result;
             break;
@@ -1139,7 +1149,7 @@ static int read_topo_from_gro(Trajectory *self) {
  * like Molden for instance, so be careful with implementation.
  */
 
-static PyObject *read_frame_from_xyz(Trajectory *self) {
+static PyObject *read_frame_from_xyz(Trajectory *self, int doWrap, ARRAY_REAL *box) {
 
     PyObject *py_result, *py_coord;
 	PyObject *py_extra;
@@ -1153,6 +1163,12 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
 	ARRAY_REAL *extra;
 	unsigned short int extra_present;
     npy_intp dims[2];
+
+	if (doWrap && box == NULL) {
+   	    PyErr_SetString(PyExc_RuntimeError,
+				"Requested PBC, but box information is missing");
+       	Py_DECREF(py_result);
+        return NULL; }
 
     switch(self->units) {
         case ANGS: factor = 1.0; break;
@@ -1249,6 +1265,8 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
             return NULL; }
         xyz[3*pos + 2] = atof(token) * factor;
 
+		if (doWrap) wrapPBCsingle(xyz + (3*pos), box);
+
         // Read charge, if present
         token = strtok(NULL, " \t");
         if ( token != NULL ) {
@@ -1308,13 +1326,14 @@ static PyObject *read_frame_from_xyz(Trajectory *self) {
 
 
 
-static PyObject *read_frame_from_gro(Trajectory *self) {
+static PyObject *read_frame_from_gro(Trajectory *self, int doWrap, ARRAY_REAL *newbox) {
 
     int nat, pos;
     char *buffer = NULL;
 	size_t buflen;
     ARRAY_REAL *xyz, *vel, *box;
     unsigned short int velocities_present = 0;
+	ARRAY_REAL wrapBox[3];
 
     npy_intp dims[2];
 
@@ -1400,6 +1419,17 @@ static PyObject *read_frame_from_gro(Trajectory *self) {
     else                     box[3*2 + 1] = 0.0;
     free(buffer);
 
+	if (doWrap) {
+		if (newbox == NULL) {
+			wrapBox[0] = box[0];
+			wrapBox[1] = box[4];
+			wrapBox[2] = box[8];
+			wrapPBC(xyz, self->nAtoms, wrapBox);
+		} else {
+			wrapPBC(xyz, self->nAtoms, newbox);
+		}
+	}
+
     // Add coordinates to the dictionary 
     dims[0] = self->nAtoms;
     dims[1] = 3;
@@ -1440,11 +1470,12 @@ static PyObject *read_frame_from_gro(Trajectory *self) {
 
 
 #ifdef HAVE_GROMACS
-static PyObject *read_frame_from_xtc(Trajectory *self) {
+static PyObject *read_frame_from_xtc(Trajectory *self, int doWrap, ARRAY_REAL *newbox) {
 
     PyObject *py_dict, *val, *key, *py_coord, *py_box;
     matrix mbox;
     ARRAY_REAL *box, *xyz;
+    ARRAY_REAL wrapBox[3];
     float time, prec;
     npy_intp dims[2];
     gmx_bool bOK;
@@ -1491,6 +1522,18 @@ static PyObject *read_frame_from_xtc(Trajectory *self) {
     box[7] = (ARRAY_REAL)mbox[2][1];
     box[8] = (ARRAY_REAL)mbox[2][2];
 
+	if (doWrap) {
+		if (newbox == NULL) {
+			wrapBox[0] = box[0];
+			wrapBox[1] = box[4];
+			wrapBox[2] = box[8];
+		} else {
+			wrapBox[0] = newbox[0];
+			wrapBox[1] = newbox[1];
+			wrapBox[2] = newbox[2];
+		}
+	}
+
     dims[0] = 3;
     dims[1] = 3;
     py_box = PyArray_SimpleNewFromData(2, dims, NPY_ARRAY_REAL, (ARRAY_REAL*) box);
@@ -1510,6 +1553,7 @@ static PyObject *read_frame_from_xtc(Trajectory *self) {
         xyz[i*3    ] = (ARRAY_REAL)(self->xtcCoord[i][0] * 10.0);
         xyz[i*3 + 1] = (ARRAY_REAL)(self->xtcCoord[i][1] * 10.0);
         xyz[i*3 + 2] = (ARRAY_REAL)(self->xtcCoord[i][2] * 10.0);
+		wrapPBCsingle(xyz + (i*3), wrapBox);
     }
 
     /* Add coordinates to the dictionary */

@@ -79,14 +79,14 @@ typedef struct {
 
 static int read_topo_from_xyz(Trajectory *self);
 static int read_topo_from_gro(Trajectory *self);
-static PyObject *read_frame_from_xyz(Trajectory *self);
+static PyObject *read_frame_from_xyz(Trajectory *self, int doWrap, ARRAY_REAL *box);
 static int write_frame_to_xyz(Trajectory *self, PyObject *py_coords, char *comment);
 
-static PyObject *read_frame_from_gro(Trajectory *self);
+static PyObject *read_frame_from_gro(Trajectory *self, int doWrap, ARRAY_REAL *box);
 static int write_frame_to_gro(Trajectory *self, PyObject *py_coords,
 				PyObject *py_vel, PyObject *py_box, char *comment);
 #ifdef HAVE_GROMACS
-static PyObject *read_frame_from_xtc(Trajectory *self);
+static PyObject *read_frame_from_xtc(Trajectory *self, int doWrap, ARRAY_REAL *box);
 #endif
 
 static int read_molden_sections(Trajectory *self);

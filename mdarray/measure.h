@@ -33,6 +33,8 @@
 
 
 
+void wrapPBC(ARRAY_REAL *xyz, const int n, const ARRAY_REAL box[3]);
+void wrapPBCsingle(ARRAY_REAL *xyz, const ARRAY_REAL box[3]);
 //PyObject *findHBonds(PyObject *self, PyObject *args, PyObject *kwds);
 //PyObject *measureAngleCosine(PyObject *self, PyObject *args, PyObject *kwds);
 //PyObject *distanceMatrix(PyObject *self, PyObject *args, PyObject *kwds);
