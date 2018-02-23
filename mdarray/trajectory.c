@@ -409,7 +409,7 @@ static PyObject *Trajectory_read(Trajectory *self, PyObject *args,
         return NULL; }
 
     if(!PyArg_ParseTupleAndKeywords(args, kwds, "|pO!", kwlist,
-			doWrap, &PyArray_Type, &py_box))
+			&doWrap, &PyArray_Type, &py_box))
         return NULL;
 
 	if(doWrap) {
@@ -424,12 +424,11 @@ static PyObject *Trajectory_read(Trajectory *self, PyObject *args,
 			boxptr = box;
 		}
 
-		if (py_box != NULL && self->type == XTC) {
-			PyErr_WarnEx(PyExc_RuntimeWarning,
-				"File type is XTC and box was supplied;"
-				" it will be ignored and box from the file"
-				" will be used.", 1);
-		}
+		//if (py_box != NULL && self->type == XTC) {
+		//	PyErr_WarnEx(PyExc_RuntimeWarning,
+		//		"File type is XTC and box was supplied;"
+		//		" PBC box from the file will be ignored.", 1);
+		//}
 	}
 
 	// Before really reading a frame, make sure that there is something
@@ -1512,15 +1511,15 @@ static PyObject *read_frame_from_xtc(Trajectory *self, int doWrap, ARRAY_REAL *n
         return NULL; }
 
     /* Only orthogonal boxes; implement other later */
-    box[0] = (ARRAY_REAL)mbox[0][0];
-    box[1] = (ARRAY_REAL)mbox[0][1];
-    box[2] = (ARRAY_REAL)mbox[0][2];
-    box[3] = (ARRAY_REAL)mbox[1][0];
-    box[4] = (ARRAY_REAL)mbox[1][1];
-    box[5] = (ARRAY_REAL)mbox[1][2];
-    box[6] = (ARRAY_REAL)mbox[2][0];
-    box[7] = (ARRAY_REAL)mbox[2][1];
-    box[8] = (ARRAY_REAL)mbox[2][2];
+    box[0] = (ARRAY_REAL)mbox[0][0] * 10;
+    box[1] = (ARRAY_REAL)mbox[0][1] * 10;
+    box[2] = (ARRAY_REAL)mbox[0][2] * 10;
+    box[3] = (ARRAY_REAL)mbox[1][0] * 10;
+    box[4] = (ARRAY_REAL)mbox[1][1] * 10;
+    box[5] = (ARRAY_REAL)mbox[1][2] * 10;
+    box[6] = (ARRAY_REAL)mbox[2][0] * 10;
+    box[7] = (ARRAY_REAL)mbox[2][1] * 10;
+    box[8] = (ARRAY_REAL)mbox[2][2] * 10;
 
 	if (doWrap) {
 		if (newbox == NULL) {

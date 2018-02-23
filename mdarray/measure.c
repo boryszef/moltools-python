@@ -31,7 +31,7 @@ void wrapPBC(ARRAY_REAL *xyz, const int n, const ARRAY_REAL box[3]) {
 	int idx, i, nt;
 	ARRAY_REAL v;
 
-	for (idx = 0; idx < n*3; idx += 3) {
+	for (idx = 0; idx < n*3; ) {
 		for (i = 0; i < 3; i++, idx++) {
 			v = xyz[idx];
 			nt = (int)(v/box[i]);

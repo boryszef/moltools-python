@@ -36,7 +36,7 @@ class TestTrajectoryXTC(unittest.TestCase):
         self.assertAlmostEqual(crd[-1,2], last[2], places=3)
         self.assertEqual(frame['step'], 0)
         self.assertAlmostEqual(frame['time'], 0.0000, places=3)
-        box = [3.5091, 3.4575, 3.7084]
+        box = [35.091, 34.575, 37.084]
         self.assertAlmostEqual(frame['box'][0,0], box[0], places=3)
         self.assertAlmostEqual(frame['box'][1,1], box[1], places=3)
         self.assertAlmostEqual(frame['box'][2,2], box[2], places=3)
